@@ -13,7 +13,7 @@ import { useAuth } from '../../auth/authContext.tsx';
 import { dbStore } from '../../db/inMemoryStore.ts';
 
 export const UserSessionMenu: React.FC = () => {
-  const { session, logout, switchBranch } = useAuth();
+  const { session, logout, switchBranch, quickLoginAs } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!session) return null;
@@ -89,6 +89,75 @@ export const UserSessionMenu: React.FC = () => {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Simular como otro rol / Comprobar vista de usuario */}
+          <div className="pt-2 border-t border-slate-100">
+            <div className="text-[11px] font-bold text-slate-700 mb-1.5 flex items-center gap-1">
+              <Key className="h-3 w-3 text-teal-600" />
+              <span>Simular vista de otro rol:</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={async () => {
+                  await quickLoginAs('SUPER_ADMIN');
+                  setIsOpen(false);
+                }}
+                className={`px-2 py-1.5 rounded-lg text-[11px] font-medium text-left border transition-colors ${
+                  session.role === 'SUPER_ADMIN'
+                    ? 'bg-purple-100 text-purple-900 border-purple-300 font-bold'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                👑 Super Admin
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await quickLoginAs('ODONTOLOGO');
+                  setIsOpen(false);
+                }}
+                className={`px-2 py-1.5 rounded-lg text-[11px] font-medium text-left border transition-colors ${
+                  session.role === 'ODONTOLOGO'
+                    ? 'bg-teal-100 text-teal-900 border-teal-300 font-bold'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                🦷 Odontólogo
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await quickLoginAs('RECEPCION');
+                  setIsOpen(false);
+                }}
+                className={`px-2 py-1.5 rounded-lg text-[11px] font-medium text-left border transition-colors ${
+                  session.role === 'RECEPCION'
+                    ? 'bg-blue-100 text-blue-900 border-blue-300 font-bold'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                📋 Recepción
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await quickLoginAs('CAJA');
+                  setIsOpen(false);
+                }}
+                className={`px-2 py-1.5 rounded-lg text-[11px] font-medium text-left border transition-colors ${
+                  session.role === 'CAJA'
+                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300 font-bold'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                💵 Cajero
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">
+              Prueba cómo cambia la barra superior según los permisos.
+            </p>
           </div>
 
           {/* Token Security status */}

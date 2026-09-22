@@ -295,7 +295,7 @@ export function generateInitialSeedData(): SeedDataResult {
 
   // 5. Servicios Catálogo
   const services = STANDARD_SERVICES.map((s, idx) => ({
-    id: `44444444-4444-4444-8444-44444444400${idx + 1}`.slice(0, 36),
+    id: `44444444-4444-4444-8444-444444444${String(idx + 1).padStart(3, '0')}`,
     organizationId: orgId,
     category: s.category,
     code: s.code,

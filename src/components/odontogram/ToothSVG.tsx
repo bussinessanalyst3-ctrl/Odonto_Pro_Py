@@ -56,7 +56,7 @@ export const ToothSVG: React.FC<ToothSVGProps> = ({
     if (item && item.colorCode) {
       return item.colorCode;
     }
-    return '#F8FAFC'; // slate-50 default clean tooth surface
+    return `url(#enamel-${toothNumber}-${surfaceName})`; // Enamel shine gradient
   };
 
   const handlePolygonClick = (e: React.MouseEvent, surfaceName: string) => {
@@ -77,71 +77,100 @@ export const ToothSVG: React.FC<ToothSVGProps> = ({
   return (
     <div
       onClick={() => onSelectTooth(toothNumber)}
-      className={`relative flex flex-col items-center p-1 rounded-xl transition-all cursor-pointer group ${
+      className={`relative flex flex-col items-center p-1.5 rounded-2xl transition-all cursor-pointer group ${
         isSelected
-          ? 'bg-teal-50 ring-2 ring-teal-600 shadow-xs'
-          : 'hover:bg-slate-100/80'
+          ? 'bg-teal-50/80 ring-2 ring-teal-500 shadow-sm shadow-teal-500/20 scale-105'
+          : 'hover:bg-slate-100/70 hover:shadow-xs'
       }`}
       title={`Pieza FDI ${toothNumber} - Click para ver o editar`}
     >
       {/* Number Badge */}
       <span
-        className={`text-[11px] font-bold tracking-tight mb-1 transition-colors ${
+        className={`text-[11px] font-bold tracking-tight mb-1 transition-all ${
           isSelected
-            ? 'text-teal-800 font-extrabold scale-110'
+            ? 'text-teal-800 font-extrabold scale-110 drop-shadow-xs'
             : isAbsent
             ? 'text-slate-400 line-through'
-            : 'text-slate-700 group-hover:text-teal-700'
+            : 'text-slate-600 group-hover:text-teal-700'
         }`}
       >
         {toothNumber}
       </span>
 
-      {/* SVG Canvas for single tooth */}
+      {/* SVG Canvas for single tooth with enamel finish */}
       <div className="relative w-11 h-11">
         <svg
           viewBox="0 0 100 100"
           className={`w-full h-full drop-shadow-xs transition-transform ${
-            isAbsent ? 'opacity-40' : 'opacity-100'
-          } ${isCrown ? 'ring-2 ring-amber-400 rounded-full' : ''}`}
+            isAbsent ? 'opacity-35' : 'opacity-100'
+          } ${isCrown ? 'ring-2 ring-amber-400 rounded-lg' : ''}`}
         >
+          {/* Enamel Gradients Definitions */}
+          <defs>
+            <linearGradient id={`enamel-${toothNumber}-${topSurfaceName}`} x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="100%" stopColor="#F1F5F9" />
+            </linearGradient>
+            <linearGradient id={`enamel-${toothNumber}-${bottomSurfaceName}`} x1="0%" y1="100%" x2="0%" y2="0%">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="100%" stopColor="#F1F5F9" />
+            </linearGradient>
+            <linearGradient id={`enamel-${toothNumber}-${leftSurfaceName}`} x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="100%" stopColor="#F1F5F9" />
+            </linearGradient>
+            <linearGradient id={`enamel-${toothNumber}-${rightSurfaceName}`} x1="100%" y1="0%" x2="0%" y2="0%">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="100%" stopColor="#F1F5F9" />
+            </linearGradient>
+            <radialGradient id={`enamel-${toothNumber}-OCLUSAL`} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#FFFFFF" />
+              <stop offset="85%" stopColor="#F8FAFC" />
+              <stop offset="100%" stopColor="#E2E8F0" />
+            </radialGradient>
+          </defs>
+
           {/* Top Surface */}
           <polygon
-            points="0,0 100,0 75,25 25,25"
+            points="2,2 98,2 75,25 25,25"
             fill={getColor(topSurfaceName)}
             stroke="#94A3B8"
-            strokeWidth="2.5"
-            className="transition-colors hover:brightness-90"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            className="transition-colors hover:brightness-95"
             onClick={(e) => handlePolygonClick(e, topSurfaceName)}
           />
 
           {/* Bottom Surface */}
           <polygon
-            points="25,75 75,75 100,100 0,100"
+            points="25,75 75,75 98,98 2,98"
             fill={getColor(bottomSurfaceName)}
             stroke="#94A3B8"
-            strokeWidth="2.5"
-            className="transition-colors hover:brightness-90"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            className="transition-colors hover:brightness-95"
             onClick={(e) => handlePolygonClick(e, bottomSurfaceName)}
           />
 
           {/* Left Surface */}
           <polygon
-            points="0,0 25,25 25,75 0,100"
+            points="2,2 25,25 25,75 2,98"
             fill={getColor(leftSurfaceName)}
             stroke="#94A3B8"
-            strokeWidth="2.5"
-            className="transition-colors hover:brightness-90"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            className="transition-colors hover:brightness-95"
             onClick={(e) => handlePolygonClick(e, leftSurfaceName)}
           />
 
           {/* Right Surface */}
           <polygon
-            points="100,0 100,100 75,75 75,25"
+            points="98,2 98,98 75,75 75,25"
             fill={getColor(rightSurfaceName)}
             stroke="#94A3B8"
-            strokeWidth="2.5"
-            className="transition-colors hover:brightness-90"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            className="transition-colors hover:brightness-95"
             onClick={(e) => handlePolygonClick(e, rightSurfaceName)}
           />
 
@@ -150,8 +179,9 @@ export const ToothSVG: React.FC<ToothSVGProps> = ({
             points="25,25 75,25 75,75 25,75"
             fill={getColor('OCLUSAL')}
             stroke="#94A3B8"
-            strokeWidth="2.5"
-            className="transition-colors hover:brightness-90"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            className="transition-colors hover:brightness-95"
             onClick={(e) => handlePolygonClick(e, 'OCLUSAL')}
           />
 
