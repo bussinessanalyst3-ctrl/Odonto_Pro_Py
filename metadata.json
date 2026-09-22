@@ -1,0 +1,6 @@
+{
+  "name": "Sistema Odontológico Paraguay",
+  "description": "Sistema web de gestión clínica odontológica multi-sucursal y multi-tenant adaptado a Paraguay.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
