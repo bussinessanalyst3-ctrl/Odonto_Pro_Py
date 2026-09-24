@@ -1,9 +1,13 @@
-export type UserRole =
+export type SystemBaseRole =
   | 'SUPER_ADMIN'
   | 'ADMIN_SUCURSAL'
+  | 'SUPERVISOR'
+  | 'VENDEDOR'
   | 'ODONTOLOGO'
   | 'RECEPCION'
   | 'CAJA';
+
+export type UserRole = SystemBaseRole | string;
 
 export interface UserSession {
   userId: string;

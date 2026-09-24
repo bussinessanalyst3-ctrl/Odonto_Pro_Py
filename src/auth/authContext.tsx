@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserSession, UserRole, AuthCredentials, LoginResult } from './types.ts';
 import { authService, DEMO_CREDENTIALS } from './authService.ts';
+import { dbStore } from '../db/inMemoryStore.ts';
 
 interface AuthContextType {
   session: UserSession | null;
@@ -121,11 +122,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const quickLoginAs = async (role: UserRole) => {
     const creds = DEMO_CREDENTIALS.find((d) => d.role === role);
-    if (!creds) return;
-    await login({
-      email: creds.email,
-      password: creds.password,
-    });
+    if (creds) {
+      await login({
+        email: creds.email,
+        password: creds.password,
+      });
+      return;
+    }
+
+    // Si es un rol personalizado o nuevo, buscar usuario con dicho rol o crear sesión temporal con ese rol
+    const snapshot = dbStore.getSnapshot();
+    const userWithRole = snapshot.users.find((u) => u.roleId === role);
+    const roleObj = dbStore.getRoles().find((r) => r.id === role);
+
+    const targetUser = userWithRole || snapshot.users[0];
+    const org = snapshot.organization;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+
+    const customSession: UserSession = {
+      userId: targetUser.id,
+      organizationId: org.id,
+      organizationName: org.name,
+      organizationTaxId: org.taxId,
+      role: role as any,
+      roleName: roleObj ? roleObj.name : role,
+      firstName: userWithRole ? userWithRole.firstName : (role === 'VENDEDOR' ? 'Marcos' : role === 'SUPERVISOR' ? 'Lic. Valeria' : targetUser.firstName),
+      lastName: userWithRole ? userWithRole.lastName : (role === 'VENDEDOR' ? 'Giménez' : role === 'SUPERVISOR' ? 'Villalba' : targetUser.lastName),
+      email: userWithRole ? userWithRole.email : `${role.toLowerCase()}@odontosol.com.py`,
+      phone: targetUser.phone,
+      professionalLicense: role === 'ODONTOLOGO' ? targetUser.professionalLicense : null,
+      specialty: roleObj ? roleObj.name : 'Personal Especializado',
+      allowedBranchIds: snapshot.branches.map((b) => b.id),
+      currentBranchId: snapshot.branches[0]?.id || '',
+      sessionToken: `sess_${crypto.randomUUID().replace(/-/g, '')}`,
+      issuedAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      cookieConfig: {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: true,
+        maxAgeSeconds: 8 * 3600,
+      },
+    };
+
+    setSession(customSession);
+    try {
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(customSession));
+    } catch (e) {}
   };
 
   return (

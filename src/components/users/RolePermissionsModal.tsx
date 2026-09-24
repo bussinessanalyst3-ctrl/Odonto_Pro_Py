@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, ShieldCheck, Check, Lock, AlertTriangle, FileText } from 'lucide-react';
-import { BASE_ROLES } from '../../db/seeds/paraguay-catalogs.ts';
+import { dbStore } from '../../db/inMemoryStore.ts';
 
 interface RolePermissionsModalProps {
   isOpen: boolean;
@@ -11,43 +11,46 @@ const PERMISSIONS = [
   {
     module: 'Historia Clínica & Odontograma (FDI)',
     actions: [
-      { name: 'Ver historial clínico y evolución', roles: ['SUPER_ADMIN', 'ODONTOLOGO'] },
+      { name: 'Ver historial clínico y evolución', roles: ['SUPER_ADMIN', 'SUPERVISOR', 'ODONTOLOGO'] },
       { name: 'Editar odontograma y planes de tratamiento', roles: ['SUPER_ADMIN', 'ODONTOLOGO'] },
       { name: 'Emitir recetas médicas con registro MSPBS', roles: ['ODONTOLOGO'] },
-      { name: 'Ver antecedentes y alertas médicas (Anamnesis)', roles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION'] },
+      { name: 'Ver antecedentes y alertas médicas (Anamnesis)', roles: ['SUPER_ADMIN', 'SUPERVISOR', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION'] },
     ],
   },
   {
     module: 'Agendamiento & Turnos',
     actions: [
-      { name: 'Ver calendario y agenda general', roles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION'] },
-      { name: 'Crear, reprogramar o cancelar turnos', roles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'RECEPCION'] },
+      { name: 'Ver calendario y agenda general', roles: ['SUPER_ADMIN', 'SUPERVISOR', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'VENDEDOR'] },
+      { name: 'Crear, reprogramar o cancelar turnos', roles: ['SUPER_ADMIN', 'SUPERVISOR', 'ADMIN_SUCURSAL', 'RECEPCION', 'VENDEDOR'] },
       { name: 'Bloquear horarios propios del profesional', roles: ['ODONTOLOGO'] },
       { name: 'Confirmar asistencia y sala de espera', roles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'RECEPCION'] },
     ],
   },
   {
-    module: 'Caja, Facturación & Cobros (PYG)',
+    module: 'Ventas, Presupuestos & Caja (PYG)',
     actions: [
-      { name: 'Apertura y cierre de caja chica', roles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'CAJA'] },
-      { name: 'Registrar cobros (Efectivo, SIPAP, QR Bancard)', roles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'CAJA'] },
-      { name: 'Emisión de recibos y facturas legales', roles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'CAJA'] },
-      { name: 'Ver balances financieros consolidados', roles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL'] },
+      { name: 'Cotizar y emitir presupuestos dentales', roles: ['SUPER_ADMIN', 'SUPERVISOR', 'ADMIN_SUCURSAL', 'VENDEDOR', 'ODONTOLOGO', 'RECEPCION'] },
+      { name: 'Apertura y cierre de caja chica', roles: ['SUPER_ADMIN', 'SUPERVISOR', 'ADMIN_SUCURSAL', 'CAJA'] },
+      { name: 'Registrar cobros (Efectivo, SIPAP, QR Bancard)', roles: ['SUPER_ADMIN', 'SUPERVISOR', 'ADMIN_SUCURSAL', 'CAJA'] },
+      { name: 'Emisión de recibos y facturas legales', roles: ['SUPER_ADMIN', 'SUPERVISOR', 'ADMIN_SUCURSAL', 'CAJA'] },
+      { name: 'Ver balances financieros consolidados', roles: ['SUPER_ADMIN', 'SUPERVISOR', 'ADMIN_SUCURSAL'] },
     ],
   },
   {
     module: 'Configuración & Auditoría',
     actions: [
       { name: 'Gestión de clínicas y sucursales', roles: ['SUPER_ADMIN'] },
-      { name: 'Alta, baja y asignación de usuarios', roles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL'] },
-      { name: 'Bitácora inmutable de auditoría forense', roles: ['SUPER_ADMIN'] },
-      { name: 'Configuración de catálogo y precios', roles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL'] },
+      { name: 'Alta, baja y asignación de usuarios', roles: ['SUPER_ADMIN', 'SUPERVISOR', 'ADMIN_SUCURSAL'] },
+      { name: 'Autoridad para crear y modificar Roles', roles: ['SUPER_ADMIN'] },
+      { name: 'Bitácora inmutable de auditoría forense', roles: ['SUPER_ADMIN', 'SUPERVISOR'] },
+      { name: 'Configuración de catálogo y precios', roles: ['SUPER_ADMIN', 'SUPERVISOR', 'ADMIN_SUCURSAL'] },
     ],
   },
 ];
 
 export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
+  const roles = dbStore.getRoles();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
@@ -78,11 +81,11 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
         {/* Content */}
         <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
           {/* Roles summary */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            {BASE_ROLES.map((r) => (
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+            {roles.map((r: any) => (
               <div key={r.id} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/70">
                 <div className="text-xs font-bold text-slate-900 truncate">{r.name}</div>
-                <div className="text-[10px] font-mono text-teal-700 font-semibold">{r.id}</div>
+                <div className="text-[10px] font-mono text-teal-700 font-semibold truncate">{r.id}</div>
               </div>
             ))}
           </div>
@@ -104,8 +107,8 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
                       <span className="text-xs font-medium text-slate-800">{act.name}</span>
 
                       <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-                        {BASE_ROLES.map((r) => {
-                          const hasAccess = act.roles.includes(r.id);
+                        {roles.map((r: any) => {
+                          const hasAccess = act.roles.includes(r.id) || (r.allowedNavTabs && r.allowedNavTabs.includes('dashboard') && r.id === 'SUPER_ADMIN');
                           return (
                             <span
                               key={r.id}

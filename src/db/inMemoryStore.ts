@@ -503,6 +503,126 @@ class DatabaseStore {
     return user;
   }
 
+  public getRoles() {
+    return this.data.roles;
+  }
+
+  public addRole(roleData: {
+    id: string;
+    name: string;
+    description: string;
+    allowedNavTabs?: string[];
+  }) {
+    const roleId = roleData.id.toUpperCase().trim().replace(/[^A-Z0-9_]/g, '_');
+    const existing = this.data.roles.find((r) => r.id === roleId);
+    if (existing) {
+      throw new Error(`Ya existe un rol con el código identificador ${roleId}`);
+    }
+
+    const newRole = {
+      id: roleId,
+      name: roleData.name.trim(),
+      description: roleData.description.trim(),
+      isSystem: false,
+      allowedNavTabs: roleData.allowedNavTabs || ['dashboard', 'appointments', 'patients'],
+      createdAt: new Date(),
+    };
+
+    this.data.roles.push(newRole);
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: null,
+      userId: this.data.users[0]?.id || null,
+      action: 'CREATE',
+      entity: 'ROLE',
+      entityId: roleId,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Web Admin',
+      oldValues: null,
+      newValues: newRole,
+      description: `Creación de nuevo rol institucional: "${newRole.name}" (${newRole.id}) con ${newRole.allowedNavTabs.length} módulos habilitados`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return newRole;
+  }
+
+  public updateRole(
+    roleId: string,
+    updates: {
+      name?: string;
+      description?: string;
+      allowedNavTabs?: string[];
+    }
+  ) {
+    const idx = this.data.roles.findIndex((r) => r.id === roleId);
+    if (idx === -1) return null;
+
+    const old = { ...this.data.roles[idx] };
+    this.data.roles[idx] = {
+      ...this.data.roles[idx],
+      name: updates.name !== undefined ? updates.name.trim() : this.data.roles[idx].name,
+      description: updates.description !== undefined ? updates.description.trim() : this.data.roles[idx].description,
+      allowedNavTabs: updates.allowedNavTabs || this.data.roles[idx].allowedNavTabs || [],
+    };
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: null,
+      userId: this.data.users[0]?.id || null,
+      action: 'UPDATE',
+      entity: 'ROLE',
+      entityId: roleId,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Web Admin',
+      oldValues: old,
+      newValues: updates,
+      description: `Actualización de permisos y configuración para rol ${this.data.roles[idx].name} (${roleId})`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return this.data.roles[idx];
+  }
+
+  public deleteRole(roleId: string) {
+    const role = this.data.roles.find((r) => r.id === roleId);
+    if (!role) return false;
+    if (role.isSystem) {
+      throw new Error(`El rol base de sistema ${role.name} está protegido y no puede ser eliminado.`);
+    }
+
+    const assignedUsers = this.data.users.filter((u) => u.roleId === roleId);
+    if (assignedUsers.length > 0) {
+      throw new Error(`No se puede eliminar el rol ${role.name} porque hay ${assignedUsers.length} usuario(s) asignados.`);
+    }
+
+    this.data.roles = this.data.roles.filter((r) => r.id !== roleId);
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: null,
+      userId: this.data.users[0]?.id || null,
+      action: 'DELETE',
+      entity: 'ROLE',
+      entityId: roleId,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Web Admin',
+      oldValues: role,
+      newValues: null,
+      description: `Eliminación de rol personalizado: ${role.name} (${roleId})`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return true;
+  }
+
   public resetUserPassword(userId: string) {
     const user = this.data.users.find((u) => u.id === userId);
     if (!user) return null;

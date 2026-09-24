@@ -24,6 +24,7 @@ import { AuditLogsView } from './components/audit/AuditLogsView.tsx';
 import { SecurityHardeningView } from './components/security/SecurityHardeningView.tsx';
 import { AutomatedTestingView } from './components/testing/AutomatedTestingView.tsx';
 import { ProductionDeploymentView } from './components/production/ProductionDeploymentView.tsx';
+import { dbStore } from './db/inMemoryStore.ts';
 import { ShieldAlert, ArrowRight } from 'lucide-react';
 
 function MainApplication() {
@@ -45,14 +46,27 @@ function MainApplication() {
   // Redireccionar automáticamente cuando el usuario cambia de rol
   useEffect(() => {
     if (!session) return;
+    const roleObj = dbStore.getRoles().find((r) => r.id === session.role);
     const currentNavItem = ALL_NAV_ITEMS.find((item) => item.id === activeTab);
-    const isAllowed = currentNavItem ? currentNavItem.allowedRoles.includes(session.role) : false;
+
+    let isAllowed = false;
+    if (session.role === 'SUPER_ADMIN') {
+      isAllowed = true;
+    } else if (roleObj?.allowedNavTabs) {
+      isAllowed = roleObj.allowedNavTabs.includes(activeTab);
+    } else if (currentNavItem) {
+      isAllowed = currentNavItem.allowedRoles.includes(session.role);
+    }
 
     if (!isAllowed) {
       // Buscar la primera pestaña permitida para su rol
-      const firstAllowed = ALL_NAV_ITEMS.find((item) => item.allowedRoles.includes(session.role));
-      if (firstAllowed) {
-        setActiveTab(firstAllowed.id);
+      if (roleObj?.allowedNavTabs && roleObj.allowedNavTabs.length > 0) {
+        setActiveTab(roleObj.allowedNavTabs[0] as TabType);
+      } else {
+        const firstAllowed = ALL_NAV_ITEMS.find((item) => item.allowedRoles.includes(session.role));
+        if (firstAllowed) {
+          setActiveTab(firstAllowed.id);
+        }
       }
     }
   }, [session?.role]);
@@ -74,8 +88,15 @@ function MainApplication() {
   };
 
   // Verificar si la pestaña actual está autorizada para este rol
+  const roleObj = dbStore.getRoles().find((r) => r.id === session?.role);
   const currentItem = ALL_NAV_ITEMS.find((item) => item.id === activeTab);
-  const isAuthorized = session?.role === 'SUPER_ADMIN' || (currentItem ? currentItem.allowedRoles.includes(session?.role || 'SUPER_ADMIN') : true);
+  const isAuthorized =
+    session?.role === 'SUPER_ADMIN' ||
+    (roleObj?.allowedNavTabs
+      ? roleObj.allowedNavTabs.includes(activeTab)
+      : currentItem
+      ? currentItem.allowedRoles.includes(session?.role || 'SUPER_ADMIN')
+      : true);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex">

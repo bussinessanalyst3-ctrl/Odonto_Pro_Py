@@ -115,6 +115,34 @@ export const UserSessionMenu: React.FC = () => {
               <button
                 type="button"
                 onClick={async () => {
+                  await quickLoginAs('SUPERVISOR');
+                  setIsOpen(false);
+                }}
+                className={`px-2 py-1.5 rounded-lg text-[11px] font-medium text-left border transition-colors ${
+                  session.role === 'SUPERVISOR'
+                    ? 'bg-amber-100 text-amber-900 border-amber-300 font-bold'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                🛡️ Supervisor
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await quickLoginAs('VENDEDOR');
+                  setIsOpen(false);
+                }}
+                className={`px-2 py-1.5 rounded-lg text-[11px] font-medium text-left border transition-colors ${
+                  session.role === 'VENDEDOR'
+                    ? 'bg-orange-100 text-orange-900 border-orange-300 font-bold'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                🏷️ Vendedor
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
                   await quickLoginAs('ODONTOLOGO');
                   setIsOpen(false);
                 }}

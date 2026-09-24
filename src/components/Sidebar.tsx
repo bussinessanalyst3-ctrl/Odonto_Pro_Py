@@ -68,6 +68,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const org = dbStore.getActiveOrganization();
   const userRole: UserRole = session?.role || 'SUPER_ADMIN';
 
+  // Obtener rol actual y permisos dinámicos
+  const currentRoleObj = dbStore.getRoles().find((r) => r.id === userRole);
+
   // Secciones colapsables del Sidebar
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
     engineering: true, // colapsado por defecto
@@ -253,9 +256,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin">
           {navGroups.map((group) => {
             // Filtrar ítems permitidos para este rol
-            const allowedItems = group.items.filter((item) =>
-              item.allowedRoles.includes(userRole)
-            );
+            const allowedItems = group.items.filter((item) => {
+              if (userRole === 'SUPER_ADMIN') return true;
+              if (currentRoleObj?.allowedNavTabs) {
+                return currentRoleObj.allowedNavTabs.includes(item.id);
+              }
+              return item.allowedRoles.includes(userRole);
+            });
             if (allowedItems.length === 0) return null;
 
             return (

@@ -12,6 +12,7 @@ interface UserModalProps {
 export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdit }) => {
   const snapshot = dbStore.getSnapshot();
   const branches = snapshot.branches;
+  const availableRoles = dbStore.getRoles();
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -198,9 +199,9 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
                 onChange={(e) => setRoleId(e.target.value)}
                 className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-medium text-slate-900 focus:ring-2 focus:ring-teal-500"
               >
-                {BASE_ROLES.map((r) => (
+                {availableRoles.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.name}
+                    {r.name} {r.isSystem ? '(Sistema)' : '(Personalizado)'}
                   </option>
                 ))}
               </select>
