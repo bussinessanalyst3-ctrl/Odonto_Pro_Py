@@ -647,6 +647,81 @@ class DatabaseStore {
     return true;
   }
 
+  public setUserPasswordHash(
+    userId: string,
+    record: { hash: string; salt: string; iterations: number; plainForAdminReference?: string }
+  ) {
+    const user = this.data.users.find((u) => u.id === userId);
+    if (!user) return false;
+
+    // Almacenar en el usuario
+    (user as any).passwordHash = record.hash;
+    (user as any).passwordSalt = record.salt;
+    (user as any).passwordIterations = record.iterations;
+    (user as any).updatedAt = new Date();
+
+    // Guardar también en localStorage para persistencia segura en el navegador
+    try {
+      const key = `odontopro_user_pwd_hash_${user.email.toLowerCase()}`;
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          hash: record.hash,
+          salt: record.salt,
+          iterations: record.iterations,
+          updatedAt: new Date().toISOString(),
+        })
+      );
+    } catch (e) {}
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: null,
+      userId: this.data.users[0]?.id || null,
+      action: 'PASSWORD_UPDATE',
+      entity: 'USER',
+      entityId: userId,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Security PBKDF2',
+      oldValues: null,
+      newValues: {
+        hashAlg: 'PBKDF2-HMAC-SHA256',
+        iterations: record.iterations,
+        saltHexLength: record.salt.length,
+      },
+      description: `Actualización y cifrado PBKDF2 de credenciales para ${user.firstName} ${user.lastName} (${user.email})`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return true;
+  }
+
+  public getUserPasswordRecord(email: string): { hash: string; salt: string; iterations: number } | null {
+    const safeEmail = email.toLowerCase().trim();
+    // 1. Revisar en localStorage si hay hash actualizado
+    try {
+      const key = `odontopro_user_pwd_hash_${safeEmail}`;
+      const item = localStorage.getItem(key);
+      if (item) {
+        return JSON.parse(item);
+      }
+    } catch (e) {}
+
+    // 2. Revisar en memoria
+    const user = this.data.users.find((u) => u.email.toLowerCase() === safeEmail);
+    if (user && (user as any).passwordSalt && (user as any).passwordHash) {
+      return {
+        hash: (user as any).passwordHash,
+        salt: (user as any).passwordSalt,
+        iterations: (user as any).passwordIterations || 100000,
+      };
+    }
+
+    return null;
+  }
+
   // --- FASE 6: GESTIÓN DE PACIENTES (FICHA CLÍNICA ÚNICA) ---
   public updatePatient(patientId: string, updates: Partial<(typeof this.data.patients)[0]>) {
     const idx = this.data.patients.findIndex((p) => p.id === patientId);

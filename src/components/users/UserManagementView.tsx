@@ -21,6 +21,7 @@ import { BASE_ROLES } from '../../db/seeds/paraguay-catalogs.ts';
 import { UserModal } from './UserModal.tsx';
 import { RolePermissionsModal } from './RolePermissionsModal.tsx';
 import { ManageRolesModal } from './ManageRolesModal.tsx';
+import { ResetPasswordModal } from './ResetPasswordModal.tsx';
 
 export const UserManagementView: React.FC = () => {
   const [, setTick] = useState(0);
@@ -32,6 +33,8 @@ export const UserManagementView: React.FC = () => {
   const [userToEdit, setUserToEdit] = useState<any | null>(null);
   const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
   const [isManageRolesModalOpen, setIsManageRolesModalOpen] = useState(false);
+  const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
+  const [userToResetPassword, setUserToResetPassword] = useState<any | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,10 +62,9 @@ export const UserManagementView: React.FC = () => {
     dbStore.toggleUserStatus(userId);
   };
 
-  const handleResetPassword = (userId: string, email: string) => {
-    dbStore.resetUserPassword(userId);
-    setNotification(`Enlace de restablecimiento generado y enviado a ${email}`);
-    setTimeout(() => setNotification(null), 4000);
+  const handleOpenResetPassword = (user: any) => {
+    setUserToResetPassword(user);
+    setIsResetPasswordModalOpen(true);
   };
 
   // Filtered users
@@ -342,9 +344,9 @@ export const UserManagementView: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => handleResetPassword(u.id, u.email)}
-                    title="Enviar enlace para restablecer contraseña"
-                    className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-teal-700 hover:bg-teal-50 transition-colors"
+                    onClick={() => handleOpenResetPassword(u)}
+                    title="Restablecer o cambiar contraseña (Super Administrador)"
+                    className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:text-amber-700 hover:bg-amber-50 transition-colors"
                   >
                     <KeyRound className="h-3.5 w-3.5" />
                   </button>
@@ -379,6 +381,19 @@ export const UserManagementView: React.FC = () => {
       <ManageRolesModal
         isOpen={isManageRolesModalOpen}
         onClose={() => setIsManageRolesModalOpen(false)}
+      />
+
+      <ResetPasswordModal
+        isOpen={isResetPasswordModalOpen}
+        onClose={() => {
+          setIsResetPasswordModalOpen(false);
+          setUserToResetPassword(null);
+        }}
+        user={userToResetPassword}
+        onSuccess={(msg) => {
+          setNotification(msg);
+          setTimeout(() => setNotification(null), 6000);
+        }}
       />
     </div>
   );

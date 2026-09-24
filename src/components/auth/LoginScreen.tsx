@@ -9,15 +9,12 @@ import {
   AlertCircle,
   Building2,
   CheckCircle2,
-  KeyRound,
   ArrowRight
 } from 'lucide-react';
 import { useAuth } from '../../auth/authContext.tsx';
-import { DEMO_CREDENTIALS } from '../../auth/authService.ts';
-import { UserRole } from '../../auth/types.ts';
 
 export const LoginScreen: React.FC = () => {
-  const { login, quickLoginAs, isLoading } = useAuth();
+  const { login, isLoading } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,12 +33,6 @@ export const LoginScreen: React.FC = () => {
         setAttemptsLeft(result.attemptsLeft);
       }
     }
-  };
-
-  const handleSelectDemo = (demo: (typeof DEMO_CREDENTIALS)[0]) => {
-    setEmail(demo.email);
-    setPassword(demo.password);
-    setErrorMsg(null);
   };
 
   return (
@@ -161,66 +152,19 @@ export const LoginScreen: React.FC = () => {
             </button>
           </form>
 
-          {/* Quick Login Testing Selector */}
+          {/* Legal and Security Verification Info */}
           <div className="mt-8 pt-6 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                <KeyRound className="h-3.5 w-3.5 text-teal-600" />
-                Acceso Rápido por Rol (Evaluación)
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <Lock className="h-3.5 w-3.5 text-teal-600" />
+                Acceso Clínico Restringido
               </span>
-              <span className="text-[10px] text-slate-400 font-mono">5 Roles Disponibles</span>
+              <span className="text-[10px] text-slate-400 font-mono">RBAC Activo</span>
             </div>
 
-            <p className="text-[11px] text-slate-500 mb-3">
-              Haga clic sobre cualquiera de los roles para autocompletar credenciales o iniciar sesión directamente:
+            <p className="text-[11px] text-slate-500 leading-relaxed">
+              Cada usuario debe ingresar obligatoriamente con su <strong>correo institucional</strong> y <strong>contraseña</strong> asignada. El sistema asignará permisos de sucursal, tarifas y módulos clínicos según el rol registrado.
             </p>
-
-            <div className="space-y-2">
-              {DEMO_CREDENTIALS.map((demo) => (
-                <div
-                  key={demo.email}
-                  className="p-3 rounded-xl border border-slate-200 hover:border-teal-400 hover:bg-teal-50/40 transition-all flex items-center justify-between gap-3 text-left group"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${demo.badgeColor}`}>
-                        {demo.roleTitle}
-                      </span>
-                      {demo.license && (
-                        <span className="text-[10px] font-mono text-slate-500 font-semibold">
-                          {demo.license}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs font-bold text-slate-900 mt-1 truncate">
-                      {demo.fullName}
-                    </div>
-                    <div className="text-[11px] text-slate-500 truncate font-mono">
-                      {demo.email}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectDemo(demo)}
-                      title="Copiar datos al formulario"
-                      className="px-2.5 py-1.5 text-[11px] font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-                    >
-                      Cargar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => quickLoginAs(demo.role)}
-                      title="Entrar directamente con esta cuenta"
-                      className="px-2.5 py-1.5 text-[11px] font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors shadow-xs"
-                    >
-                      Entrar
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
 

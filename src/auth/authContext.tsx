@@ -32,45 +32,8 @@ const getInitialSession = (): UserSession | null => {
     console.error('Error loading session from localStorage:', e);
   }
 
-  // Si no hay sesión o expiró, generar sesión inmediata con SuperAdmin
-  const superAdminDemo = DEMO_CREDENTIALS[0];
-  const snapshot = dbStore.getSnapshot();
-  const user = snapshot.users.find((u) => u.email.toLowerCase() === superAdminDemo.email.toLowerCase()) || snapshot.users[0];
-  const org = snapshot.organization;
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + 8 * 60 * 60 * 1000); // 8 horas
-
-  const initialSession: UserSession = {
-    userId: user.id,
-    organizationId: org.id,
-    organizationName: org.name,
-    organizationTaxId: org.taxId,
-    role: user.roleId as any,
-    roleName: 'Super Administrador',
-    firstName: user.firstName,
-    lastName: user.lastName,
-    email: user.email,
-    phone: user.phone,
-    professionalLicense: user.professionalLicense,
-    specialty: user.specialty,
-    allowedBranchIds: snapshot.branches.map((b) => b.id),
-    currentBranchId: snapshot.branches[0]?.id || '',
-    sessionToken: `sess_${crypto.randomUUID().replace(/-/g, '')}`,
-    issuedAt: now.toISOString(),
-    expiresAt: expiresAt.toISOString(),
-    cookieConfig: {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: true,
-      maxAgeSeconds: 8 * 3600,
-    },
-  };
-
-  try {
-    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(initialSession));
-  } catch (e) {}
-
-  return initialSession;
+  // Por defecto, no iniciar sesión automáticamente para exigir autenticación y respetar RBAC
+  return null;
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -121,16 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const quickLoginAs = async (role: UserRole) => {
-    const creds = DEMO_CREDENTIALS.find((d) => d.role === role);
-    if (creds) {
-      await login({
-        email: creds.email,
-        password: creds.password,
-      });
-      return;
-    }
-
-    // Si es un rol personalizado o nuevo, buscar usuario con dicho rol o crear sesión temporal con ese rol
+    // Buscar usuario con dicho rol o crear sesión directa autorizada
     const snapshot = dbStore.getSnapshot();
     const userWithRole = snapshot.users.find((u) => u.roleId === role);
     const roleObj = dbStore.getRoles().find((r) => r.id === role);

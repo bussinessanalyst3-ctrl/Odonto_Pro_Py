@@ -170,7 +170,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         },
         {
           id: 'users',
-          label: 'Equipo Médico MSPBS',
+          label: 'Equipo, Roles & Accesos',
           icon: Users,
           allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL'],
         },

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, Shield, Award, Building2, Phone, Mail, Check, AlertCircle } from 'lucide-react';
+import { X, UserPlus, Shield, Award, Building2, Phone, Mail, Check, AlertCircle, KeyRound, Sparkles } from 'lucide-react';
 import { BASE_ROLES } from '../../db/seeds/paraguay-catalogs.ts';
 import { dbStore } from '../../db/inMemoryStore.ts';
+import { hashPassword } from '../../auth/cryptoUtils.ts';
 
 interface UserModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
   const [phone, setPhone] = useState('+595 981 ');
   const [specialty, setSpecialty] = useState('Odontología General');
   const [license, setLicense] = useState('');
+  const [initialPassword, setInitialPassword] = useState('OdontoSol2026!');
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
   const [defaultBranchId, setDefaultBranchId] = useState('');
 
@@ -47,6 +49,7 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
       setPhone('+595 981 ');
       setSpecialty('Odontología General');
       setLicense('MSPBS N° ');
+      setInitialPassword('OdontoSol2026!');
       setSelectedBranches(branches.slice(0, 1).map((b) => b.id));
       setDefaultBranchId(branches[0]?.id || '');
     }
@@ -72,7 +75,7 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!firstName || !lastName || !email || !phone) {
@@ -98,7 +101,7 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
         defaultBranchId,
       });
     } else {
-      dbStore.addUser({
+      const newUser = dbStore.addUser({
         firstName,
         lastName,
         email,
@@ -109,6 +112,16 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
         branchIds: selectedBranches,
         defaultBranchId,
       });
+
+      // Derivar y almacenar hash PBKDF2
+      if (newUser && initialPassword) {
+        const hashRec = await hashPassword(initialPassword);
+        dbStore.setUserPasswordHash(newUser.id, {
+          hash: hashRec.hash,
+          salt: hashRec.salt,
+          iterations: hashRec.iterations,
+        });
+      }
     }
 
     onClose();
@@ -189,6 +202,40 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
               />
             </div>
           </div>
+
+          {/* Initial Password for New User */}
+          {!userToEdit && (
+            <div className="p-3 bg-teal-50/50 border border-teal-200 rounded-2xl space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-teal-900 flex items-center gap-1.5">
+                  <KeyRound className="h-3.5 w-3.5 text-teal-600" />
+                  Contraseña Inicial de Acceso *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rnd = Math.random().toString(36).slice(-6) + '2026!';
+                    setInitialPassword(rnd);
+                  }}
+                  className="text-[10px] font-bold text-teal-700 hover:text-teal-800 flex items-center gap-1"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Generar
+                </button>
+              </div>
+              <input
+                type="text"
+                required
+                value={initialPassword}
+                onChange={(e) => setInitialPassword(e.target.value)}
+                placeholder="Contraseña segura temporal..."
+                className="w-full text-xs font-mono bg-white border border-teal-300 rounded-xl px-3 py-2 font-bold text-slate-900 focus:ring-2 focus:ring-teal-500"
+              />
+              <p className="text-[10px] text-teal-700">
+                Se derivará como Hash PBKDF2 (100,000 iteraciones + Salt). La contraseña en plano nunca se guardará.
+              </p>
+            </div>
+          )}
 
           {/* Role selection */}
           <div className="grid grid-cols-2 gap-3">
