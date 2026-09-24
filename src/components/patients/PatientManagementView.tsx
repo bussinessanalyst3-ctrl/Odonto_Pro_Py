@@ -18,9 +18,15 @@ import {
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { PatientModal } from './PatientModal.tsx';
-import { PatientDetailDrawer } from './PatientDetailDrawer.tsx';
+import { ComprehensivePatientModal } from './ComprehensivePatientModal.tsx';
 
-export const PatientManagementView: React.FC = () => {
+interface PatientManagementViewProps {
+  onNavigateToTab?: (tab: string, payload?: any) => void;
+}
+
+export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
+  onNavigateToTab,
+}) => {
   const [, setTick] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('ALL');
@@ -335,13 +341,16 @@ export const PatientManagementView: React.FC = () => {
         patientToEdit={patientToEdit}
       />
 
-      <PatientDetailDrawer
+      {/* Comprehensive Patient Unified File Modal */}
+      <ComprehensivePatientModal
         patientId={selectedPatientId}
+        isOpen={!!selectedPatientId}
         onClose={() => setSelectedPatientId(null)}
         onEdit={(p) => {
           setSelectedPatientId(null);
           handleOpenEdit(p);
         }}
+        onNavigateToTab={onNavigateToTab}
       />
     </div>
   );

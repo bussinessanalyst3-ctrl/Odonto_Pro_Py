@@ -1235,6 +1235,26 @@ class DatabaseStore {
       createdAt: new Date(),
     });
 
+    // Auto-create cash movement in active cash register if one is open
+    const openRegister = (this.data.cashRegisters || []).find(
+      (cr) => cr.branchId === treat.branchId && cr.status === 'ABIERTA'
+    );
+    if (openRegister) {
+      const movementId = crypto.randomUUID();
+      this.data.cashMovements.unshift({
+        id: movementId,
+        cashRegisterId: openRegister.id,
+        movementType: 'INGRESO',
+        amount,
+        paymentMethod,
+        concept: `Cobro tratamiento ${treat.title} (Recibo ${receiptNumber})`,
+        referenceNumber: receiptNumber,
+        performedBy: actorUserId || this.data.users[0]?.id,
+        createdAt: new Date(),
+      });
+      paymentRecord.cashMovementId = movementId;
+    }
+
     this.notify();
     return treat;
   }

@@ -21,22 +21,25 @@ import { dbStore } from '../../db/inMemoryStore.ts';
 import { AdminFinancialReport } from './AdminFinancialReport.tsx';
 import { DoctorCommissionsReport } from './DoctorCommissionsReport.tsx';
 import { ReceptionOperationsReport } from './ReceptionOperationsReport.tsx';
+import { ExecutiveDashboard } from './ExecutiveDashboard.tsx';
 
-type DashboardPerspective = 'ADMIN' | 'DOCTOR' | 'RECEPTION';
+type DashboardPerspective = 'EXECUTIVE' | 'ADMIN' | 'DOCTOR' | 'RECEPTION';
 
-export const AdaptiveDashboardView: React.FC = () => {
+interface AdaptiveDashboardViewProps {
+  onNavigateTab?: (tab: any, payload?: any) => void;
+  selectedBranchId?: string;
+}
+
+export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
+  onNavigateTab,
+  selectedBranchId: externalBranchId,
+}) => {
   const { session } = useAuth();
   const userRole = session?.role || 'SUPER_ADMIN';
 
-  // Determine initial perspective based on authenticated user's role
-  const getInitialPerspective = (): DashboardPerspective => {
-    if (userRole === 'ODONTOLOGO') return 'DOCTOR';
-    if (userRole === 'RECEPCION' || userRole === 'CAJA') return 'RECEPTION';
-    return 'ADMIN';
-  };
-
-  const [activePerspective, setActivePerspective] = useState<DashboardPerspective>(getInitialPerspective());
-  const [selectedBranchId, setSelectedBranchId] = useState<string>(session?.currentBranchId || '');
+  // Perspective inicial
+  const [activePerspective, setActivePerspective] = useState<DashboardPerspective>('EXECUTIVE');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(externalBranchId || session?.currentBranchId || '');
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
     userRole === 'ODONTOLOGO' ? session?.userId || '' : ''
   );
@@ -70,10 +73,22 @@ export const AdaptiveDashboardView: React.FC = () => {
           </div>
 
           {/* Perspective Switcher Tabs */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200">
+          <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 overflow-x-auto">
+            <button
+              onClick={() => setActivePerspective('EXECUTIVE')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+                activePerspective === 'EXECUTIVE'
+                  ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <TrendingUp className="h-3.5 w-3.5 text-teal-600" />
+              <span>Resumen Hoy & KPIs</span>
+            </button>
+
             <button
               onClick={() => setActivePerspective('ADMIN')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
                 activePerspective === 'ADMIN'
                   ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
                   : 'text-slate-600 hover:text-slate-900'
@@ -85,7 +100,7 @@ export const AdaptiveDashboardView: React.FC = () => {
 
             <button
               onClick={() => setActivePerspective('DOCTOR')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
                 activePerspective === 'DOCTOR'
                   ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
                   : 'text-slate-600 hover:text-slate-900'
@@ -97,7 +112,7 @@ export const AdaptiveDashboardView: React.FC = () => {
 
             <button
               onClick={() => setActivePerspective('RECEPTION')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
                 activePerspective === 'RECEPTION'
                   ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
                   : 'text-slate-600 hover:text-slate-900'
@@ -159,6 +174,13 @@ export const AdaptiveDashboardView: React.FC = () => {
       </div>
 
       {/* Perspective Content */}
+      {activePerspective === 'EXECUTIVE' && (
+        <ExecutiveDashboard
+          selectedBranchId={selectedBranchId}
+          onNavigateTab={onNavigateTab || (() => {})}
+        />
+      )}
+
       {activePerspective === 'ADMIN' && (
         <AdminFinancialReport
           selectedBranchId={selectedBranchId}

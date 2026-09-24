@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './auth/authContext.tsx';
 import { LoginScreen } from './components/auth/LoginScreen.tsx';
-import { Header, ALL_NAV_ITEMS, TabType } from './components/Header.tsx';
+import { Sidebar } from './components/Sidebar.tsx';
+import { AppHeader } from './components/AppHeader.tsx';
+import { ALL_NAV_ITEMS, TabType } from './components/Header.tsx';
 import { SessionInspector } from './components/auth/SessionInspector.tsx';
 import { SchemaViewer } from './components/SchemaViewer.tsx';
 import { DataExplorer } from './components/DataExplorer.tsx';
@@ -29,6 +31,16 @@ function MainApplication() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [treatmentNavTarget, setTreatmentNavTarget] = useState<{ patientId: string; toothNumber?: number } | null>(null);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [showDevTools, setShowDevTools] = useState<boolean>(() => {
+    return localStorage.getItem('odontopro_dev_tools') === 'true';
+  });
+
+  const handleToggleDevTools = () => {
+    const nextVal = !showDevTools;
+    setShowDevTools(nextVal);
+    localStorage.setItem('odontopro_dev_tools', String(nextVal));
+  };
 
   // Redireccionar automáticamente cuando el usuario cambia de rol
   useEffect(() => {
@@ -54,78 +66,110 @@ function MainApplication() {
     setActiveTab('treatments');
   };
 
+  const handleGlobalNavigate = (tab: TabType, extraPayload?: any) => {
+    if (tab === 'treatments' && extraPayload?.patientId) {
+      setTreatmentNavTarget({ patientId: extraPayload.patientId, toothNumber: extraPayload.toothNumber });
+    }
+    setActiveTab(tab);
+  };
+
   // Verificar si la pestaña actual está autorizada para este rol
   const currentItem = ALL_NAV_ITEMS.find((item) => item.id === activeTab);
   const isAuthorized = session?.role === 'SUPER_ADMIN' || (currentItem ? currentItem.allowedRoles.includes(session?.role || 'SUPER_ADMIN') : true);
 
   return (
-    <div className="min-h-screen nordic-mesh-bg text-slate-800 font-sans">
-      {/* Header with Organization, Branch Switcher and User Session */}
-      <Header
-        selectedBranchId={selectedBranchId}
-        onSelectBranch={setSelectedBranchId}
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex">
+      {/* Sidebar Lateral Profesional (Fijo en desktop, drawer en móvil) */}
+      <Sidebar
         activeTab={activeTab}
         onSelectTab={setActiveTab}
+        isOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
+        showDevTools={showDevTools}
+        onToggleDevTools={handleToggleDevTools}
       />
 
-      {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {!isAuthorized ? (
-          <div className="max-w-lg mx-auto my-12 p-8 bg-white border border-amber-200 rounded-2xl shadow-sm text-center">
-            <div className="h-12 w-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-4">
-              <ShieldAlert className="h-6 w-6" />
+      {/* Contenedor Principal (Con margen izquierdo para el sidebar en desktop) */}
+      <div className="flex-1 flex flex-col min-w-0 lg:pl-72">
+        {/* Header Superior Limpio con Buscador Global y Selector de Sede */}
+        <AppHeader
+          selectedBranchId={selectedBranchId}
+          onSelectBranch={setSelectedBranchId}
+          onNavigateTab={handleGlobalNavigate}
+          onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+        />
+
+        {/* Área de Contenido de los Módulos */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+          {!isAuthorized ? (
+            <div className="max-w-lg mx-auto my-12 p-8 bg-white border border-amber-200 rounded-2xl shadow-sm text-center">
+              <div className="h-12 w-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-4">
+                <ShieldAlert className="h-6 w-6" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">Módulo Restringido</h3>
+              <p className="text-sm text-slate-600 mb-6">
+                Tu perfil actual (<span className="font-semibold text-teal-800">{session?.roleName}</span>) no tiene permisos de acceso para este módulo según las políticas RBAC y el Ministerio de Salud (MSPBS).
+              </p>
+              <button
+                onClick={() => {
+                  const firstAllowed = ALL_NAV_ITEMS.find((item) => item.allowedRoles.includes(session?.role || 'SUPER_ADMIN'));
+                  if (firstAllowed) setActiveTab(firstAllowed.id);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors shadow-xs"
+              >
+                <span>Ir a mis módulos asignados</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Módulo Restringido</h3>
-            <p className="text-sm text-slate-600 mb-6">
-              Tu perfil actual (<span className="font-semibold text-teal-800">{session?.roleName}</span>) no tiene permisos de acceso para este módulo según las políticas RBAC y el Ministerio de Salud (MSPBS).
-            </p>
-            <button
-              onClick={() => {
-                const firstAllowed = ALL_NAV_ITEMS.find((item) => item.allowedRoles.includes(session?.role || 'SUPER_ADMIN'));
-                if (firstAllowed) setActiveTab(firstAllowed.id);
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors shadow-xs"
-            >
-              <span>Ir a mis módulos asignados</span>
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
-          <>
-            {activeTab === 'dashboard' && <AdaptiveDashboardView />}
-            {activeTab === 'production' && <ProductionDeploymentView />}
-            {activeTab === 'security' && <SecurityHardeningView />}
-            {activeTab === 'testing' && <AutomatedTestingView />}
-            {activeTab === 'audit' && <AuditLogsView />}
-            {activeTab === 'quotes' && (
-              <QuotesManagementView onNavigateToTreatments={handleNavigateToTreatments} />
-            )}
-            {activeTab === 'cash' && <CashRegisterManagementView />}
-            {activeTab === 'odontogram' && (
-              <OdontogramView onNavigateToTreatments={handleNavigateToTreatments} />
-            )}
-            {activeTab === 'treatments' && (
-              <TreatmentsManagementView
-                initialPatientId={treatmentNavTarget?.patientId}
-                initialToothNumber={treatmentNavTarget?.toothNumber}
-              />
-            )}
-            {activeTab === 'agenda' && <AppointmentsCalendarView />}
-            {activeTab === 'clinical' && <ClinicalRecordsView />}
-            {activeTab === 'patients' && <PatientManagementView />}
-            {activeTab === 'users' && <UserManagementView />}
-            {activeTab === 'branches' && <BranchManagementView />}
-            {activeTab === 'auth-session' && <SessionInspector />}
-            {activeTab === 'database' && <SchemaViewer />}
-            {activeTab === 'data-explorer' && (
-              <DataExplorer selectedBranchId={selectedBranchId || session?.currentBranchId || ''} />
-            )}
-            {activeTab === 'paraguay' && <ParaguayCatalogsViewer />}
-            {activeTab === 'architecture' && <ArchitectureViewer />}
-            {activeTab === 'roadmap' && <RoadmapViewer />}
-          </>
-        )}
-      </main>
+          ) : (
+            <>
+              {activeTab === 'dashboard' && (
+                <AdaptiveDashboardView
+                  onNavigateTab={handleGlobalNavigate}
+                  selectedBranchId={selectedBranchId}
+                />
+              )}
+              {activeTab === 'production' && <ProductionDeploymentView />}
+              {activeTab === 'security' && <SecurityHardeningView />}
+              {activeTab === 'testing' && <AutomatedTestingView />}
+              {activeTab === 'audit' && <AuditLogsView />}
+              {activeTab === 'quotes' && (
+                <QuotesManagementView onNavigateToTreatments={handleNavigateToTreatments} />
+              )}
+              {activeTab === 'cash' && <CashRegisterManagementView />}
+              {activeTab === 'odontogram' && (
+                <OdontogramView
+                  onNavigateToTreatments={handleNavigateToTreatments}
+                  onNavigateToQuotes={(patientId) => {
+                    setActiveTab('quotes');
+                  }}
+                />
+              )}
+              {activeTab === 'treatments' && (
+                <TreatmentsManagementView
+                  initialPatientId={treatmentNavTarget?.patientId}
+                  initialToothNumber={treatmentNavTarget?.toothNumber}
+                />
+              )}
+              {activeTab === 'agenda' && <AppointmentsCalendarView />}
+              {activeTab === 'clinical' && <ClinicalRecordsView />}
+              {activeTab === 'patients' && (
+                <PatientManagementView onNavigateToTab={handleGlobalNavigate} />
+              )}
+              {activeTab === 'users' && <UserManagementView />}
+              {activeTab === 'branches' && <BranchManagementView />}
+              {activeTab === 'auth-session' && <SessionInspector />}
+              {activeTab === 'database' && <SchemaViewer />}
+              {activeTab === 'data-explorer' && (
+                <DataExplorer selectedBranchId={selectedBranchId || session?.currentBranchId || ''} />
+              )}
+              {activeTab === 'paraguay' && <ParaguayCatalogsViewer />}
+              {activeTab === 'architecture' && <ArchitectureViewer />}
+              {activeTab === 'roadmap' && <RoadmapViewer />}
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

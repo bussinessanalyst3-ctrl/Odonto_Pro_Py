@@ -394,7 +394,7 @@ CREATE TABLE payments (
     patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE RESTRICT,
     treatment_id UUID REFERENCES treatments(id) ON DELETE SET NULL,
     cash_movement_id UUID REFERENCES cash_movements(id) ON DELETE SET NULL,
-    receipt_number VARCHAR(50), -- Factura o Recibo Legal Paraguay
+    receipt_number VARCHAR(50), -- Factura o Recibo Legal Paraguay (ej. ASU-RC-000458)
     amount BIGINT NOT NULL CHECK (amount > 0), -- Monto en PYG
     currency VARCHAR(3) DEFAULT 'PYG' NOT NULL,
     payment_method VARCHAR(30) NOT NULL CHECK (payment_method IN ('EFECTIVO', 'TRANSFERENCIA', 'TARJETA_POS', 'QR', 'OTRO')),
@@ -403,6 +403,20 @@ CREATE TABLE payments (
     notes TEXT,
     created_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
+
+-- ============================================================================
+-- 8.1 SECUENCIA SEGURA DE CORRELATIVOS (CONCURRENCY-SAFE)
+-- ============================================================================
+
+CREATE TABLE document_sequences (
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+    branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+    document_type VARCHAR(30) NOT NULL CHECK (document_type IN ('BUDGET', 'TREATMENT', 'RECEIPT', 'CASH_MOV')),
+    current_value BIGINT NOT NULL DEFAULT 0,
+    prefix VARCHAR(10) NOT NULL, -- e.g. "ASU-RC", "LUQ-PRES"
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    PRIMARY KEY (organization_id, branch_id, document_type)
 );
 
 -- ============================================================================

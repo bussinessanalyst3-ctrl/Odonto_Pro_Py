@@ -17,44 +17,68 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const SESSION_STORAGE_KEY = 'odontopro_auth_session';
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [session, setSession] = useState<UserSession | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  // Load active session from storage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(SESSION_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as UserSession;
-        // Check if expired
-        if (new Date(parsed.expiresAt).getTime() > Date.now()) {
-          setSession(parsed);
-        } else {
-          localStorage.removeItem(SESSION_STORAGE_KEY);
-        }
-      } else {
-        // Auto-login con SuperAdmin para que la experiencia inicial sea inmediata
-        // pero con opción de cerrar sesión y probar el formulario de login completo
-        const superAdminDemo = DEMO_CREDENTIALS[0];
-        authService
-          .login({
-            email: superAdminDemo.email,
-            password: superAdminDemo.password,
-          })
-          .then((res) => {
-            if (res.success && res.session) {
-              setSession(res.session);
-              localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(res.session));
-            }
-          })
-          .catch(() => {});
+const getInitialSession = (): UserSession | null => {
+  try {
+    const stored = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as UserSession;
+      if (new Date(parsed.expiresAt).getTime() > Date.now()) {
+        return parsed;
       }
-    } catch (e) {
-      console.error('Error loading session:', e);
-    } finally {
-      setIsLoading(false);
+      localStorage.removeItem(SESSION_STORAGE_KEY);
     }
+  } catch (e) {
+    console.error('Error loading session from localStorage:', e);
+  }
+
+  // Si no hay sesión o expiró, generar sesión inmediata con SuperAdmin
+  const superAdminDemo = DEMO_CREDENTIALS[0];
+  const snapshot = dbStore.getSnapshot();
+  const user = snapshot.users.find((u) => u.email.toLowerCase() === superAdminDemo.email.toLowerCase()) || snapshot.users[0];
+  const org = snapshot.organization;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 8 * 60 * 60 * 1000); // 8 horas
+
+  const initialSession: UserSession = {
+    userId: user.id,
+    organizationId: org.id,
+    organizationName: org.name,
+    organizationTaxId: org.taxId,
+    role: user.roleId as any,
+    roleName: 'Super Administrador',
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    phone: user.phone,
+    professionalLicense: user.professionalLicense,
+    specialty: user.specialty,
+    allowedBranchIds: snapshot.branches.map((b) => b.id),
+    currentBranchId: snapshot.branches[0]?.id || '',
+    sessionToken: `sess_${crypto.randomUUID().replace(/-/g, '')}`,
+    issuedAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    cookieConfig: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: true,
+      maxAgeSeconds: 8 * 3600,
+    },
+  };
+
+  try {
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(initialSession));
+  } catch (e) {}
+
+  return initialSession;
+};
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [session, setSession] = useState<UserSession | null>(getInitialSession);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  // Sync session on mount
+  useEffect(() => {
+    setIsLoading(false);
   }, []);
 
   const login = async (credentials: AuthCredentials): Promise<LoginResult> => {

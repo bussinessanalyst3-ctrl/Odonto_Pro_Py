@@ -272,10 +272,50 @@ El sistema precarga los 17 departamentos más la capital Asunción:
 
 ---
 
-## 8. RECOMENDACIONES PARA MANTENER BAJO COSTO (COST EFFICIENCY)
+## 9. ECOSISTEMA INTEGRADO: "SINGLE SOURCE OF TRUTH" Y FLUJOS CONECTADOS
 
-1. **PostgreSQL Serverless con Scale-to-Zero**: Utilizar Neon o Supabase en capa gratuita o básica ($0 - $5/mes) durante las fases de desarrollo y primeros consultorios.
-2. **Conexión con Pooling**: Utilizar PgBouncer / Prisma Accelerate / Neon Connection Pooling para no saturar las conexiones permitidas por instancias de bajo costo.
-3. **Alojamiento en Vercel Hobby / Pro**: La capa inicial gratuita de Vercel cubre ampliamente la operación de una o varias clínicas con optimización de Server Components.
-4. **Almacenamiento de Archivos y Radiografías**: Utilizar Cloudflare R2 o Supabase Storage (compatible con S3, sin costo de egreso de datos / egress fees).
-5. **Cero Microservicios Innecesarios**: Todo el sistema opera como un monolito modular en Next.js, reduciendo costos de mantenimiento, orquestación y monitoreo a cero en etapas tempranas.
+El sistema opera bajo la regla de oro: **"Registrar la información una sola vez por identificador (ID) y reutilizarla en todos los módulos"**. Se erradica por completo la duplicación de datos o la reescritura manual entre áreas clínicas y administrativas.
+
+### 9.1 Matriz de Fuente de Verdad
+
+```text
+                  PACIENTE (patients: id, ci, nombre)
+                     │
+          ┌──────────┼──────────┐
+          ▼          ▼          ▼
+       AGENDA    ODONTOGRAMA  HISTORIA
+                     │
+            (Diagnóstico x Pieza)
+                     │
+                     ▼
+                 PRESUPUESTO (budgets: total, saldo, progreso)
+                     │
+             ┌───────┴───────┐
+             ▼ (Al aprobar)  ▼ (Al cobrar)
+        TRATAMIENTO         RECIBO (receipts: RC-XXXXXX)
+             │               │
+             ▼ (Finalizar)   ▼ (Autocreación 1:1)
+        ODONTOGRAMA      MOVIMIENTO CAJA (cash_movements: MOV-XXXXXX)
+                             │
+                             ▼
+                            CAJA (Arqueo x Sucursal)
+                             │
+                             ▼
+                          REPORTES / DASHBOARD
+```
+
+| Entidad | Fuente de Verdad | Referencia en Módulos Consumidores | Regla de Oro |
+| :--- | :--- | :--- | :--- |
+| **Identidad Paciente** | `patients` | `patient_id` en Citas, Odontograma, Presupuestos, Recibos | Nunca duplicar C.I., nombres o teléfono como texto suelto. |
+| **Hallazgo Dental Inicial** | `odontogram_items` | `tooth_number`, `surface`, `condition` | El diagnóstico en la pieza 16 alimenta el presupuesto. |
+| **Presupuesto y Condiciones** | `budgets` / `budget_items` | `budget_id`, `budget_item_id` | Al aprobarse, genera la orden clínica de tratamiento. |
+| **Ejecución Técnica** | `treatments` | `treatment_id` en Citas y Odontograma | Al marcarse `FINALIZADO`, actualiza el color del diente y el % del presupuesto. |
+| **Comprobante y Cobro** | `receipts` / `payments` | `receipt_id`, `cash_movement_id` | Al emitirse, genera en una transacción atómica el ingreso a caja física. |
+
+### 9.2 Estrategia de Correlativos Multi-Sucursal Segura
+
+Para cumplir con regulaciones administrativas y tributarias en Paraguay sin colisiones concurrentes (*race conditions*):
+* **Estructura:** `[SUCURSAL]-[TIPO_DOC]-[SECUENCIA_6_DIGITOS]`
+  * Ejemplo Asunción: `ASU-PRES-000001`, `ASU-RC-000001`, `ASU-MOV-000001`
+  * Ejemplo Luque: `LUQ-PRES-000001`, `LUQ-RC-000001`, `LUQ-MOV-000001`
+* **Concurrencia Segura:** La tabla `document_sequences` utiliza bloqueos a nivel de fila (`SELECT ... FOR UPDATE`), garantizando unicidad estricta ante múltiples recepciones emitiendo cobros simultáneos.

@@ -19,17 +19,19 @@ import {
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { ToothSVG, ToothData } from './ToothSVG.tsx';
-import { ToothConditionModal, CONDITIONS_CATALOG } from './ToothConditionModal.tsx';
+import { ToothClinicalDrawer, CONDITIONS_CATALOG } from './ToothClinicalDrawer.tsx';
 import { useAuth } from '../../auth/authContext.tsx';
 
 interface OdontogramViewProps {
   initialPatientId?: string;
   onNavigateToTreatments?: (patientId: string, toothNumber?: number) => void;
+  onNavigateToQuotes?: (patientId: string, toothNumber?: number) => void;
 }
 
 export const OdontogramView: React.FC<OdontogramViewProps> = ({
   initialPatientId,
   onNavigateToTreatments,
+  onNavigateToQuotes,
 }) => {
   const { session } = useAuth();
   const snapshot = dbStore.getSnapshot();
@@ -628,12 +630,13 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
         </div>
       </div>
 
-      {/* Modal for Deep Tooth Inspection */}
-      <ToothConditionModal
+      {/* Drawer for Deep Tooth Inspection and Clinical History */}
+      <ToothClinicalDrawer
         toothNumber={modalToothNumber}
         toothData={modalToothNumber ? teethDataMap[modalToothNumber] : undefined}
         isUpper={modalToothNumber ? (modalToothNumber < 30 || (modalToothNumber >= 50 && modalToothNumber < 70)) : true}
         isOpen={modalToothNumber !== null}
+        patientId={selectedPatientId}
         onClose={() => setModalToothNumber(null)}
         onSave={(num, surf, cond, mat, notes, col) => {
           if (!activeOdontogram) return;
@@ -651,6 +654,33 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
         onCreateTreatment={(toothNum, cond) => {
           if (onNavigateToTreatments) {
             onNavigateToTreatments(selectedPatientId, toothNum);
+          }
+        }}
+        onCreateBudget={(toothNum, cond, surf) => {
+          // Crear automáticamente un presupuesto borrador para esta pieza
+          const branchId = patient?.primaryBranchId || snapshot.branches[0].id;
+          const servicePrice = cond === 'CARIES' ? 250000 : cond === 'ENDODONCIA' ? 550000 : cond === 'CORONA' ? 1200000 : 350000;
+          const serviceDesc = `${cond === 'CARIES' ? 'Restauración Estética con Resina' : cond} (Pieza ${toothNum} Cara ${surf})`;
+          
+          dbStore.createQuote({
+            branchId,
+            patientId: selectedPatientId,
+            odontologistId: activeOdontogram?.odontologistId || undefined,
+            items: [
+              {
+                toothNumber: toothNum,
+                description: serviceDesc,
+                quantity: 1,
+                unitPrice: servicePrice,
+                subtotal: servicePrice,
+              },
+            ],
+            notes: `Generado desde Odontograma FDI - Diagnóstico Pieza ${toothNum}`,
+            actorUserId: session?.userId,
+          });
+
+          if (onNavigateToQuotes) {
+            onNavigateToQuotes(selectedPatientId, toothNum);
           }
         }}
       />
