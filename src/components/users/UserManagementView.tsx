@@ -103,7 +103,7 @@ export const UserManagementView: React.FC = () => {
                   Equipo Clínico & Control de Acceso (RBAC)
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 border border-teal-200">
-                  Fase 5: Usuarios & MSPBS
+                  Seguridad Criptográfica PBKDF2
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">

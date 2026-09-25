@@ -46,22 +46,18 @@ export const LoginScreen: React.FC = () => {
           OdontoPro Paraguay
         </h1>
         <p className="text-xs text-teal-300 font-medium mt-1">
-          Sistema Clínico Multi-Sucursal • OdontoSol S.R.L. (RUC: 80098765-4)
+          Sistema de Gestión Odontológica Integral
         </p>
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-semibold text-emerald-300 mt-2">
-          <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-          <span>Fase 3: Autenticación Segura & Sesión Activa</span>
-        </div>
       </div>
 
       <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-xl px-4">
         <div className="bg-white py-8 px-6 sm:px-10 shadow-2xl rounded-3xl border border-slate-100">
           <div className="mb-6">
             <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-              Ingreso Seguro al Sistema Clínico
+              Ingreso al Sistema Clínico
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Acceso protegido con hashing Argon2id/bcrypt, cookies HttpOnly y auditoría de accesos.
+              Portal privado institucional para profesionales y personal de la clínica.
             </p>
           </div>
 
