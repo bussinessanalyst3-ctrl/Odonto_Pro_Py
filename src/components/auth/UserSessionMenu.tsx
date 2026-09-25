@@ -7,14 +7,19 @@ import {
   Key,
   ChevronDown,
   Stethoscope,
-  Info
+  Info,
+  KeyRound,
+  CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../../auth/authContext.tsx';
 import { dbStore } from '../../db/inMemoryStore.ts';
+import { ChangePasswordModal } from './ChangePasswordModal.tsx';
 
 export const UserSessionMenu: React.FC = () => {
   const { session, logout, switchBranch, quickLoginAs } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [notification, setNotification] = useState<string | null>(null);
 
   if (!session) return null;
 
@@ -199,8 +204,19 @@ export const UserSessionMenu: React.FC = () => {
             </div>
           </div>
 
-          {/* Logout Action */}
-          <div className="pt-2 border-t border-slate-100">
+          {/* Change Password & Logout Action */}
+          <div className="pt-2 border-t border-slate-100 space-y-1.5">
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                setIsChangePasswordOpen(true);
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+            >
+              <KeyRound className="h-3.5 w-3.5 text-teal-600" />
+              <span>Cambiar Mi Contraseña</span>
+            </button>
+
             <button
               onClick={() => {
                 setIsOpen(false);
@@ -212,6 +228,23 @@ export const UserSessionMenu: React.FC = () => {
               <span>Cerrar Sesión Segura</span>
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+        onSuccess={(msg) => {
+          setNotification(msg);
+          setTimeout(() => setNotification(null), 5000);
+        }}
+      />
+
+      {notification && (
+        <div className="fixed bottom-5 right-5 z-50 p-4 bg-emerald-600 text-white text-xs font-semibold rounded-2xl shadow-xl flex items-center gap-2 animate-in slide-in-from-bottom">
+          <CheckCircle2 className="h-4 w-4" />
+          <span>{notification}</span>
         </div>
       )}
     </div>

@@ -15,6 +15,18 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
   const branches = snapshot.branches;
   const availableRoles = dbStore.getRoles();
 
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
+    let pwd = '';
+    const array = new Uint8Array(10);
+    crypto.getRandomValues(array);
+    for (let i = 0; i < 10; i++) {
+      pwd += chars[array[i] % chars.length];
+    }
+    pwd += '2026!';
+    return pwd;
+  };
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -22,7 +34,7 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
   const [phone, setPhone] = useState('+595 981 ');
   const [specialty, setSpecialty] = useState('Odontología General');
   const [license, setLicense] = useState('');
-  const [initialPassword, setInitialPassword] = useState('OdontoSol2026!');
+  const [initialPassword, setInitialPassword] = useState('');
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
   const [defaultBranchId, setDefaultBranchId] = useState('');
 
@@ -49,7 +61,7 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
       setPhone('+595 981 ');
       setSpecialty('Odontología General');
       setLicense('MSPBS N° ');
-      setInitialPassword('OdontoSol2026!');
+      setInitialPassword(generateRandomPassword());
       setSelectedBranches(branches.slice(0, 1).map((b) => b.id));
       setDefaultBranchId(branches[0]?.id || '');
     }

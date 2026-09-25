@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './auth/authContext.tsx';
+import { BrandingProvider } from './branding/BrandingContext.tsx';
 import { LoginScreen } from './components/auth/LoginScreen.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import { AppHeader } from './components/AppHeader.tsx';
@@ -11,6 +12,7 @@ import { ParaguayCatalogsViewer } from './components/ParaguayCatalogsViewer.tsx'
 import { ArchitectureViewer } from './components/ArchitectureViewer.tsx';
 import { RoadmapViewer } from './components/RoadmapViewer.tsx';
 import { BranchManagementView } from './components/branches/BranchManagementView.tsx';
+import { OrganizationManagementView } from './components/organization/OrganizationManagementView.tsx';
 import { UserManagementView } from './components/users/UserManagementView.tsx';
 import { PatientManagementView } from './components/patients/PatientManagementView.tsx';
 import { AppointmentsCalendarView } from './components/appointments/AppointmentsCalendarView.tsx';
@@ -80,11 +82,11 @@ function MainApplication() {
     setActiveTab('treatments');
   };
 
-  const handleGlobalNavigate = (tab: TabType, extraPayload?: any) => {
+  const handleGlobalNavigate = (tab: any, extraPayload?: any) => {
     if (tab === 'treatments' && extraPayload?.patientId) {
       setTreatmentNavTarget({ patientId: extraPayload.patientId, toothNumber: extraPayload.toothNumber });
     }
-    setActiveTab(tab);
+    setActiveTab(tab as TabType);
   };
 
   // Verificar si la pestaña actual está autorizada para este rol
@@ -179,6 +181,7 @@ function MainApplication() {
               )}
               {activeTab === 'users' && <UserManagementView />}
               {activeTab === 'branches' && <BranchManagementView />}
+              {activeTab === 'organization' && <OrganizationManagementView />}
               {activeTab === 'auth-session' && <SessionInspector />}
               {activeTab === 'database' && <SchemaViewer />}
               {activeTab === 'data-explorer' && (
@@ -197,8 +200,10 @@ function MainApplication() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <MainApplication />
-    </AuthProvider>
+    <BrandingProvider>
+      <AuthProvider>
+        <MainApplication />
+      </AuthProvider>
+    </BrandingProvider>
   );
 }

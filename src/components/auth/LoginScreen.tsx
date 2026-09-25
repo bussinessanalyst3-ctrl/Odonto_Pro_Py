@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Stethoscope,
   Lock,
   Mail,
   Eye,
@@ -9,171 +8,313 @@ import {
   AlertCircle,
   Building2,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  Stethoscope,
+  KeyRound,
+  HelpCircle,
+  RotateCcw,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '../../auth/authContext.tsx';
+import { authService } from '../../auth/authService.ts';
+import { useBranding } from '../../branding/BrandingContext.tsx';
 
 export const LoginScreen: React.FC = () => {
-  const { login, isLoading } = useAuth();
+  const { login, requestPasswordReset, isLoading } = useAuth();
+  const { branding } = useBranding();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null);
+
+  // Modal para recuperación de contraseña
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState('');
+  const [recoveryStatus, setRecoveryStatus] = useState<{ sent: boolean; message?: string }>({ sent: false });
+  const [isSendingRecovery, setIsSendingRecovery] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    const result = await login({ email, password });
+    const result = await login({
+      email,
+      password,
+      rememberMe,
+    });
+
     if (!result.success) {
-      setErrorMsg(result.error || 'Error al iniciar sesión.');
+      setErrorMsg(result.error || 'Credenciales de acceso incorrectas.');
       if (result.attemptsLeft !== undefined) {
         setAttemptsLeft(result.attemptsLeft);
       }
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 text-slate-800">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center px-4">
-        {/* Logo and Clinic branding */}
-        <div className="inline-flex h-14 w-14 rounded-2xl bg-teal-600 items-center justify-center text-white shadow-xl shadow-teal-900/40 mb-3 ring-4 ring-teal-500/20">
-          <Stethoscope className="h-7 w-7" />
-        </div>
-        <h1 className="text-2xl font-black tracking-tight text-white">
-          OdontoPro Paraguay
-        </h1>
-        <p className="text-xs text-teal-300 font-medium mt-1">
-          Sistema de Gestión Odontológica Integral
-        </p>
-      </div>
+  const handleRecoverySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recoveryEmail) return;
 
-      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-xl px-4">
-        <div className="bg-white py-8 px-6 sm:px-10 shadow-2xl rounded-3xl border border-slate-100">
+    setIsSendingRecovery(true);
+    try {
+      const res = await requestPasswordReset(recoveryEmail);
+      setRecoveryStatus({ sent: true, message: res.message });
+    } finally {
+      setIsSendingRecovery(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans antialiased text-slate-800 relative overflow-hidden">
+      {/* Background Decorative Rings */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-teal-500/10 blur-[140px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-cyan-600/10 blur-[120px] rounded-full pointer-events-none" />
+
+      {/* Main Container */}
+      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+        {/* Brand Header */}
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-xl shadow-teal-500/25 mb-4 border border-teal-300/30">
+            {branding.logoUrl ? (
+              <img src={branding.logoUrl} alt={branding.tradeName} className="h-10 w-10 object-contain rounded-xl" />
+            ) : (
+              <Stethoscope className="h-8 w-8 text-white" />
+            )}
+          </div>
+
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            {branding.tradeName}
+          </h1>
+
+          <div className="mt-1 flex items-center justify-center gap-2">
+            <span className="text-xs font-medium text-slate-300">
+              {branding.legalName}
+            </span>
+            {branding.taxId && (
+              <span className="text-[11px] px-2 py-0.5 rounded-md bg-white/10 text-teal-200 border border-white/15 font-mono">
+                RUC: {branding.taxId}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Card Form */}
+        <div className="bg-white/95 backdrop-blur-md py-8 px-6 sm:px-10 shadow-2xl rounded-3xl border border-white/20">
           <div className="mb-6">
-            <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-              Ingreso al Sistema Clínico
+            <h2 className="text-lg font-bold text-slate-900">
+              Acceso Seguro al Sistema Clínico
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Portal privado institucional para profesionales y personal de la clínica.
+            <p className="text-xs text-slate-500 mt-1">
+              Ingrese con sus credenciales institucionales habilitadas por el Administrador.
             </p>
           </div>
 
           {/* Error Banner */}
           {errorMsg && (
-            <div className="mb-5 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2.5">
+            <div className="mb-5 p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 flex items-start gap-2.5 animate-in fade-in duration-200">
               <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
+              <div className="space-y-1 flex-1">
                 <div className="font-semibold">{errorMsg}</div>
                 {attemptsLeft !== null && attemptsLeft > 0 && (
-                  <div className="text-[11px] text-rose-600">
-                    Intentos de seguridad restantes: <strong>{attemptsLeft}</strong> de 5
+                  <div className="text-[11px] text-rose-600 font-medium">
+                    Intentos preventivos restantes: <strong>{attemptsLeft}</strong> de 5.
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* Form */}
+          {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Correo Electrónico Institucional
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Correo Electrónico
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Mail className="h-4 w-4" />
-                </div>
+                <Mail className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="email"
                   required
-                  placeholder="usuario@odontosol.com.py"
+                  placeholder="usuario@clinica.com.py"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-9 pr-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all font-medium text-slate-800"
+                  className="block w-full pl-10 pr-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all font-medium text-slate-800"
                 />
               </div>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold text-slate-700">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   Contraseña
                 </label>
                 <button
                   type="button"
-                  onClick={() => alert('Para soporte o restablecimiento de contraseña comuníquese con Dirección Médica o use las cuentas demo de prueba.')}
-                  className="text-[11px] text-teal-600 hover:text-teal-800 font-medium"
+                  onClick={() => setIsForgotModalOpen(true)}
+                  className="text-[11px] text-teal-700 hover:text-teal-900 font-semibold transition-colors"
                 >
                   ¿Olvidó su contraseña?
                 </button>
               </div>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Lock className="h-4 w-4" />
-                </div>
+                <Lock className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-9 pr-10 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all font-medium text-slate-800"
+                  className="block w-full pl-10 pr-10 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all font-medium text-slate-800"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
 
+            <div className="flex items-center justify-between pt-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                />
+                <span className="text-xs text-slate-600 font-medium">Recordar cuenta</span>
+              </label>
+
+              <span className="text-[11px] text-slate-400 flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                <span>Sesión: 8 horas</span>
+              </span>
+            </div>
+
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 flex items-center justify-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-md text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-colors disabled:opacity-50"
+              className="w-full mt-2 py-3 px-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-teal-700/20 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer"
             >
               {isLoading ? (
                 <span>Validando credenciales...</span>
               ) : (
                 <>
-                  <span>Iniciar Sesión Clínica</span>
+                  <span>Ingresar al Sistema</span>
                   <ArrowRight className="h-3.5 w-3.5" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Legal and Security Verification Info */}
-          <div className="mt-8 pt-6 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5 text-teal-600" />
-                Acceso Clínico Restringido
-              </span>
-              <span className="text-[10px] text-slate-400 font-mono">RBAC Activo</span>
+          {/* Security Architecture Footnote */}
+          <div className="mt-8 pt-5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5 text-teal-600" />
+              <span>Cifrado PBKDF2 + SHA-256</span>
             </div>
-
-            <p className="text-[11px] text-slate-500 leading-relaxed">
-              Cada usuario debe ingresar obligatoriamente con su <strong>correo institucional</strong> y <strong>contraseña</strong> asignada. El sistema asignará permisos de sucursal, tarifas y módulos clínicos según el rol registrado.
-            </p>
+            <div className="flex items-center gap-1">
+              <span>{branding.countryCode}</span>
+              <span>•</span>
+              <span>{branding.currency} ({branding.currencySymbol})</span>
+            </div>
           </div>
         </div>
 
-        {/* Security and Legal Notice Footer */}
-        <div className="mt-6 text-center text-xs text-slate-400 space-y-1">
-          <p>
-            Cumplimiento Ley N° 1682/01 de Protección de Datos Médicos en Paraguay.
-          </p>
-          <p className="text-[11px] text-slate-500">
-            Cookies de sesión con flags <code>HttpOnly</code>, <code>SameSite=Lax</code>, <code>Secure</code>.
-          </p>
-        </div>
+        {/* Global Footer Note */}
+        <p className="mt-6 text-center text-xs text-slate-400">
+          Protección de datos médicos conforme a las normativas del MSPBS de Paraguay.
+        </p>
       </div>
+
+      {/* Forgot Password Modal */}
+      {isForgotModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full shadow-2xl p-6 relative">
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="h-10 w-10 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center">
+                <KeyRound className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Recuperación de Acceso
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Protocolo institucional de seguridad
+                </p>
+              </div>
+            </div>
+
+            {recoveryStatus.sent ? (
+              <div className="space-y-4 py-2">
+                <div className="p-4 bg-teal-50 border border-teal-200 rounded-2xl text-xs text-teal-900 space-y-2">
+                  <div className="font-bold flex items-center gap-1.5 text-teal-950">
+                    <CheckCircle2 className="h-4 w-4 text-teal-600" />
+                    <span>Solicitud de Acceso Registrada</span>
+                  </div>
+                  <p className="text-[12px] leading-relaxed text-teal-800">
+                    {recoveryStatus.message}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotModalOpen(false);
+                    setRecoveryStatus({ sent: false });
+                    setRecoveryEmail('');
+                  }}
+                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-colors"
+                >
+                  Regresar al Inicio de Sesión
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleRecoverySubmit} className="space-y-4 mt-2">
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Ingrese su correo institucional. Se generará un registro seguro de auditoría para que el Administrador o Dirección Médica pueda restablecer su contraseña de inmediato.
+                </p>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Correo Electrónico
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="usuario@clinica.com.py"
+                    value={recoveryEmail}
+                    onChange={(e) => setRecoveryEmail(e.target.value)}
+                    className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsForgotModalOpen(false)}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSendingRecovery}
+                    className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs"
+                  >
+                    {isSendingRecovery ? 'Procesando...' : 'Enviar Solicitud'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

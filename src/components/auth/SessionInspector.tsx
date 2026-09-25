@@ -12,7 +12,6 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../../auth/authContext.tsx';
-import { DEMO_CREDENTIALS } from '../../auth/authService.ts';
 import { dbStore } from '../../db/inMemoryStore.ts';
 
 export const SessionInspector: React.FC = () => {
@@ -183,18 +182,18 @@ export const SessionInspector: React.FC = () => {
               Permite validar la experiencia del usuario y permisos según el perfil clínico:
             </p>
             <div className="flex flex-wrap gap-2">
-              {DEMO_CREDENTIALS.map((demo) => (
+              {dbStore.getRoles().map((role) => (
                 <button
-                  key={demo.role}
-                  onClick={() => quickLoginAs(demo.role)}
+                  key={role.id}
+                  onClick={() => quickLoginAs(role.id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-                    session.role === demo.role
+                    session.role === role.id
                       ? 'bg-teal-600 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
                   <UserCheck className="h-3.5 w-3.5" />
-                  <span>{demo.roleTitle}</span>
+                  <span>{role.name}</span>
                 </button>
               ))}
             </div>

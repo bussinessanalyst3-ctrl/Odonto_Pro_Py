@@ -1,42 +1,14 @@
-import { UserRole, UserSession, AuthCredentials, LoginResult } from './types.ts';
+import { UserRole, UserSession, AuthCredentials, LoginResult, PasswordChangeResult } from './types.ts';
 import { dbStore } from '../db/inMemoryStore.ts';
-import { verifyPassword } from './cryptoUtils.ts';
+import { verifyPassword, hashPassword, generateSalt } from './cryptoUtils.ts';
 
-// Hashes Criptográficos PBKDF2-HMAC-SHA256 (100,000 iteraciones + Salt Criptográfico)
-// ¡NINGUNA CONTRASEÑA EN TEXTO PLANO EXISTE EN ESTE CÓDIGO NI PUEDE SER EXTRAÍDA POR UN ATACANTE!
-// Único usuario predeterminado: Super Administrador Lucas Eliezer Arrua Almada.
-// Todos los demás usuarios son creados y gestionados por él directamente desde el sistema.
-export const INITIAL_USER_HASHES: Record<
-  string,
-  {
-    role: UserRole;
-    roleTitle: string;
-    email: string;
-    salt: string;
-    hash: string;
-    fullName: string;
-    specialty: string;
-    license: string | null;
-    defaultBranchName: string;
-    badgeColor: string;
-  }
-> = {
-  'lucas.arrua@odontosol.com.py': {
-    role: 'SUPER_ADMIN' as UserRole,
-    roleTitle: 'Super Administrador',
-    email: 'lucas.arrua@odontosol.com.py',
-    salt: 'c8d0b03515a26fc11a2a6093d16b7e53',
-    hash: '5e3f6d970893e87f221b7445ae5fc55f99fea90719d243590d1806cd3fb01465',
-    fullName: 'Lucas Eliezer Arrua Almada',
-    specialty: 'Dirección General & Auditoría',
-    license: null,
-    defaultBranchName: 'Acceso Total Multi-Sucursal',
-    badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
-  },
-};
-
-// Objeto de compatibilidad para metadatos públicos de perfiles (sin contraseñas)
-export const DEMO_CREDENTIALS = Object.values(INITIAL_USER_HASHES);
+// Configuración de sesiones y seguridad desde variables de entorno
+const SESSION_EXPIRATION_HOURS =
+  Number(import.meta.env.VITE_SESSION_EXPIRATION_HOURS) || 8;
+const MAX_LOGIN_ATTEMPTS =
+  Number(import.meta.env.VITE_MAX_LOGIN_ATTEMPTS) || 5;
+const LOCKOUT_DURATION_MINUTES =
+  Number(import.meta.env.VITE_LOCKOUT_DURATION_MINUTES) || 15;
 
 interface FailedAttemptTracker {
   count: number;
@@ -45,21 +17,61 @@ interface FailedAttemptTracker {
 
 class AuthService {
   private failedAttempts: Map<string, FailedAttemptTracker> = new Map();
-  private maxAttempts = 5;
-  private lockoutDurationMs = 15 * 60 * 1000; // 15 minutos
+  private maxAttempts = MAX_LOGIN_ATTEMPTS;
+  private lockoutDurationMs = LOCKOUT_DURATION_MINUTES * 60 * 1000;
 
-  public async login(credentials: AuthCredentials): Promise<LoginResult> {
-    const email = credentials.email.trim().toLowerCase();
+  /**
+   * Restablece el contador de intentos fallidos (desbloqueo manual por administrador)
+   */
+  public resetFailedAttempts(email?: string): void {
+    if (email) {
+      this.failedAttempts.delete(email.trim().toLowerCase());
+    } else {
+      this.failedAttempts.clear();
+    }
+  }
+
+  /**
+   * Verifica si un correo está actualmente bloqueado por exceso de intentos
+   */
+  public isLockedOut(email: string): { locked: boolean; remainingMinutes?: number } {
+    const safeEmail = email.trim().toLowerCase();
+    const tracker = this.failedAttempts.get(safeEmail);
+    if (!tracker || !tracker.lockedUntil) return { locked: false };
+
     const now = Date.now();
-
-    // 1. Verificar bloqueo por fuerza bruta
-    const tracker = this.failedAttempts.get(email);
-    if (tracker && tracker.lockedUntil && tracker.lockedUntil > now) {
+    if (tracker.lockedUntil > now) {
       const remainingMinutes = Math.ceil((tracker.lockedUntil - now) / 60000);
+      return { locked: true, remainingMinutes };
+    }
+
+    // El tiempo de bloqueo ya expiró
+    this.failedAttempts.delete(safeEmail);
+    return { locked: false };
+  }
+
+  /**
+   * Autenticación Segura PBKDF2 + Anti-Timing Attacks + Protección de Fuerza Bruta
+   */
+  public async login(credentials: AuthCredentials): Promise<LoginResult> {
+    const rawPassword = credentials.password || '';
+    const cleanedPassword = rawPassword.trim().replace(/[\u200B-\u200D\uFEFF]/g, '');
+    const email = (credentials.email || '').trim().toLowerCase().replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+    if (!email || !cleanedPassword) {
       return {
         success: false,
-        error: `Cuenta temporalmente bloqueada por seguridad tras 5 intentos fallidos. Intente nuevamente en ${remainingMinutes} minuto(s).`,
-        blockedUntilMinutes: remainingMinutes,
+        error: 'Debe ingresar correo electrónico y contraseña.',
+      };
+    }
+
+    // 1. Verificar bloqueo por fuerza bruta
+    const lockCheck = this.isLockedOut(email);
+    if (lockCheck.locked) {
+      return {
+        success: false,
+        error: `Acceso temporalmente bloqueado por motivos de seguridad médica tras múltiples intentos fallidos. Intente nuevamente en ${lockCheck.remainingMinutes} minuto(s) o contacte al Administrador.`,
+        blockedUntilMinutes: lockCheck.remainingMinutes,
         attemptsLeft: 0,
       };
     }
@@ -68,40 +80,44 @@ class AuthService {
     const user = snapshot.users.find((u) => u.email.toLowerCase() === email);
     const org = snapshot.organization;
 
+    // 2. Mitigación de Enumeración de Usuarios (Timing Equalization)
+    // Si el usuario no existe, calculamos un hash ficticio para mantener el tiempo de respuesta idéntico
     if (!user) {
       this.recordFailedAttempt(email);
       const remaining = this.getRemainingAttempts(email);
-      this.logAudit('LOGIN_FAILED', null, null, `Intento fallido: Correo no registrado (${email})`);
+      // Simular verificación criptográfica para equiparar tiempos
+      await verifyPassword(cleanedPassword, '0000000000000000000000000000000000000000000000000000000000000000', '00000000000000000000000000000000');
+      this.logAudit('LOGIN_FAILED', null, null, `Intento de acceso fallido para correo: ${email}`);
+
       return {
         success: false,
-        error: 'Credenciales inválidas. Verifique su correo electrónico y contraseña.',
+        error: 'Credenciales de acceso incorrectas. Verifique su correo o contraseña.',
         attemptsLeft: remaining,
       };
     }
 
-    // 2. Obtener el Hash PBKDF2 y Salt Criptográfico del usuario
-    let targetHashRecord = dbStore.getUserPasswordRecord(email);
-    if (!targetHashRecord && INITIAL_USER_HASHES[email]) {
-      targetHashRecord = {
-        hash: INITIAL_USER_HASHES[email].hash,
-        salt: INITIAL_USER_HASHES[email].salt,
-        iterations: 100000,
+    // 3. Verificar estado del usuario
+    if (user.status === 'INACTIVE') {
+      return {
+        success: false,
+        error: 'Esta cuenta de usuario se encuentra inactiva. Comuníquese con la Dirección o Administración para su reactivación.',
       };
     }
 
-    // Si no hay hash disponible para este usuario (fallback)
+    // 4. Obtener registro de contraseña criptográfica
+    const targetHashRecord = dbStore.getUserPasswordRecord(email);
     if (!targetHashRecord) {
       this.recordFailedAttempt(email);
       return {
         success: false,
-        error: 'Usuario sin credenciales criptográficas configuradas. Solicite restablecimiento al Super Administrador.',
+        error: 'El usuario no tiene credenciales de acceso activas configuradas. Solicite restablecimiento al Administrador.',
         attemptsLeft: this.getRemainingAttempts(email),
       };
     }
 
-    // 3. Verificación Criptográfica PBKDF2 (Anti-Timing Attacks)
+    // 5. Verificación Criptográfica PBKDF2 (100,000 iteraciones + Salt)
     const passwordMatch = await verifyPassword(
-      credentials.password,
+      cleanedPassword,
       targetHashRecord.hash,
       targetHashRecord.salt,
       targetHashRecord.iterations
@@ -110,34 +126,39 @@ class AuthService {
     if (!passwordMatch) {
       this.recordFailedAttempt(email);
       const remaining = this.getRemainingAttempts(email);
-      this.logAudit('LOGIN_FAILED', org.id, user.id, `Contraseña incorrecta para ${email}`);
+      this.logAudit('LOGIN_FAILED', org.id, user.id, `Contraseña incorrecta ingresada para ${email}`);
 
       if (remaining === 0) {
         return {
           success: false,
-          error: 'Ha superado el límite de 5 intentos fallidos. Su cuenta ha sido bloqueada por 15 minutos como medida de seguridad médica.',
+          error: `Ha superado el límite de ${this.maxAttempts} intentos fallidos. Su cuenta ha sido bloqueada temporalmente por ${LOCKOUT_DURATION_MINUTES} minutos como medida de seguridad.`,
           attemptsLeft: 0,
-          blockedUntilMinutes: 15,
+          blockedUntilMinutes: LOCKOUT_DURATION_MINUTES,
         };
       }
 
       return {
         success: false,
-        error: `Contraseña incorrecta. Le quedan ${remaining} intento(s) antes del bloqueo de seguridad.`,
+        error: `Contraseña incorrecta. Le quedan ${remaining} intento(s) antes del bloqueo preventivo.`,
         attemptsLeft: remaining,
       };
     }
 
-    // 3. Login Exitoso: Limpiar tracker de intentos fallidos
+    // 6. Login Exitoso: Limpiar contador de intentos fallidos
     this.failedAttempts.delete(email);
 
-    // 4. Determinar sucursales autorizadas
+    // 7. Determinar sucursales autorizadas
     const userBranchLinks = snapshot.userBranches.filter((ub) => ub.userId === user.id);
     let allowedBranchIds = userBranchLinks.map((ub) => ub.branchId);
 
-    // Si es Super Admin, tiene acceso a todas las sucursales de la organización
+    // Si es Super Administrador, tiene acceso a todas las sucursales del sistema
     if (user.roleId === 'SUPER_ADMIN') {
       allowedBranchIds = snapshot.branches.map((b) => b.id);
+    }
+
+    // Si no tiene sucursal asignada explícitamente, asociar la primera sucursal activa
+    if (allowedBranchIds.length === 0 && snapshot.branches.length > 0) {
+      allowedBranchIds = [snapshot.branches[0].id];
     }
 
     // Sucursal activa seleccionada o predeterminada
@@ -146,13 +167,15 @@ class AuthService {
       safeBranchId = credentials.branchId;
     } else {
       const defaultUb = userBranchLinks.find((ub) => ub.isDefault);
-      safeBranchId = defaultUb?.branchId || allowedBranchIds[0] || snapshot.branches[0]?.id || 'branch-asu';
+      safeBranchId = defaultUb?.branchId || allowedBranchIds[0] || snapshot.branches[0]?.id || 'branch-default';
     }
 
-    // 5. Generar token de sesión seguro con fecha de caducidad (8 horas)
+    // 8. Generar token de sesión criptográfico con caducidad configurada
     const sessionToken = `sess_${crypto.randomUUID().replace(/-/g, '')}`;
-    const issuedAt = new Date().toISOString();
-    const expiresAt = new Date(Date.now() + 8 * 3600 * 1000).toISOString();
+    const now = new Date();
+    const issuedAt = now.toISOString();
+    const expirationMs = SESSION_EXPIRATION_HOURS * 3600 * 1000;
+    const expiresAt = new Date(now.getTime() + expirationMs).toISOString();
 
     const roleObj = snapshot.roles.find((r) => r.id === user.roleId);
 
@@ -178,20 +201,20 @@ class AuthService {
         httpOnly: true,
         sameSite: 'lax',
         secure: true,
-        maxAgeSeconds: 8 * 3600,
+        maxAgeSeconds: SESSION_EXPIRATION_HOURS * 3600,
       },
     };
 
     // Actualizar último login del usuario
     user.lastLoginAt = new Date();
 
-    // 6. Registrar en bitácora inmutable de auditoría
+    // 9. Registrar en auditoría
     const currentBranch = snapshot.branches.find((b) => b.id === safeBranchId);
     this.logAudit(
       'LOGIN_SUCCESS',
       org.id,
       user.id,
-      `Inicio de sesión exitoso: ${user.firstName} ${user.lastName} (${user.roleId}) en ${currentBranch?.name || 'General'}`
+      `Inicio de sesión exitoso: ${user.firstName} ${user.lastName} (${session.roleName}) en ${currentBranch?.name || 'Sede Principal'}`
     );
 
     return {
@@ -200,19 +223,127 @@ class AuthService {
     };
   }
 
+  /**
+   * Cierre de sesión seguro y auditoría
+   */
   public logout(session: UserSession | null): void {
     if (session) {
       this.logAudit(
         'LOGOUT',
         session.organizationId,
         session.userId,
-        `Cierre de sesión seguro: ${session.firstName} ${session.lastName}`
+        `Cierre de sesión: ${session.firstName} ${session.lastName}`
       );
     }
   }
 
+  /**
+   * Valida si una sesión en memoria sigue siendo válida y no fue revocada
+   */
+  public isSessionValid(session: UserSession | null): boolean {
+    if (!session) return false;
+
+    // Verificar si expiró por tiempo
+    if (new Date(session.expiresAt).getTime() <= Date.now()) {
+      return false;
+    }
+
+    // Verificar si fue revocada por un administrador
+    if (dbStore.isSessionRevoked(session.userId, session.issuedAt)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Cambio de contraseña para el usuario actualmente autenticado
+   */
+  public async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+  ): Promise<PasswordChangeResult> {
+    const snapshot = dbStore.getSnapshot();
+    const user = snapshot.users.find((u) => u.id === userId);
+    if (!user) {
+      return { success: false, error: 'Usuario no encontrado en el sistema.' };
+    }
+
+    if (!newPassword || newPassword.length < 8) {
+      return { success: false, error: 'La nueva contraseña debe tener como mínimo 8 caracteres.' };
+    }
+
+    // 1. Validar contraseña actual
+    const currentHashRec = dbStore.getUserPasswordRecord(user.email);
+    if (currentHashRec) {
+      const match = await verifyPassword(
+        currentPassword.trim(),
+        currentHashRec.hash,
+        currentHashRec.salt,
+        currentHashRec.iterations
+      );
+      if (!match) {
+        return { success: false, error: 'La contraseña actual ingresada es incorrecta.' };
+      }
+    }
+
+    // 2. Generar nuevo hash criptográfico PBKDF2 con nueva sal
+    const newSalt = generateSalt();
+    const newHashRec = await hashPassword(newPassword.trim(), newSalt, 100000);
+
+    // 3. Almacenar en el store
+    dbStore.setUserPasswordHash(userId, {
+      hash: newHashRec.hash,
+      salt: newHashRec.salt,
+      iterations: newHashRec.iterations,
+    });
+
+    // 4. Revocar sesiones anteriores por seguridad
+    dbStore.revokeUserSessions(userId);
+
+    this.logAudit(
+      'PASSWORD_CHANGE',
+      snapshot.organization.id,
+      userId,
+      `Cambio voluntario de contraseña realizado por el usuario ${user.firstName} ${user.lastName}`
+    );
+
+    return {
+      success: true,
+      message: 'Su contraseña ha sido actualizada con éxito.',
+    };
+  }
+
+  /**
+   * Solicitud de restablecimiento de contraseña (procedimiento seguro)
+   */
+  public async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
+    const cleanEmail = email.trim().toLowerCase();
+    const snapshot = dbStore.getSnapshot();
+    const user = snapshot.users.find((u) => u.email.toLowerCase() === cleanEmail);
+
+    if (user) {
+      this.logAudit(
+        'PASSWORD_RESET_REQUESTED',
+        snapshot.organization.id,
+        user.id,
+        `Solicitud de restablecimiento de acceso registrada para ${cleanEmail}`
+      );
+    }
+
+    // Mensaje neutro para evitar enumeración de correos
+    return {
+      success: true,
+      message:
+        'Si el correo electrónico está registrado en el sistema clínico, su solicitud ha sido procesada. Por seguridad institucional, contacte a la Dirección Médica o Administrador General para autorizar su nueva clave temporal.',
+    };
+  }
+
+  /**
+   * Cambio de sucursal activa con validación anti-IDOR
+   */
   public switchBranch(session: UserSession, newBranchId: string): UserSession {
-    // Validar anti-IDOR: ¿El usuario tiene permiso para esta sucursal?
     if (session.role !== 'SUPER_ADMIN' && !session.allowedBranchIds.includes(newBranchId)) {
       throw new Error('Violación de Seguridad: El usuario no tiene asignada esta sucursal.');
     }

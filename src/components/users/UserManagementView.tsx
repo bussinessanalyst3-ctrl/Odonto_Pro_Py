@@ -15,9 +15,13 @@ import {
   ShieldCheck,
   Filter,
   RefreshCw,
+  LogOut,
+  Unlock,
+  AlertTriangle,
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { BASE_ROLES } from '../../db/seeds/paraguay-catalogs.ts';
+import { authService } from '../../auth/authService.ts';
 import { UserModal } from './UserModal.tsx';
 import { RolePermissionsModal } from './RolePermissionsModal.tsx';
 import { ManageRolesModal } from './ManageRolesModal.tsx';
@@ -41,6 +45,23 @@ export const UserManagementView: React.FC = () => {
     const unsub = dbStore.subscribe(() => setTick((t) => t + 1));
     return unsub;
   }, []);
+
+  const handleRevokeSessions = (user: any) => {
+    const confirm = window.confirm(
+      `¿Está seguro de revocar inmediatamente todas las sesiones activas de ${user.firstName} ${user.lastName}? El usuario deberá volver a autenticarse.`
+    );
+    if (!confirm) return;
+
+    dbStore.revokeUserSessions(user.id);
+    setNotification(`Sesiones activas revocadas exitosamente para ${user.firstName} ${user.lastName}.`);
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const handleUnlockUser = (user: any) => {
+    authService.resetFailedAttempts(user.email);
+    setNotification(`Bloqueo de seguridad eliminado para ${user.firstName} ${user.lastName} (${user.email}).`);
+    setTimeout(() => setNotification(null), 5000);
+  };
 
   const snapshot = dbStore.getSnapshot();
   const users = snapshot.users;
@@ -350,6 +371,26 @@ export const UserManagementView: React.FC = () => {
                   >
                     <KeyRound className="h-3.5 w-3.5" />
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRevokeSessions(u)}
+                    title="Revocar inmediatamente todas las sesiones activas de este usuario"
+                    className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 transition-colors"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                  </button>
+
+                  {authService.isLockedOut(u.email).locked && (
+                    <button
+                      type="button"
+                      onClick={() => handleUnlockUser(u)}
+                      title="Desbloquear intentos de acceso fallidos"
+                      className="p-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors animate-pulse"
+                    >
+                      <Unlock className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 <button

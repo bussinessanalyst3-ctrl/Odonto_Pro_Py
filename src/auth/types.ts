@@ -2,10 +2,11 @@ export type SystemBaseRole =
   | 'SUPER_ADMIN'
   | 'ADMIN_SUCURSAL'
   | 'SUPERVISOR'
-  | 'VENDEDOR'
   | 'ODONTOLOGO'
   | 'RECEPCION'
-  | 'CAJA';
+  | 'CAJA'
+  | 'ASISTENTE'
+  | 'VENDEDOR';
 
 export type UserRole = SystemBaseRole | string;
 
@@ -48,4 +49,10 @@ export interface LoginResult {
   error?: string;
   attemptsLeft?: number;
   blockedUntilMinutes?: number;
+}
+
+export interface PasswordChangeResult {
+  success: boolean;
+  error?: string;
+  message?: string;
 }

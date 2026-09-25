@@ -4,9 +4,12 @@ import { PARAGUAY_DEPARTMENTS, BASE_ROLES, STANDARD_SERVICES, formatPYG } from '
 class DatabaseStore {
   private data: SeedDataResult;
   private listeners: Array<() => void> = [];
+  private revokedUserSessions: Map<string, number> = new Map();
+  private organizationsList: Array<any> = [];
 
   constructor() {
     this.data = generateInitialSeedData();
+    this.organizationsList = [this.data.organization];
   }
 
   public getSnapshot(): SeedDataResult {
@@ -26,11 +29,115 @@ class DatabaseStore {
 
   public resetToSeed() {
     this.data = generateInitialSeedData();
+    this.organizationsList = [this.data.organization];
+    this.revokedUserSessions.clear();
     this.notify();
   }
 
   public getActiveOrganization() {
     return this.data.organization;
+  }
+
+  public getOrganizations() {
+    return this.organizationsList;
+  }
+
+  public addOrganization(newOrg: {
+    name: string;
+    tradeName?: string;
+    legalName?: string;
+    taxId: string;
+    countryCode?: string;
+    defaultCurrency?: string;
+    timezone?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    primaryColor?: string;
+    logoUrl?: string;
+  }) {
+    const id = crypto.randomUUID();
+    const createdOrg = {
+      id,
+      code: `ORG-${newOrg.taxId ? newOrg.taxId.replace(/[^A-Za-z0-9]/g, '') : Date.now()}`,
+      name: newOrg.name || newOrg.tradeName || 'Nueva Organización',
+      legalName: newOrg.legalName || newOrg.name,
+      taxId: newOrg.taxId || '80000000-1',
+      countryCode: newOrg.countryCode || 'PRY',
+      defaultCurrency: newOrg.defaultCurrency || 'PYG',
+      timezone: newOrg.timezone || 'America/Asuncion',
+      status: 'ACTIVE',
+      phone: newOrg.phone || '+595 21 000 000',
+      email: newOrg.email || 'contacto@clinica.com.py',
+      address: newOrg.address || 'Asunción, Paraguay',
+      primaryColor: newOrg.primaryColor || 'teal',
+      logoUrl: newOrg.logoUrl,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    this.organizationsList.push(createdOrg);
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: null,
+      userId: this.data.users[0]?.id || null,
+      action: 'CREATE',
+      entity: 'ORGANIZATION',
+      entityId: id,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Multi-Tenant Admin',
+      oldValues: null,
+      newValues: createdOrg,
+      description: `Creación de nueva Organización / Cliente: ${createdOrg.name} (RUC: ${createdOrg.taxId})`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return createdOrg;
+  }
+
+  public switchOrganization(orgId: string) {
+    const target = this.organizationsList.find((o) => o.id === orgId);
+    if (!target) return false;
+    this.data.organization = target;
+    this.notify();
+    return true;
+  }
+
+  public revokeUserSessions(userId: string, adminUserId?: string) {
+    const user = this.data.users.find((u) => u.id === userId);
+    if (!user) return false;
+
+    const revocationTime = Date.now();
+    this.revokedUserSessions.set(userId, revocationTime);
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: null,
+      userId: adminUserId || this.data.users[0]?.id || null,
+      action: 'SESSION_REVOCATION',
+      entity: 'USER_SESSION',
+      entityId: userId,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Security Manager',
+      oldValues: null,
+      newValues: { revokedAt: new Date(revocationTime).toISOString(), userId },
+      description: `Revocación forzosa inmediata de todas las sesiones activas para ${user.firstName} ${user.lastName} (${user.email})`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return true;
+  }
+
+  public isSessionRevoked(userId: string, sessionIssuedAtIso: string): boolean {
+    const revokedAt = this.revokedUserSessions.get(userId);
+    if (!revokedAt) return false;
+    const sessionTime = new Date(sessionIssuedAtIso).getTime();
+    return sessionTime <= revokedAt;
   }
 
   public getBranches() {
@@ -649,7 +756,7 @@ class DatabaseStore {
 
   public setUserPasswordHash(
     userId: string,
-    record: { hash: string; salt: string; iterations: number; plainForAdminReference?: string }
+    record: { hash: string; salt: string; iterations: number }
   ) {
     const user = this.data.users.find((u) => u.id === userId);
     if (!user) return false;
@@ -1398,7 +1505,7 @@ class DatabaseStore {
       patientId: treat.patientId,
       treatmentId: treat.id,
       appointmentId: null,
-      cashMovementId: null,
+      cashMovementId: null as string | null,
       receiptNumber,
       invoiceNumber: `001-001-${Math.floor(100000 + Math.random() * 900000)}`,
       amount,

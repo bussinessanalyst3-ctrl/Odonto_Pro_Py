@@ -42,6 +42,7 @@ export type TabType =
   | 'patients'
   | 'users'
   | 'branches'
+  | 'organization'
   | 'auth-session'
   | 'database'
   | 'data-explorer'
@@ -151,6 +152,15 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     icon: Landmark,
     category: 'management',
     allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL'],
+    color: 'bg-teal-600',
+  },
+  {
+    id: 'organization',
+    label: 'Empresa & Branding',
+    devLabel: 'Multiempresa & Marca (Fase 18)',
+    icon: Building2,
+    category: 'management',
+    allowedRoles: ['SUPER_ADMIN'],
     color: 'bg-teal-600',
   },
   {

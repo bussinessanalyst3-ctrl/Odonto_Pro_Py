@@ -31,6 +31,7 @@ import {
   X
 } from 'lucide-react';
 import { useAuth } from '../auth/authContext.tsx';
+import { useBranding } from '../branding/BrandingContext.tsx';
 import { UserRole } from '../auth/types.ts';
 import { TabType, ALL_NAV_ITEMS } from './Header.tsx';
 import { dbStore } from '../db/inMemoryStore.ts';
@@ -65,6 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleDevTools,
 }) => {
   const { session, logout } = useAuth();
+  const { branding } = useBranding();
   const org = dbStore.getActiveOrganization();
   const userRole: UserRole = session?.role || 'SUPER_ADMIN';
 
@@ -169,6 +171,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL'],
         },
         {
+          id: 'organization',
+          label: 'Empresa & Branding',
+          icon: Building2,
+          allowedRoles: ['SUPER_ADMIN'],
+        },
+        {
           id: 'users',
           label: 'Equipo, Roles & Accesos',
           icon: Users,
@@ -225,21 +233,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
           isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >
-        {/* Encabezado del Sidebar / Branding */}
+        {/* Encabezado del Sidebar / Branding Dinámico */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 bg-white">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white shadow-sm shadow-teal-600/30">
-              <Stethoscope className="h-5 w-5" />
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white shadow-sm shadow-teal-600/30 font-bold overflow-hidden">
+              {branding.logoUrl ? (
+                <img src={branding.logoUrl} alt={branding.tradeName} className="h-full w-full object-contain p-1" />
+              ) : (
+                <Stethoscope className="h-5 w-5" />
+              )}
             </div>
             <div>
               <div className="font-extrabold text-slate-900 text-base leading-tight tracking-tight flex items-center gap-1.5">
-                <span>OdontoPro</span>
+                <span className="truncate max-w-[130px]" title={branding.tradeName}>
+                  {branding.tradeName}
+                </span>
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200">
-                  PYG
+                  {branding.currency}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium truncate max-w-[150px]">
-                {org?.name || 'Clínica Dental Paraguay'}
+              <p className="text-[11px] text-slate-500 font-medium truncate max-w-[150px]" title={branding.legalName}>
+                {branding.legalName}
               </p>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserSession, UserRole, AuthCredentials, LoginResult } from './types.ts';
-import { authService, DEMO_CREDENTIALS } from './authService.ts';
+import { UserSession, UserRole, AuthCredentials, LoginResult, PasswordChangeResult } from './types.ts';
+import { authService } from './authService.ts';
 import { dbStore } from '../db/inMemoryStore.ts';
 
 interface AuthContextType {
@@ -12,6 +12,8 @@ interface AuthContextType {
   switchBranch: (branchId: string) => void;
   hasRole: (requiredRoles: UserRole | UserRole[]) => boolean;
   quickLoginAs: (role: UserRole) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<PasswordChangeResult>;
+  requestPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,16 +25,15 @@ const getInitialSession = (): UserSession | null => {
     const stored = localStorage.getItem(SESSION_STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored) as UserSession;
-      if (new Date(parsed.expiresAt).getTime() > Date.now()) {
+      if (authService.isSessionValid(parsed)) {
         return parsed;
       }
       localStorage.removeItem(SESSION_STORAGE_KEY);
     }
   } catch (e) {
-    console.error('Error loading session from localStorage:', e);
+    console.error('Error cargando sesión previa:', e);
   }
 
-  // Por defecto, no iniciar sesión automáticamente para exigir autenticación y respetar RBAC
   return null;
 };
 
@@ -40,10 +41,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<UserSession | null>(getInitialSession);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Sync session on mount
+  // Verificación periódica de expiración y revocación de sesión
   useEffect(() => {
-    setIsLoading(false);
-  }, []);
+    if (!session) return;
+
+    const interval = setInterval(() => {
+      if (!authService.isSessionValid(session)) {
+        console.warn('Sesión caducada o revocada por el Administrador. Cerrando sesión...');
+        logout();
+      }
+    }, 15000); // Revisar cada 15 segundos
+
+    return () => clearInterval(interval);
+  }, [session]);
 
   const login = async (credentials: AuthCredentials): Promise<LoginResult> => {
     setIsLoading(true);
@@ -62,7 +72,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     authService.logout(session);
     setSession(null);
-    localStorage.removeItem(SESSION_STORAGE_KEY);
+    try {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    } catch (e) {}
   };
 
   const switchBranch = (branchId: string) => {
@@ -83,8 +95,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return rolesArray.includes(session.role);
   };
 
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string
+  ): Promise<PasswordChangeResult> => {
+    if (!session) {
+      return { success: false, error: 'No hay una sesión activa.' };
+    }
+    const result = await authService.changePassword(session.userId, currentPassword, newPassword);
+    return result;
+  };
+
+  const requestPasswordReset = async (email: string) => {
+    return authService.requestPasswordReset(email);
+  };
+
   const quickLoginAs = async (role: UserRole) => {
-    // Buscar usuario con dicho rol o crear sesión directa autorizada
     const snapshot = dbStore.getSnapshot();
     const userWithRole = snapshot.users.find((u) => u.roleId === role);
     const roleObj = dbStore.getRoles().find((r) => r.id === role);
@@ -101,12 +127,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       organizationTaxId: org.taxId,
       role: role as any,
       roleName: roleObj ? roleObj.name : role,
-      firstName: userWithRole ? userWithRole.firstName : (role === 'VENDEDOR' ? 'Marcos' : role === 'SUPERVISOR' ? 'Lic. Valeria' : targetUser.firstName),
-      lastName: userWithRole ? userWithRole.lastName : (role === 'VENDEDOR' ? 'Giménez' : role === 'SUPERVISOR' ? 'Villalba' : targetUser.lastName),
-      email: userWithRole ? userWithRole.email : `${role.toLowerCase()}@odontosol.com.py`,
+      firstName: userWithRole ? userWithRole.firstName : targetUser.firstName,
+      lastName: userWithRole ? userWithRole.lastName : targetUser.lastName,
+      email: userWithRole ? userWithRole.email : targetUser.email,
       phone: targetUser.phone,
       professionalLicense: role === 'ODONTOLOGO' ? targetUser.professionalLicense : null,
-      specialty: roleObj ? roleObj.name : 'Personal Especializado',
+      specialty: roleObj ? roleObj.name : 'Personal Asignado',
       allowedBranchIds: snapshot.branches.map((b) => b.id),
       currentBranchId: snapshot.branches[0]?.id || '',
       sessionToken: `sess_${crypto.randomUUID().replace(/-/g, '')}`,
@@ -137,6 +163,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchBranch,
         hasRole,
         quickLoginAs,
+        changePassword,
+        requestPasswordReset,
       }}
     >
       {children}

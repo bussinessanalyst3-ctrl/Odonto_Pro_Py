@@ -27,6 +27,9 @@ yarn-error.log*
 .env.production.local
 .env*.local
 !.env.example
+CREDENCIALES_INTERNAS.txt
+credentials.json
+secrets.json
 
 # Vercel
 .vercel

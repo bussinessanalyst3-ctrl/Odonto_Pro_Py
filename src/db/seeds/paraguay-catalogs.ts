@@ -245,6 +245,13 @@ export const BASE_ROLES = [
     isSystem: true,
     allowedNavTabs: ['dashboard', 'cash', 'quotes'],
   },
+  {
+    id: 'ASISTENTE',
+    name: 'Asistente Dental / Auxiliar',
+    description: 'Apoyo en box odontológico, preparación de instrumental, consulta de pacientes y soporte operativo.',
+    isSystem: true,
+    allowedNavTabs: ['dashboard', 'appointments', 'patients', 'treatments'],
+  },
 ];
 
 export const STANDARD_SERVICES = [

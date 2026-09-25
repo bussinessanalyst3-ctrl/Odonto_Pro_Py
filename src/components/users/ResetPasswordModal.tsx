@@ -64,15 +64,17 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
       // 1. Hashear con PBKDF2 + SHA-256 + Salt aleatorio único
       const hashRecord = await hashPassword(newPassword);
 
-      // 2. Guardar en el store con hash criptográfico
+      // 2. Guardar en el store con hash criptográfico PBKDF2
       dbStore.setUserPasswordHash(user.id, {
         hash: hashRecord.hash,
         salt: hashRecord.salt,
         iterations: hashRecord.iterations,
-        plainForAdminReference: newPassword, // Solo para confirmación inmediata en pantalla si se desea
       });
 
-      onSuccess(`Contraseña actualizada con éxito para ${user.firstName} ${user.lastName} (${user.email}). Hash PBKDF2 derivado y protegido.`);
+      // 3. Revocar sesiones activas previas por seguridad
+      dbStore.revokeUserSessions(user.id);
+
+      onSuccess(`Contraseña actualizada y protegida con éxito para ${user.firstName} ${user.lastName} (${user.email}). Se han revocado sesiones anteriores.`);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Error al derivar el hash criptográfico.');

@@ -69,7 +69,6 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
       teethDataMap[item.toothNumber] = {
         toothNumber: item.toothNumber,
         surfaces: {},
-        notes: item.notes,
       };
     }
     teethDataMap[item.toothNumber].surfaces[item.surface as keyof ToothData['surfaces']] = {
