@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Users,
   UserPlus,
@@ -14,7 +14,9 @@ import {
   Power,
   ShieldCheck,
   Calendar,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { PatientModal } from './PatientModal.tsx';
@@ -31,6 +33,8 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('ALL');
   const [alertFilter, setAlertFilter] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [patientToEdit, setPatientToEdit] = useState<any | null>(null);
@@ -59,33 +63,46 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
     dbStore.togglePatientStatus(patientId);
   };
 
-  // Filter logic
-  const filteredPatients = patients.filter((p) => {
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      p.firstName.toLowerCase().includes(term) ||
-      p.lastName.toLowerCase().includes(term) ||
-      p.documentNumber.toLowerCase().includes(term) ||
-      p.phone.toLowerCase().includes(term) ||
-      p.city.toLowerCase().includes(term);
+  // Filter logic memorized
+  const filteredPatients = useMemo(() => {
+    return patients.filter((p) => {
+      const term = searchTerm.toLowerCase();
+      const matchesSearch =
+        p.firstName.toLowerCase().includes(term) ||
+        p.lastName.toLowerCase().includes(term) ||
+        p.documentNumber.toLowerCase().includes(term) ||
+        p.phone.toLowerCase().includes(term) ||
+        p.city.toLowerCase().includes(term);
 
-    const matchesBranch = branchFilter === 'ALL' || p.primaryBranchId === branchFilter;
+      const matchesBranch = branchFilter === 'ALL' || p.primaryBranchId === branchFilter;
 
-    let matchesAlert = true;
-    if (alertFilter === 'ALLERGIES') {
-      matchesAlert =
-        p.allergies &&
-        p.allergies.toLowerCase() !== 'ninguna' &&
-        p.allergies.toLowerCase() !== 'ninguna conocida';
-    } else if (alertFilter === 'CONDITIONS') {
-      matchesAlert =
-        p.medicalConditions &&
-        p.medicalConditions.toLowerCase() !== 'ninguna' &&
-        p.medicalConditions.toLowerCase() !== 'ninguna conocida';
-    }
+      let matchesAlert = true;
+      if (alertFilter === 'ALLERGIES') {
+        matchesAlert =
+          p.allergies &&
+          p.allergies.toLowerCase() !== 'ninguna' &&
+          p.allergies.toLowerCase() !== 'ninguna conocida';
+      } else if (alertFilter === 'CONDITIONS') {
+        matchesAlert =
+          p.medicalConditions &&
+          p.medicalConditions.toLowerCase() !== 'ninguna' &&
+          p.medicalConditions.toLowerCase() !== 'ninguna conocida';
+      }
 
-    return matchesSearch && matchesBranch && matchesAlert;
-  });
+      return matchesSearch && matchesBranch && matchesAlert;
+    });
+  }, [patients, searchTerm, branchFilter, alertFilter]);
+
+  const totalPages = Math.ceil(filteredPatients.length / pageSize) || 1;
+  const paginatedPatients = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredPatients.slice(start, start + pageSize);
+  }, [filteredPatients, currentPage, pageSize]);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, branchFilter, alertFilter]);
 
   const totalPatients = patients.length;
   const patientsWithAllergies = patients.filter(
@@ -213,7 +230,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
-              {filteredPatients.map((p) => {
+              {paginatedPatients.map((p) => {
                 const primaryBranch = branches.find((b) => b.id === p.primaryBranchId);
 
                 const hasAlert =
@@ -332,6 +349,42 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Paginación */}
+        {filteredPatients.length > pageSize && (
+          <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600 bg-slate-50/50">
+            <div>
+              Mostrando <span className="font-bold text-slate-900">{(currentPage - 1) * pageSize + 1}</span> a{' '}
+              <span className="font-bold text-slate-900">
+                {Math.min(currentPage * pageSize, filteredPatients.length)}
+              </span>{' '}
+              de <span className="font-bold text-slate-900">{filteredPatients.length}</span> pacientes
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Página Anterior"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <span className="px-3 font-semibold text-slate-800">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Página Siguiente"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modals & Drawers */}

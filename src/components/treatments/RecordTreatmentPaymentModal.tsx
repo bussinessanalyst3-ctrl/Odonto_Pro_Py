@@ -23,15 +23,15 @@ export const RecordTreatmentPaymentModal: React.FC<RecordTreatmentPaymentModalPr
 
   const [amount, setAmount] = useState<number>(balance > 0 ? balance : 100000);
   const [paymentMethod, setPaymentMethod] = useState<string>('TRANSFERENCIA_SIPAP');
-  const [receiptNumber, setReceiptNumber] = useState<string>(
-    `REC-001-001-${Math.floor(1000000 + Math.random() * 9000000)}`
-  );
+  const [receiptNumber, setReceiptNumber] = useState<string>(() => dbStore.getNextReceiptNumber());
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   if (!isOpen || !treatment) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError(null);
 
     if (amount <= 0) {
@@ -43,6 +43,7 @@ export const RecordTreatmentPaymentModal: React.FC<RecordTreatmentPaymentModalPr
       return;
     }
 
+    setIsSubmitting(true);
     try {
       dbStore.recordTreatmentPayment(
         treatment.id,
@@ -60,6 +61,7 @@ export const RecordTreatmentPaymentModal: React.FC<RecordTreatmentPaymentModalPr
       onClose();
     } catch (err: any) {
       setError(err.message || 'Error al procesar el pago.');
+      setIsSubmitting(false);
     }
   };
 
@@ -167,16 +169,18 @@ export const RecordTreatmentPaymentModal: React.FC<RecordTreatmentPaymentModalPr
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+              disabled={isSubmitting}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
+              disabled={isSubmitting}
+              className="px-5 py-2 text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white rounded-xl shadow-xs transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Check className="h-4 w-4" />
-              <span>Confirmar Cobro</span>
+              <span>{isSubmitting ? 'Procesando...' : 'Confirmar Cobro'}</span>
             </button>
           </div>
         </form>

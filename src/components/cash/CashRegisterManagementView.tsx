@@ -45,6 +45,10 @@ export const CashRegisterManagementView: React.FC = () => {
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
   const [viewPaymentId, setViewPaymentId] = useState<string | null>(null);
+  const [annulPaymentId, setAnnulPaymentId] = useState<string | null>(null);
+  const [annulReason, setAnnulReason] = useState<string>('');
+  const [annulError, setAnnulError] = useState<string | null>(null);
+  const [isAnnulling, setIsAnnulling] = useState<boolean>(false);
 
   const reloadData = () => {
     setCashRegisters([...dbStore.getCashRegisters()]);
@@ -494,13 +498,32 @@ export const CashRegisterManagementView: React.FC = () => {
                         </td>
 
                         <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => setViewPaymentId(p.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors border border-teal-200"
-                          >
-                            <Printer className="h-3 w-3" />
-                            Ver Recibo
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => setViewPaymentId(p.id)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors border border-teal-200"
+                            >
+                              <Printer className="h-3 w-3" />
+                              Ver Recibo
+                            </button>
+                            {p.status !== 'ANULADO' ? (
+                              <button
+                                onClick={() => {
+                                  setAnnulPaymentId(p.id);
+                                  setAnnulReason('');
+                                  setAnnulError(null);
+                                }}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200"
+                                title="Anular Recibo y Revertir Saldo"
+                              >
+                                Anular
+                              </button>
+                            ) : (
+                              <span className="px-2 py-0.5 text-[10px] font-black text-rose-700 bg-rose-100 rounded-md border border-rose-200">
+                                ANULADO
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -663,6 +686,93 @@ export const CashRegisterManagementView: React.FC = () => {
         paymentId={viewPaymentId}
         onClose={() => setViewPaymentId(null)}
       />
+
+      {/* Modal de Anulación de Recibo */}
+      {annulPaymentId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="h-10 w-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Anulación de Recibo Oficial</h3>
+                <p className="text-xs text-slate-500">Reversión de saldo y contra-asiento de caja</p>
+              </div>
+            </div>
+
+            {annulError && (
+              <div className="mt-3 p-2.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{annulError}</span>
+              </div>
+            )}
+
+            <div className="mt-4 space-y-3">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Esta acción marcará el recibo como <span className="font-bold text-rose-700">ANULADO</span>, restaurará el saldo pendiente del paciente en su plan de tratamiento y registrará el contra-asiento contable en la caja activa con fines de auditoría forense.
+              </p>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Motivo de Anulación (Requerido):
+                </label>
+                <textarea
+                  value={annulReason}
+                  onChange={(e) => setAnnulReason(e.target.value)}
+                  placeholder="Ej: Error de digitación en monto, duplicación involuntaria, solicitud del paciente..."
+                  rows={3}
+                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500 focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={isAnnulling}
+                onClick={() => {
+                  setAnnulPaymentId(null);
+                  setAnnulReason('');
+                  setAnnulError(null);
+                }}
+                className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isAnnulling || annulReason.trim().length < 5}
+                onClick={() => {
+                  if (annulReason.trim().length < 5) {
+                    setAnnulError('El motivo debe contener al menos 5 caracteres.');
+                    return;
+                  }
+                  setIsAnnulling(true);
+                  try {
+                    dbStore.annulPayment({
+                      paymentId: annulPaymentId,
+                      reason: annulReason.trim(),
+                      actorUserId: session?.userId || dbStore.getUsers()[0]?.id,
+                    });
+                    reloadData();
+                    setAnnulPaymentId(null);
+                    setAnnulReason('');
+                    setAnnulError(null);
+                  } catch (err: any) {
+                    setAnnulError(err.message || 'Error al anular el recibo.');
+                  } finally {
+                    setIsAnnulling(false);
+                  }
+                }}
+                className="px-4 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isAnnulling ? 'Anulando...' : 'Confirmar Anulación'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

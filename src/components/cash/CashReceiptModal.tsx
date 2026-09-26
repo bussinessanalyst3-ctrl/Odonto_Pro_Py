@@ -87,11 +87,26 @@ export const CashReceiptModal: React.FC<CashReceiptModalProps> = ({ paymentId, o
           </div>
 
           {/* Amount Badge */}
-          <div className="bg-teal-50 border border-teal-200 p-3.5 rounded-xl flex items-center justify-between">
-            <span className="text-xs font-bold text-teal-900 uppercase">
-              La suma de Guaraníes:
-            </span>
-            <span className="text-lg font-black text-teal-800 font-mono">
+          <div className={`p-3.5 rounded-xl flex items-center justify-between border ${
+            payment.status === 'ANULADO' 
+              ? 'bg-rose-50 border-rose-300 text-rose-800' 
+              : 'bg-teal-50 border-teal-200'
+          }`}>
+            <div>
+              <span className={`text-xs font-bold uppercase block ${
+                payment.status === 'ANULADO' ? 'text-rose-900' : 'text-teal-900'
+              }`}>
+                {payment.status === 'ANULADO' ? 'RECIBO ANULADO - VALOR REVERTIDO' : 'La suma de Guaraníes:'}
+              </span>
+              {payment.status === 'ANULADO' && (payment as any).annulledReason && (
+                <span className="text-[11px] font-medium text-rose-700 italic block mt-0.5">
+                  Motivo: "{(payment as any).annulledReason}"
+                </span>
+              )}
+            </div>
+            <span className={`text-lg font-black font-mono ${
+              payment.status === 'ANULADO' ? 'text-rose-700 line-through' : 'text-teal-800'
+            }`}>
               ₲ {payment.amount.toLocaleString('es-PY')}
             </span>
           </div>

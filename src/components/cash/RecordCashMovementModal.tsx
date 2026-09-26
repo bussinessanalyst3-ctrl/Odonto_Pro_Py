@@ -36,11 +36,13 @@ export const RecordCashMovementModal: React.FC<RecordCashMovementModalProps> = (
   const [referenceNumber, setReferenceNumber] = useState<string>('');
   const [patientId, setPatientId] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMsg(null);
 
     if (amount <= 0) {
@@ -48,10 +50,11 @@ export const RecordCashMovementModal: React.FC<RecordCashMovementModalProps> = (
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const receiptNum =
         movementType === 'INGRESO'
-          ? `REC-001-001-${String(Math.floor(1000000 + Math.random() * 9000000))}`
+          ? dbStore.getNextReceiptNumber()
           : undefined;
 
       const mov = dbStore.addCashMovement({
@@ -70,6 +73,7 @@ export const RecordCashMovementModal: React.FC<RecordCashMovementModalProps> = (
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message || 'Error al asentar movimiento.');
+      setIsSubmitting(false);
     }
   };
 
@@ -273,20 +277,22 @@ export const RecordCashMovementModal: React.FC<RecordCashMovementModalProps> = (
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-xl"
+              disabled={isSubmitting}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-xl disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className={`inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-xl transition-colors shadow-sm ${
+              disabled={isSubmitting}
+              className={`inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
                 movementType === 'INGRESO'
                   ? 'bg-emerald-600 hover:bg-emerald-700'
                   : 'bg-red-600 hover:bg-red-700'
               }`}
             >
               <CheckCircle2 className="h-4 w-4" />
-              Guardar {movementType === 'INGRESO' ? 'Ingreso' : 'Egreso'}
+              <span>{isSubmitting ? 'Guardando...' : `Guardar ${movementType === 'INGRESO' ? 'Ingreso' : 'Egreso'}`}</span>
             </button>
           </div>
         </form>

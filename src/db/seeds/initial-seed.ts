@@ -193,6 +193,8 @@ export function generateInitialSeedData(): SeedDataResult {
 
   // 4. Usuarios (Super Administrador Único por Defecto)
   const userAdminId = '33333333-3333-4333-8333-333333333331';
+  const userDentistId = '33333333-3333-4333-8333-333333333332';
+  const userCashierId = '33333333-3333-4333-8333-333333333333';
 
   const users = [
     {
@@ -212,6 +214,42 @@ export function generateInitialSeedData(): SeedDataResult {
       lastLoginAt: new Date(),
       createdAt: new Date('2026-01-10T08:00:00.000Z'),
       updatedAt: new Date('2026-01-10T08:00:00.000Z'),
+    },
+    {
+      id: userDentistId,
+      organizationId: orgId,
+      roleId: 'ODONTOLOGO',
+      firstName: 'Dra. Valeria',
+      lastName: 'Gómez Benítez',
+      email: 'valeria.gomez@odontosol.com.py',
+      passwordHash: 'e3f99667dcd6968d96cb2545cfe82556d3c0a8d3c884268ea8a7dc23d18aa711',
+      passwordSalt: 'd732d424dc490c7db086171d851007b1',
+      passwordIterations: 100000,
+      phone: '+595 982 777 888',
+      professionalLicense: 'MSPBS N° 14.821 / Reg. Odontológico',
+      specialty: 'Ortodoncia & Rehabilitación Oral',
+      status: 'ACTIVE',
+      lastLoginAt: new Date(),
+      createdAt: new Date('2026-01-15T08:00:00.000Z'),
+      updatedAt: new Date('2026-01-15T08:00:00.000Z'),
+    },
+    {
+      id: userCashierId,
+      organizationId: orgId,
+      roleId: 'CAJA',
+      firstName: 'Carlos Alberto',
+      lastName: 'Mendoza Duarte',
+      email: 'carlos.mendoza@odontosol.com.py',
+      passwordHash: 'a7ba9dea19b9e140cc6d45465bbdcf9091b6a69a573a43078c99e0ba2725d256',
+      passwordSalt: '4fce4815eaacaf6c75a92e7bb6628b64',
+      passwordIterations: 100000,
+      phone: '+595 971 333 444',
+      professionalLicense: null,
+      specialty: 'Operaciones de Recaudación & Tesorería',
+      status: 'ACTIVE',
+      lastLoginAt: new Date(),
+      createdAt: new Date('2026-01-18T08:00:00.000Z'),
+      updatedAt: new Date('2026-01-18T08:00:00.000Z'),
     }
   ];
 
@@ -219,6 +257,9 @@ export function generateInitialSeedData(): SeedDataResult {
     { userId: userAdminId, branchId: branchAsuId, isDefault: true, createdAt: new Date() },
     { userId: userAdminId, branchId: branchSloId, isDefault: false, createdAt: new Date() },
     { userId: userAdminId, branchId: branchLuqId, isDefault: false, createdAt: new Date() },
+    { userId: userDentistId, branchId: branchAsuId, isDefault: true, createdAt: new Date() },
+    { userId: userDentistId, branchId: branchSloId, isDefault: false, createdAt: new Date() },
+    { userId: userCashierId, branchId: branchAsuId, isDefault: true, createdAt: new Date() },
   ];
 
   // 5. Servicios Catálogo

@@ -225,6 +225,16 @@ class TestRunnerService {
             status: 'PENDING',
             assertions: [],
           },
+          {
+            id: 'test-int-06',
+            suiteId: 'suite-integration',
+            type: 'INTEGRATION',
+            name: 'T2.6: Ciclo de Cobro, Emisión de Recibo y Anulación Atómica con Reversión',
+            description: 'Verifica registro de cobro con correlativo monotónico, reducción de saldo deudor, anulación atómica, restauración íntegra de saldo y contra-asiento contable.',
+            tags: ['Finanzas', 'Recibos', 'Anulación', 'Integridad'],
+            status: 'PENDING',
+            assertions: [],
+          },
         ],
       },
 
@@ -420,25 +430,32 @@ class TestRunnerService {
       }
 
       case 'test-unit-03': {
-        // T1.3: Módulo 11 de RUC paraguayo
+        // T1.3: Módulo 11 de RUC paraguayo (SET / DNIT)
         // Casos conocidos oficiales de Paraguay:
-        // 80000000 -> DV 9
+        // 80000000 -> DV 5 (8*9 = 72, 72 % 11 = 6, 11 - 6 = 5)
         // 4589231 -> DV 8
-        // 80012345 -> DV calculado
+        // 80098765 -> DV 9
         const dv1 = calculateParaguayRucDv('80000000');
         const dv2 = calculateParaguayRucDv('4589231');
+        const dv3 = calculateParaguayRucDv('80098765');
 
         assertions.push({
-          description: 'Dígito verificador para RUC jurídico "80000000" debe ser 9',
-          expected: 9,
+          description: 'Dígito verificador para RUC jurídico "80000000" debe ser 5',
+          expected: 5,
           actual: dv1,
-          passed: dv1 === 9,
+          passed: dv1 === 5,
         });
         assertions.push({
           description: 'Dígito verificador para RUC físico "4589231" debe ser 8',
           expected: 8,
           actual: dv2,
           passed: dv2 === 8,
+        });
+        assertions.push({
+          description: 'Dígito verificador para RUC jurídico "80098765" debe ser 9',
+          expected: 9,
+          actual: dv3,
+          passed: dv3 === 9,
         });
         assertions.push({
           description: 'El dígito verificador debe ser un valor numérico entre 0 y 9',
@@ -651,6 +668,76 @@ class TestRunnerService {
           actual: validTimestamps,
           passed: validTimestamps === true,
         });
+        break;
+      }
+
+      case 'test-int-06': {
+        // T2.6: Ciclo de Cobro, Emisión de Recibo y Anulación Atómica
+        const pat = snapshot.patients[0];
+        const branch = snapshot.branches[0];
+
+        // 1. Crear un tratamiento de prueba
+        const testTreat = dbStore.addTreatment({
+          patientId: pat.id,
+          branchId: branch.id,
+          title: 'Tratamiento de Prueba para Auditoría de Anulación',
+          totalAmount: 500000,
+          paidAmount: 0,
+          status: 'EN_PROGRESO',
+        });
+
+        const initialBalance = testTreat.balanceDue;
+
+        // 2. Registrar cobro con correlativo monotónico
+        const receiptNo = dbStore.getNextReceiptNumber();
+        const updatedTreat = dbStore.recordTreatmentPayment(
+          testTreat.id,
+          200000,
+          'TRANSFERENCIA_SIPAP',
+          receiptNo,
+          snapshot.users[0]?.id
+        );
+
+        assertions.push({
+          description: 'El cobro reduce el saldo del tratamiento de ₲ 500.000 a ₲ 300.000',
+          expected: 300000,
+          actual: updatedTreat?.balanceDue,
+          passed: updatedTreat?.balanceDue === 300000,
+        });
+
+        // 3. Obtener el pago recién emitido
+        const payments = dbStore.getPayments();
+        const paymentRecord = payments.find((p) => p.receiptNumber === receiptNo);
+
+        assertions.push({
+          description: 'El recibo oficial se emite con número y medio de cobro válidos',
+          expected: true,
+          actual: !!paymentRecord && paymentRecord.amount === 200000,
+          passed: !!paymentRecord && paymentRecord.amount === 200000,
+        });
+
+        // 4. Ejecutar anulación atómica
+        if (paymentRecord) {
+          const annulRes = dbStore.annulPayment({
+            paymentId: paymentRecord.id,
+            reason: 'Error involuntario de digitación detectado por auditoría interna',
+            actorUserId: snapshot.users[0]?.id,
+          });
+
+          assertions.push({
+            description: 'El estado del pago cambia a "ANULADO"',
+            expected: 'ANULADO',
+            actual: annulRes.payment.status,
+            passed: annulRes.payment.status === 'ANULADO',
+          });
+
+          assertions.push({
+            description: 'El saldo del tratamiento se restaura íntegramente al balance original (₲ 500.000)',
+            expected: initialBalance,
+            actual: annulRes.restoredTreatment?.balanceDue,
+            passed: annulRes.restoredTreatment?.balanceDue === initialBalance,
+          });
+        }
         break;
       }
 

@@ -140,45 +140,112 @@ class DatabaseStore {
     return sessionTime <= revokedAt;
   }
 
+  // --- GENERACIÓN SEGURA DE CORRELATIVOS (FISCALES / CLÍNICOS) ---
+  public getNextReceiptNumber(): string {
+    const existingPayments = this.data.payments || [];
+    let maxSequential = 4120; // Base inicial del sistema
+    for (const p of existingPayments) {
+      if (p.receiptNumber) {
+        const match = p.receiptNumber.match(/REC-\d{3}-\d{3}-(\d+)/);
+        if (match && match[1]) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxSequential) {
+            maxSequential = num;
+          }
+        }
+      }
+    }
+    const nextSeq = maxSequential + 1;
+    return `REC-001-001-${String(nextSeq).padStart(7, '0')}`;
+  }
+
+  public getNextInvoiceNumber(): string {
+    const existingPayments = this.data.payments || [];
+    let maxInvoice = 100000;
+    for (const p of existingPayments) {
+      if (p.invoiceNumber) {
+        const match = p.invoiceNumber.match(/001-001-(\d+)/);
+        if (match && match[1]) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxInvoice) {
+            maxInvoice = num;
+          }
+        }
+      }
+    }
+    return `001-001-${String(maxInvoice + 1).padStart(7, '0')}`;
+  }
+
+  public getNextQuoteNumber(): string {
+    const existingQuotes = this.data.quotes || [];
+    let maxQuoteSeq = 142;
+    for (const q of existingQuotes) {
+      if (q.quoteNumber) {
+        const match = q.quoteNumber.match(/PRE-2026-(\d+)/);
+        if (match && match[1]) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxQuoteSeq) {
+            maxQuoteSeq = num;
+          }
+        }
+      }
+    }
+    return `PRE-2026-${String(maxQuoteSeq + 1).padStart(5, '0')}`;
+  }
+
   public getBranches() {
-    return this.data.branches;
+    const orgId = this.data.organization.id;
+    return this.data.branches.filter(b => b.organizationId === orgId);
   }
 
   public getBranchById(id: string) {
-    return this.data.branches.find(b => b.id === id);
+    const orgId = this.data.organization.id;
+    return this.data.branches.find(b => b.id === id && b.organizationId === orgId);
   }
 
   public getUsers(branchId?: string) {
-    if (!branchId) return this.data.users;
+    const orgId = this.data.organization.id;
+    const orgUsers = this.data.users.filter(u => u.organizationId === orgId);
+    if (!branchId) return orgUsers;
     const userIds = this.data.userBranches
       .filter(ub => ub.branchId === branchId)
       .map(ub => ub.userId);
-    return this.data.users.filter(u => userIds.includes(u.id));
+    return orgUsers.filter(u => userIds.includes(u.id));
   }
 
   public getPatients(branchId?: string) {
-    if (!branchId) return this.data.patients;
-    return this.data.patients.filter(p => p.primaryBranchId === branchId);
+    const orgId = this.data.organization.id;
+    const orgPatients = this.data.patients.filter(p => p.organizationId === orgId);
+    if (!branchId) return orgPatients;
+    return orgPatients.filter(p => p.primaryBranchId === branchId);
   }
 
   public getDentalChairs(branchId?: string) {
-    if (!branchId) return this.data.dentalChairs || [];
-    return (this.data.dentalChairs || []).filter(c => c.branchId === branchId);
+    const orgId = this.data.organization.id;
+    const orgChairs = (this.data.dentalChairs || []).filter(c => c.organizationId === orgId);
+    if (!branchId) return orgChairs;
+    return orgChairs.filter(c => c.branchId === branchId);
   }
 
   public getAppointments(branchId?: string) {
-    if (!branchId) return this.data.appointments;
-    return this.data.appointments.filter(a => a.branchId === branchId);
+    const orgId = this.data.organization.id;
+    const orgAppointments = this.data.appointments.filter(a => a.organizationId === orgId);
+    if (!branchId) return orgAppointments;
+    return orgAppointments.filter(a => a.branchId === branchId);
   }
 
   public getClinicalRecords(patientId?: string) {
-    if (!patientId) return this.data.clinicalRecords || [];
-    return (this.data.clinicalRecords || []).filter(cr => cr.patientId === patientId);
+    const orgId = this.data.organization.id;
+    const orgRecords = (this.data.clinicalRecords || []).filter(cr => cr.organizationId === orgId);
+    if (!patientId) return orgRecords;
+    return orgRecords.filter(cr => cr.patientId === patientId);
   }
 
   public getOdontograms(patientId?: string) {
-    if (!patientId) return this.data.odontograms || [];
-    return (this.data.odontograms || []).filter(o => o.patientId === patientId);
+    const orgId = this.data.organization.id;
+    const orgOdontograms = (this.data.odontograms || []).filter(o => o.organizationId === orgId);
+    if (!patientId) return orgOdontograms;
+    return orgOdontograms.filter(o => o.patientId === patientId);
   }
 
   public getOdontogramItems(odontogramId?: string) {
@@ -187,37 +254,52 @@ class DatabaseStore {
   }
 
   public getServices() {
-    return this.data.services;
+    const orgId = this.data.organization.id;
+    return this.data.services.filter(s => s.organizationId === orgId);
+  }
+
+  public getTreatments(branchId?: string, patientId?: string) {
+    const orgId = this.data.organization.id;
+    let list = (this.data.treatments || []).filter(t => t.organizationId === orgId);
+    if (branchId) list = list.filter(t => t.branchId === branchId);
+    if (patientId) list = list.filter(t => t.patientId === patientId);
+    return list;
   }
 
   public getPayments(branchId?: string) {
-    if (!branchId) return this.data.payments;
-    return this.data.payments.filter(p => p.branchId === branchId);
+    const orgId = this.data.organization.id;
+    const orgPayments = (this.data.payments || []).filter(p => p.organizationId === orgId);
+    if (!branchId) return orgPayments;
+    return orgPayments.filter(p => p.branchId === branchId);
   }
 
   public getCashRegisters(branchId?: string) {
-    if (!branchId) return this.data.cashRegisters;
-    return this.data.cashRegisters.filter(c => c.branchId === branchId);
+    const orgId = this.data.organization.id;
+    const orgRegisters = (this.data.cashRegisters || []).filter(c => c.organizationId === orgId);
+    if (!branchId) return orgRegisters;
+    return orgRegisters.filter(c => c.branchId === branchId);
   }
 
   public getCashMovements(cashRegisterId?: string) {
-    if (!cashRegisterId) return this.data.cashMovements;
-    return this.data.cashMovements.filter(m => m.cashRegisterId === cashRegisterId);
+    if (!cashRegisterId) return this.data.cashMovements || [];
+    return (this.data.cashMovements || []).filter(m => m.cashRegisterId === cashRegisterId);
   }
 
   public getQuotes(branchId?: string) {
-    if (!branchId) return this.data.quotes;
-    return this.data.quotes.filter(q => q.branchId === branchId);
+    const orgId = this.data.organization.id;
+    const orgQuotes = (this.data.quotes || []).filter(q => q.organizationId === orgId);
+    if (!branchId) return orgQuotes;
+    return orgQuotes.filter(q => q.branchId === branchId);
   }
 
   public getQuoteItems(quoteId?: string) {
-    if (!quoteId) return this.data.quoteItems;
-    return this.data.quoteItems.filter(qi => qi.quoteId === quoteId);
+    if (!quoteId) return this.data.quoteItems || [];
+    return (this.data.quoteItems || []).filter(qi => qi.quoteId === quoteId);
   }
 
   public getBranchServices(branchId?: string) {
-    if (!branchId) return this.data.branchServices;
-    return this.data.branchServices.filter(bs => bs.branchId === branchId);
+    if (!branchId) return this.data.branchServices || [];
+    return (this.data.branchServices || []).filter(bs => bs.branchId === branchId);
   }
 
   public getOrganization() {
@@ -225,7 +307,8 @@ class DatabaseStore {
   }
 
   public getAuditLogs() {
-    return this.data.auditLogs;
+    const orgId = this.data.organization.id;
+    return (this.data.auditLogs || []).filter(l => l.organizationId === orgId);
   }
 
   public addAuditLog(entry: {
@@ -1489,8 +1572,16 @@ class DatabaseStore {
     receiptNumber: string,
     actorUserId?: string
   ) {
+    if (amount <= 0) {
+      throw new Error('El monto a abonar debe ser superior a ₲ 0.');
+    }
+
     const treat = (this.data.treatments || []).find((t) => t.id === treatmentId);
-    if (!treat) return null;
+    if (!treat) throw new Error('El tratamiento especificado no existe.');
+
+    if (treat.balanceDue > 0 && amount > treat.balanceDue) {
+      throw new Error(`El monto (₲ ${amount.toLocaleString('es-PY')}) excede el saldo pendiente (₲ ${treat.balanceDue.toLocaleString('es-PY')}).`);
+    }
 
     treat.paidAmount = (treat.paidAmount || 0) + amount;
     treat.balanceDue = Math.max(0, treat.totalAmount - treat.paidAmount);
@@ -1498,6 +1589,7 @@ class DatabaseStore {
 
     // Create payment entry
     const paymentId = crypto.randomUUID();
+    const invoiceNumber = this.getNextInvoiceNumber();
     const paymentRecord = {
       id: paymentId,
       organizationId: this.data.organization.id,
@@ -1506,13 +1598,13 @@ class DatabaseStore {
       treatmentId: treat.id,
       appointmentId: null,
       cashMovementId: null as string | null,
-      receiptNumber,
-      invoiceNumber: `001-001-${Math.floor(100000 + Math.random() * 900000)}`,
+      receiptNumber: receiptNumber || this.getNextReceiptNumber(),
+      invoiceNumber,
       amount,
       paymentMethod,
       status: 'COMPLETADO',
       notes: `Pago abonado a cuenta del tratamiento ${treat.title}`,
-      receivedBy: actorUserId || this.data.users[4]?.id || this.data.users[0]?.id,
+      receivedBy: actorUserId || this.data.users[0]?.id,
       createdAt: new Date(),
     };
 
@@ -1532,8 +1624,8 @@ class DatabaseStore {
       ipAddress: '190.52.144.12',
       userAgent: 'OdontoPro Financial Engine',
       oldValues: null,
-      newValues: { amount, balanceDue: treat.balanceDue, receiptNumber },
-      description: `Cobro de ₲ ${amount.toLocaleString('es-PY')} registrado para tratamiento "${treat.title}" (Recibo: ${receiptNumber})`,
+      newValues: { amount, balanceDue: treat.balanceDue, receiptNumber: paymentRecord.receiptNumber },
+      description: `Cobro de ₲ ${amount.toLocaleString('es-PY')} registrado para tratamiento "${treat.title}" (Recibo: ${paymentRecord.receiptNumber})`,
       createdAt: new Date(),
     });
 
@@ -1549,8 +1641,8 @@ class DatabaseStore {
         movementType: 'INGRESO',
         amount,
         paymentMethod,
-        concept: `Cobro tratamiento ${treat.title} (Recibo ${receiptNumber})`,
-        referenceNumber: receiptNumber,
+        concept: `Cobro tratamiento ${treat.title} (Recibo ${paymentRecord.receiptNumber})`,
+        referenceNumber: paymentRecord.receiptNumber,
         performedBy: actorUserId || this.data.users[0]?.id,
         createdAt: new Date(),
       });
@@ -1559,6 +1651,89 @@ class DatabaseStore {
 
     this.notify();
     return treat;
+  }
+
+  // --- ANULACIÓN ATÓMICA DE RECIBOS Y PAGOS ---
+  public annulPayment(params: {
+    paymentId: string;
+    reason: string;
+    actorUserId: string;
+  }) {
+    if (!params.reason || params.reason.trim().length < 5) {
+      throw new Error('Debe proporcionar un motivo válido de anulación (mínimo 5 caracteres).');
+    }
+
+    const payment = (this.data.payments || []).find(p => p.id === params.paymentId);
+    if (!payment) {
+      throw new Error('El recibo / pago no fue encontrado.');
+    }
+
+    if (payment.status === 'ANULADO') {
+      throw new Error('Este recibo ya se encuentra anulado.');
+    }
+
+    const previousStatus = payment.status;
+    payment.status = 'ANULADO';
+    (payment as any).annulledAt = new Date();
+    (payment as any).annulledReason = params.reason;
+    (payment as any).annulledBy = params.actorUserId;
+
+    // 1. Revertir saldo en tratamiento si estaba vinculado
+    let restoredTreatment = null;
+    if (payment.treatmentId) {
+      const treat = (this.data.treatments || []).find(t => t.id === payment.treatmentId);
+      if (treat) {
+        treat.paidAmount = Math.max(0, (treat.paidAmount || 0) - payment.amount);
+        treat.balanceDue = Math.max(0, treat.totalAmount - treat.paidAmount);
+        treat.updatedAt = new Date();
+        restoredTreatment = treat;
+      }
+    }
+
+    // 2. Registrar contra-asiento contable (EGRESO por anulación) si la caja está abierta
+    let counterMovement = null;
+    const openRegister = (this.data.cashRegisters || []).find(
+      (cr) => cr.branchId === payment.branchId && cr.status === 'ABIERTA'
+    );
+    if (openRegister) {
+      const counterMovementId = crypto.randomUUID();
+      counterMovement = {
+        id: counterMovementId,
+        cashRegisterId: openRegister.id,
+        movementType: 'EGRESO' as const,
+        amount: payment.amount,
+        paymentMethod: payment.paymentMethod,
+        concept: `[ANULACIÓN] Recibo ${payment.receiptNumber}: ${params.reason}`,
+        referenceNumber: `ANUL-${payment.receiptNumber}`,
+        performedBy: params.actorUserId,
+        createdAt: new Date(),
+      };
+      this.data.cashMovements.unshift(counterMovement);
+    }
+
+    // 3. Bitácora forense de auditoría
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: payment.branchId,
+      userId: params.actorUserId,
+      action: 'ANNUL_PAYMENT',
+      entity: 'PAYMENT',
+      entityId: payment.id,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Audit & Security Manager',
+      oldValues: { status: previousStatus, amount: payment.amount, receiptNumber: payment.receiptNumber },
+      newValues: { status: 'ANULADO', reason: params.reason, treatmentBalanceRestored: restoredTreatment?.balanceDue },
+      description: `Anulación de Recibo ${payment.receiptNumber} por ₲ ${payment.amount.toLocaleString('es-PY')}. Motivo: "${params.reason}"`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return {
+      payment,
+      restoredTreatment,
+      counterMovement,
+    };
   }
 
   public addService(service: {
@@ -1715,8 +1890,7 @@ class DatabaseStore {
     actorUserId?: string;
   }) {
     const id = crypto.randomUUID();
-    const existingQuotesCount = (this.data.quotes || []).length;
-    const quoteNumber = `PRE-2026-${String(existingQuotesCount + 143).padStart(5, '0')}`;
+    const quoteNumber = this.getNextQuoteNumber();
 
     const totalAmount = params.items.reduce((sum, item) => sum + (item.subtotal || item.unitPrice * item.quantity), 0);
     const discountAmount = params.discountAmount || 0;
@@ -1801,31 +1975,42 @@ class DatabaseStore {
     if (!q) return null;
 
     const oldStatus = q.status;
+    if (oldStatus === status) {
+      // Idempotency: si ya está en el mismo estado, retornar sin duplicar tratamientos
+      const existingTreatment = (this.data.treatments || []).find((t) => t.quoteId === quoteId);
+      return { quote: q, treatment: existingTreatment || null };
+    }
+
     q.status = status;
     q.updatedAt = new Date();
 
     let createdTreatment = null;
 
-    // When quote is approved, optionally auto-convert to an active treatment plan
+    // When quote is approved, check if treatment already exists before creating a new one
     if (status === 'APROBADO' && autoCreateTreatment) {
-      const items = (this.data.quoteItems || []).filter((it) => it.quoteId === quoteId);
-      const toothNumbers = items
-        .map((it) => it.toothNumber)
-        .filter((tn): tn is number => tn !== null && tn !== undefined);
+      const existingTreatment = (this.data.treatments || []).find((t) => t.quoteId === quoteId);
+      if (existingTreatment) {
+        createdTreatment = existingTreatment;
+      } else {
+        const items = (this.data.quoteItems || []).filter((it) => it.quoteId === quoteId);
+        const toothNumbers = items
+          .map((it) => it.toothNumber)
+          .filter((tn): tn is number => tn !== null && tn !== undefined);
 
-      createdTreatment = this.addTreatment({
-        patientId: q.patientId,
-        branchId: q.branchId,
-        title: `Plan Presupuesto ${q.quoteNumber} (${items[0]?.description || 'Odontología Integral'})`,
-        totalAmount: q.finalAmount,
-        paidAmount: 0,
-        toothNumbers,
-        odontologistId: q.odontologistId || undefined,
-        quoteId: q.id,
-        status: 'EN_PROGRESO',
-        notes: `Generado automáticamente por aprobación del presupuesto ${q.quoteNumber}`,
-        actorUserId,
-      });
+        createdTreatment = this.addTreatment({
+          patientId: q.patientId,
+          branchId: q.branchId,
+          title: `Plan Presupuesto ${q.quoteNumber} (${items[0]?.description || 'Odontología Integral'})`,
+          totalAmount: q.finalAmount,
+          paidAmount: 0,
+          toothNumbers,
+          odontologistId: q.odontologistId || undefined,
+          quoteId: q.id,
+          status: 'EN_PROGRESO',
+          notes: `Generado automáticamente por aprobación del presupuesto ${q.quoteNumber}`,
+          actorUserId,
+        });
+      }
     }
 
     this.data.auditLogs.unshift({
@@ -1959,8 +2144,8 @@ class DatabaseStore {
         treatmentId: params.treatmentId || null,
         appointmentId: params.appointmentId || null,
         cashMovementId: id,
-        receiptNumber: params.receiptNumber || `REC-001-001-${Math.floor(1000000 + Math.random() * 9000000)}`,
-        invoiceNumber: `001-001-${Math.floor(100000 + Math.random() * 900000)}`,
+        receiptNumber: params.receiptNumber || this.getNextReceiptNumber(),
+        invoiceNumber: this.getNextInvoiceNumber(),
         amount: params.amount,
         paymentMethod: params.paymentMethod,
         status: 'COMPLETADO',
