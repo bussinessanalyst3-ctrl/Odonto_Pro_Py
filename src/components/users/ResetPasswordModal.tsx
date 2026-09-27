@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { X, KeyRound, ShieldAlert, Check, Eye, EyeOff, Sparkles, RefreshCw } from 'lucide-react';
 import { hashPassword } from '../../auth/cryptoUtils.ts';
 import { dbStore } from '../../db/inMemoryStore.ts';
+import { useAuth } from '../../auth/authContext.tsx';
+import { canManageRole, isSuperAdminRole } from '../../security/rbacHierarchy.ts';
 
 interface ResetPasswordModalProps {
   isOpen: boolean;
@@ -22,6 +24,7 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
   user,
   onSuccess,
 }) => {
+  const { session } = useAuth();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -49,6 +52,18 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
     e.preventDefault();
     setError(null);
 
+    // Verificación de jerarquía RBAC
+    if (session) {
+      if (isSuperAdminRole(user.roleId) && session.role !== 'SUPER_ADMIN') {
+        setError('403 Prohibido: Solo el Super Administrador puede restablecer contraseñas de cuentas SUPER_ADMIN.');
+        return;
+      }
+      if (session.userId !== user.id && !canManageRole(session.role, user.roleId)) {
+        setError(`403 Prohibido: Su rol (${session.role}) no tiene jerarquía para restablecer la contraseña de un ${user.roleId}.`);
+        return;
+      }
+    }
+
     if (newPassword.length < 8) {
       setError('La contraseña debe tener un mínimo de 8 caracteres.');
       return;
@@ -72,7 +87,7 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
       });
 
       // 3. Revocar sesiones activas previas por seguridad
-      dbStore.revokeUserSessions(user.id);
+      dbStore.revokeUserSessions(user.id, session?.userId);
 
       onSuccess(`Contraseña actualizada y protegida con éxito para ${user.firstName} ${user.lastName} (${user.email}). Se han revocado sesiones anteriores.`);
       onClose();

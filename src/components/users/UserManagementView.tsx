@@ -22,12 +22,15 @@ import {
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { BASE_ROLES } from '../../db/seeds/paraguay-catalogs.ts';
 import { authService } from '../../auth/authService.ts';
+import { useAuth } from '../../auth/authContext.tsx';
+import { canManageRole, isSuperAdminRole, hasPermission } from '../../security/rbacHierarchy.ts';
 import { UserModal } from './UserModal.tsx';
 import { RolePermissionsModal } from './RolePermissionsModal.tsx';
 import { ManageRolesModal } from './ManageRolesModal.tsx';
 import { ResetPasswordModal } from './ResetPasswordModal.tsx';
 
 export const UserManagementView: React.FC = () => {
+  const { session } = useAuth();
   const [, setTick] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
@@ -40,11 +43,21 @@ export const UserManagementView: React.FC = () => {
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
   const [userToResetPassword, setUserToResetPassword] = useState<any | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const unsub = dbStore.subscribe(() => setTick((t) => t + 1));
     return unsub;
   }, []);
+
+  const actor = session
+    ? {
+        userId: session.userId,
+        role: session.role,
+        organizationId: session.organizationId,
+        allowedBranchIds: session.allowedBranchIds,
+      }
+    : undefined;
 
   const handleRevokeSessions = (user: any) => {
     const confirm = window.confirm(
@@ -52,9 +65,14 @@ export const UserManagementView: React.FC = () => {
     );
     if (!confirm) return;
 
-    dbStore.revokeUserSessions(user.id);
-    setNotification(`Sesiones activas revocadas exitosamente para ${user.firstName} ${user.lastName}.`);
-    setTimeout(() => setNotification(null), 5000);
+    try {
+      dbStore.revokeUserSessions(user.id, session?.userId);
+      setNotification(`Sesiones activas revocadas exitosamente para ${user.firstName} ${user.lastName}.`);
+      setTimeout(() => setNotification(null), 5000);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Error al revocar sesiones activas.');
+      setTimeout(() => setErrorMessage(null), 5000);
+    }
   };
 
   const handleUnlockUser = (user: any) => {
@@ -63,13 +81,33 @@ export const UserManagementView: React.FC = () => {
     setTimeout(() => setNotification(null), 5000);
   };
 
-  const snapshot = dbStore.getSnapshot();
-  const users = snapshot.users;
-  const branches = snapshot.branches;
+  const snapshot = dbStore.getSnapshot(actor);
+  const users = dbStore.getUsers(undefined, actor);
+  const branches = dbStore.getBranches(actor);
   const userBranches = snapshot.userBranches;
-  const availableRoles = dbStore.getRoles();
+  const allRoles = dbStore.getRoles();
+
+  // Ocultar SUPER_ADMIN en opciones de filtro para no-SUPER_ADMIN
+  const availableRoles = allRoles.filter((r) => {
+    if (!session || session.role === 'SUPER_ADMIN') return true;
+    return !isSuperAdminRole(r.id);
+  });
+
+  const canCreateUser =
+    session?.role === 'SUPER_ADMIN' ||
+    hasPermission(session?.role || '', 'users.create') ||
+    hasPermission(session?.role || '', 'users.create_operational');
+
+  const canManageRolesAuthority =
+    session?.role === 'SUPER_ADMIN' ||
+    hasPermission(session?.role || '', 'roles.manage');
 
   const handleOpenAddUser = () => {
+    if (!canCreateUser) {
+      setErrorMessage('403 Prohibido: No tiene autorización suficiente para crear usuarios.');
+      setTimeout(() => setErrorMessage(null), 5000);
+      return;
+    }
     setUserToEdit(null);
     setIsUserModalOpen(true);
   };
@@ -80,7 +118,14 @@ export const UserManagementView: React.FC = () => {
   };
 
   const handleToggleStatus = (userId: string) => {
-    dbStore.toggleUserStatus(userId);
+    try {
+      dbStore.toggleUserStatus(userId, actor);
+      setNotification('Estado de acceso actualizado exitosamente.');
+      setTimeout(() => setNotification(null), 4000);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Error al modificar estado del usuario.');
+      setTimeout(() => setErrorMessage(null), 5000);
+    }
   };
 
   const handleOpenResetPassword = (user: any) => {
@@ -135,13 +180,15 @@ export const UserManagementView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsManageRolesModalOpen(true)}
-              className="px-3.5 py-2 text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs"
-            >
-              <Shield className="h-3.5 w-3.5 text-teal-700" />
-              <span>Autoridad de Roles</span>
-            </button>
+            {canManageRolesAuthority && (
+              <button
+                onClick={() => setIsManageRolesModalOpen(true)}
+                className="px-3.5 py-2 text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors flex items-center gap-1.5 shadow-2xs"
+              >
+                <Shield className="h-3.5 w-3.5 text-teal-700" />
+                <span>Autoridad de Roles</span>
+              </button>
+            )}
 
             <button
               onClick={() => setIsPermissionsModalOpen(true)}
@@ -151,13 +198,15 @@ export const UserManagementView: React.FC = () => {
               <span>Matriz de Permisos</span>
             </button>
 
-            <button
-              onClick={handleOpenAddUser}
-              className="px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
-            >
-              <UserPlus className="h-4 w-4" />
-              <span>Nuevo Usuario</span>
-            </button>
+            {canCreateUser && (
+              <button
+                onClick={handleOpenAddUser}
+                className="px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span>Nuevo Usuario</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -194,6 +243,14 @@ export const UserManagementView: React.FC = () => {
         <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs font-semibold text-emerald-800 flex items-center gap-2 animate-in fade-in">
           <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
           <span>{notification}</span>
+        </div>
+      )}
+
+      {/* Error notification toast */}
+      {errorMessage && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-800 flex items-center gap-2 animate-in fade-in">
+          <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+          <span>{errorMessage}</span>
         </div>
       )}
 
@@ -250,6 +307,13 @@ export const UserManagementView: React.FC = () => {
             (b) => userBranchRecords.find((ub) => ub.branchId === b.id)?.isDefault
           );
           const roleObj = BASE_ROLES.find((r) => r.id === u.roleId);
+
+          const isSelf = session?.userId === u.id;
+          const isSuperAdmin = session?.role === 'SUPER_ADMIN';
+          const canEditUser = isSuperAdmin || (u.roleId !== 'SUPER_ADMIN' && (isSelf || canManageRole(session?.role || '', u.roleId)));
+          const canToggleUser = isSuperAdmin || (u.roleId !== 'SUPER_ADMIN' && !isSelf && canManageRole(session?.role || '', u.roleId));
+          const canResetPwd = isSuperAdmin || (u.roleId !== 'SUPER_ADMIN' && canManageRole(session?.role || '', u.roleId));
+          const canRevokeSess = isSuperAdmin || (u.roleId !== 'SUPER_ADMIN' && canManageRole(session?.role || '', u.roleId));
 
           return (
             <div
@@ -350,36 +414,42 @@ export const UserManagementView: React.FC = () => {
               {/* Action buttons */}
               <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5">
                 <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleStatus(u.id)}
-                    title={u.status === 'ACTIVE' ? 'Desactivar usuario' : 'Activar usuario'}
-                    className={`p-2 rounded-xl border transition-colors ${
-                      u.status === 'ACTIVE'
-                        ? 'border-slate-200 text-slate-500 hover:text-rose-600 hover:bg-rose-50'
-                        : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                    }`}
-                  >
-                    <Power className="h-3.5 w-3.5" />
-                  </button>
+                  {canToggleUser && (
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStatus(u.id)}
+                      title={u.status === 'ACTIVE' ? 'Desactivar usuario' : 'Activar usuario'}
+                      className={`p-2 rounded-xl border transition-colors ${
+                        u.status === 'ACTIVE'
+                          ? 'border-slate-200 text-slate-500 hover:text-rose-600 hover:bg-rose-50'
+                          : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                      }`}
+                    >
+                      <Power className="h-3.5 w-3.5" />
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => handleOpenResetPassword(u)}
-                    title="Restablecer o cambiar contraseña (Super Administrador)"
-                    className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:text-amber-700 hover:bg-amber-50 transition-colors"
-                  >
-                    <KeyRound className="h-3.5 w-3.5" />
-                  </button>
+                  {canResetPwd && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenResetPassword(u)}
+                      title="Restablecer o cambiar contraseña institucional"
+                      className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:text-amber-700 hover:bg-amber-50 transition-colors"
+                    >
+                      <KeyRound className="h-3.5 w-3.5" />
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => handleRevokeSessions(u)}
-                    title="Revocar inmediatamente todas las sesiones activas de este usuario"
-                    className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 transition-colors"
-                  >
-                    <LogOut className="h-3.5 w-3.5" />
-                  </button>
+                  {canRevokeSess && (
+                    <button
+                      type="button"
+                      onClick={() => handleRevokeSessions(u)}
+                      title="Revocar inmediatamente todas las sesiones activas de este usuario"
+                      className="p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 transition-colors"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
+                    </button>
+                  )}
 
                   {authService.isLockedOut(u.email).locked && (
                     <button
@@ -393,14 +463,16 @@ export const UserManagementView: React.FC = () => {
                   )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleOpenEditUser(u)}
-                  className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-xs flex items-center gap-1"
-                >
-                  <Edit2 className="h-3.5 w-3.5" />
-                  <span>Editar</span>
-                </button>
+                {canEditUser && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditUser(u)}
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-xs flex items-center gap-1"
+                  >
+                    <Edit2 className="h-3.5 w-3.5" />
+                    <span>Editar</span>
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -412,6 +484,7 @@ export const UserManagementView: React.FC = () => {
         isOpen={isUserModalOpen}
         onClose={() => setIsUserModalOpen(false)}
         userToEdit={userToEdit}
+        actor={actor}
       />
 
       <RolePermissionsModal

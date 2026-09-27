@@ -1,5 +1,6 @@
 export type SystemBaseRole =
   | 'SUPER_ADMIN'
+  | 'ADMIN_ORGANIZACION'
   | 'ADMIN_SUCURSAL'
   | 'SUPERVISOR'
   | 'ODONTOLOGO'

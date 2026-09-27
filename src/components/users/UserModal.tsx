@@ -1,19 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { X, UserPlus, Shield, Award, Building2, Phone, Mail, Check, AlertCircle, KeyRound, Sparkles } from 'lucide-react';
 import { BASE_ROLES } from '../../db/seeds/paraguay-catalogs.ts';
-import { dbStore } from '../../db/inMemoryStore.ts';
+import { dbStore, BackendActorContext } from '../../db/inMemoryStore.ts';
 import { hashPassword } from '../../auth/cryptoUtils.ts';
+import { useAuth } from '../../auth/authContext.tsx';
+import { canManageRole, isSuperAdminRole } from '../../security/rbacHierarchy.ts';
 
 interface UserModalProps {
   isOpen: boolean;
   onClose: () => void;
   userToEdit?: any | null;
+  actor?: BackendActorContext;
 }
 
-export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdit }) => {
-  const snapshot = dbStore.getSnapshot();
-  const branches = snapshot.branches;
-  const availableRoles = dbStore.getRoles();
+export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdit, actor }) => {
+  const { session } = useAuth();
+  const effectiveActor = actor || (session ? {
+    userId: session.userId,
+    role: session.role,
+    organizationId: session.organizationId,
+    allowedBranchIds: session.allowedBranchIds,
+  } : undefined);
+
+  const snapshot = dbStore.getSnapshot(effectiveActor);
+  let branches = dbStore.getBranches(effectiveActor);
+  if (effectiveActor && effectiveActor.role === 'ADMIN_SUCURSAL' && effectiveActor.allowedBranchIds && effectiveActor.allowedBranchIds.length > 0) {
+    branches = branches.filter((b) => effectiveActor.allowedBranchIds!.includes(b.id));
+  }
+
+  const allRoles = dbStore.getRoles();
+  const availableRoles = allRoles.filter((r) => {
+    if (!effectiveActor || effectiveActor.role === 'SUPER_ADMIN') {
+      return true;
+    }
+    if (isSuperAdminRole(r.id)) {
+      return false;
+    }
+    return canManageRole(effectiveActor.role, r.id);
+  });
 
   const generateRandomPassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
@@ -37,8 +61,10 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
   const [initialPassword, setInitialPassword] = useState('');
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
   const [defaultBranchId, setDefaultBranchId] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    setErrorMsg(null);
     if (userToEdit) {
       setFirstName(userToEdit.firstName || '');
       setLastName(userToEdit.lastName || '');
@@ -57,7 +83,10 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
       setFirstName('');
       setLastName('');
       setEmail('');
-      setRoleId('ODONTOLOGO');
+      const defaultRole = availableRoles.some((r) => r.id === 'ODONTOLOGO')
+        ? 'ODONTOLOGO'
+        : (availableRoles[0]?.id || 'ODONTOLOGO');
+      setRoleId(defaultRole);
       setPhone('+595 981 ');
       setSpecialty('Odontología General');
       setLicense('MSPBS N° ');
@@ -74,7 +103,7 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
   const handleToggleBranch = (bId: string) => {
     if (selectedBranches.includes(bId)) {
       if (selectedBranches.length === 1) {
-        alert('El usuario debe estar asignado como mínimo a una sucursal.');
+        setErrorMsg('El usuario debe estar asignado como mínimo a una sucursal.');
         return;
       }
       const updated = selectedBranches.filter((id) => id !== bId);
@@ -89,54 +118,59 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
 
     if (!firstName || !lastName || !email || !phone) {
-      alert('Por favor complete los campos obligatorios (*).');
+      setErrorMsg('Por favor complete los campos obligatorios (*).');
       return;
     }
 
     if (isOdonto && !license.trim()) {
-      alert('Para profesionales odontólogos es obligatorio ingresar el Registro Profesional del MSPBS.');
+      setErrorMsg('Para profesionales odontólogos es obligatorio ingresar el Registro Profesional del MSPBS.');
       return;
     }
 
-    if (userToEdit) {
-      dbStore.updateUser(userToEdit.id, {
-        firstName,
-        lastName,
-        email,
-        roleId,
-        phone,
-        specialty,
-        professionalLicense: isOdonto ? license : null,
-        branchIds: selectedBranches,
-        defaultBranchId,
-      });
-    } else {
-      const newUser = dbStore.addUser({
-        firstName,
-        lastName,
-        email,
-        roleId,
-        phone,
-        specialty,
-        professionalLicense: isOdonto ? license : undefined,
-        branchIds: selectedBranches,
-        defaultBranchId,
-      });
+    try {
+      if (userToEdit) {
+        dbStore.updateUser(userToEdit.id, {
+          firstName,
+          lastName,
+          email,
+          roleId,
+          phone,
+          specialty,
+          professionalLicense: isOdonto ? license : null,
+          branchIds: selectedBranches,
+          defaultBranchId,
+        }, effectiveActor);
+      } else {
+        const newUser = dbStore.addUser({
+          firstName,
+          lastName,
+          email,
+          roleId,
+          phone,
+          specialty,
+          professionalLicense: isOdonto ? license : undefined,
+          branchIds: selectedBranches,
+          defaultBranchId,
+        }, effectiveActor);
 
-      // Derivar y almacenar hash PBKDF2
-      if (newUser && initialPassword) {
-        const hashRec = await hashPassword(initialPassword);
-        dbStore.setUserPasswordHash(newUser.id, {
-          hash: hashRec.hash,
-          salt: hashRec.salt,
-          iterations: hashRec.iterations,
-        });
+        // Derivar y almacenar hash PBKDF2
+        if (newUser && initialPassword) {
+          const hashRec = await hashPassword(initialPassword);
+          dbStore.setUserPasswordHash(newUser.id, {
+            hash: hashRec.hash,
+            salt: hashRec.salt,
+            iterations: hashRec.iterations,
+          });
+        }
       }
-    }
 
-    onClose();
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error de autorización al guardar usuario.');
+    }
   };
 
   return (
@@ -165,6 +199,12 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[82vh] overflow-y-auto">
+          {errorMsg && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-800 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Nombres *</label>

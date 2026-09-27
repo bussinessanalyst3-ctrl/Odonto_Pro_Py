@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Settings, ShieldCheck, Check, Armchair, Plus, Trash2 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
+import { useAuth } from '../../auth/authContext.tsx';
 
 interface BranchSettingsModalProps {
   isOpen: boolean;
@@ -13,12 +14,14 @@ export const BranchSettingsModal: React.FC<BranchSettingsModalProps> = ({
   onClose,
   branch,
 }) => {
+  const { session } = useAuth();
   const [durationDefault, setDurationDefault] = useState(30);
   const [slotInterval, setSlotInterval] = useState(15);
   const [allowDoubleBooking, setAllowDoubleBooking] = useState(false);
   const [requireDoc, setRequireDoc] = useState(true);
   const [receiptSeries, setReceiptSeries] = useState('001-001');
   const [maxAdvanceDays, setMaxAdvanceDays] = useState(60);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Dental chairs state (local to branch)
   const [chairs, setChairs] = useState<Array<{ id: string; name: string; type: string; status: 'ACTIVE' | 'MAINTENANCE' }>>([
@@ -72,17 +75,29 @@ export const BranchSettingsModal: React.FC<BranchSettingsModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
 
-    dbStore.updateBranchSettings(branch.id, {
-      appointmentDurationDefault: durationDefault,
-      slotIntervalMinutes: slotInterval,
-      allowDoubleBooking,
-      requireDocumentOnBooking: requireDoc,
-      receiptSeries,
-      maxAdvanceBookingDays: maxAdvanceDays,
-    });
+    const actor = session ? {
+      userId: session.userId,
+      role: session.role,
+      organizationId: session.organizationId,
+      allowedBranchIds: session.allowedBranchIds,
+    } : undefined;
 
-    onClose();
+    try {
+      dbStore.updateBranchSettings(branch.id, {
+        appointmentDurationDefault: durationDefault,
+        slotIntervalMinutes: slotInterval,
+        allowDoubleBooking,
+        requireDocumentOnBooking: requireDoc,
+        receiptSeries,
+        maxAdvanceBookingDays: maxAdvanceDays,
+      }, actor);
+
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error al guardar configuraciones de sucursal');
+    }
   };
 
   return (
@@ -110,6 +125,12 @@ export const BranchSettingsModal: React.FC<BranchSettingsModalProps> = ({
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {errorMsg && (
+          <div className="mx-6 mt-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold animate-in fade-in">
+            {errorMsg}
+          </div>
+        )}
 
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">

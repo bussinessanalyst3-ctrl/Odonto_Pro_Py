@@ -102,18 +102,32 @@ export const OrganizationManagementView: React.FC = () => {
   };
 
   const handleSwitchOrg = (orgId: string) => {
-    dbStore.switchOrganization(orgId);
+    if (orgId === activeOrg.id) {
+      setNotification(`La organización "${activeOrg.name}" ya se encuentra activa como contexto actual.`);
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+
+    const actor = session ? {
+      userId: session.userId,
+      role: session.role,
+      organizationId: session.organizationId,
+      allowedBranchIds: session.allowedBranchIds,
+    } : undefined;
+
+    dbStore.switchOrganization(orgId, actor);
     const target = organizations.find((o) => o.id === orgId);
     if (target) {
+      // REGLA FUNDAMENTAL: Seleccionar una empresa activa debe ser una acción de CONTEXTO/NAVEGACIÓN,
+      // NUNCA una acción de reset, sobrescritura, inicialización o seed.
       setTradeName(target.name);
       setLegalName(target.legalName || target.name);
       setTaxId(target.taxId);
-      updateBranding({
-        tradeName: target.name,
-        legalName: target.legalName || target.name,
-        taxId: target.taxId,
-      });
-      setNotification(`Cambio a la organización: ${target.name}`);
+      setPhone(target.phone || '');
+      setEmail(target.email || '');
+      setAddress(target.address || '');
+      setPrimaryColor(target.primaryColor || 'teal');
+      setNotification(`Contexto de navegación cambiado a: ${target.name}`);
       setTimeout(() => setNotification(null), 4000);
     }
   };

@@ -60,7 +60,14 @@ export const BranchManagementView: React.FC = () => {
     }
   }, [org]);
 
+  const canCreateBranch = session?.role === 'SUPER_ADMIN' || session?.role === 'ADMIN_ORGANIZACION';
+  const canEditOrg = session?.role === 'SUPER_ADMIN' || session?.role === 'ADMIN_ORGANIZACION';
+
   const handleOpenAddBranch = () => {
+    if (!canCreateBranch) {
+      alert('403 Prohibido: El Administrador de Sucursal no tiene autorización para crear sucursales.');
+      return;
+    }
     setBranchToEdit(null);
     setIsBranchModalOpen(true);
   };
@@ -76,7 +83,18 @@ export const BranchManagementView: React.FC = () => {
   };
 
   const handleToggleStatus = (branchId: string) => {
-    dbStore.toggleBranchStatus(branchId);
+    const actor = session ? {
+      userId: session.userId,
+      role: session.role,
+      organizationId: session.organizationId,
+      allowedBranchIds: session.allowedBranchIds,
+    } : undefined;
+
+    try {
+      dbStore.toggleBranchStatus(branchId, actor);
+    } catch (err: any) {
+      alert(err.message || 'Operación de cambio de estado no autorizada.');
+    }
   };
 
   const handleSaveOrg = (e: React.FormEvent) => {
@@ -120,21 +138,25 @@ export const BranchManagementView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsEditingOrg(!isEditingOrg)}
-              className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1.5"
-            >
-              <Edit2 className="h-3.5 w-3.5 text-slate-500" />
-              <span>{isEditingOrg ? 'Cancelar Edición' : 'Editar Datos Fiscales'}</span>
-            </button>
+            {canEditOrg && (
+              <button
+                onClick={() => setIsEditingOrg(!isEditingOrg)}
+                className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1.5"
+              >
+                <Edit2 className="h-3.5 w-3.5 text-slate-500" />
+                <span>{isEditingOrg ? 'Cancelar Edición' : 'Editar Datos Fiscales'}</span>
+              </button>
+            )}
 
-            <button
-              onClick={handleOpenAddBranch}
-              className="px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Nueva Sucursal</span>
-            </button>
+            {canCreateBranch && (
+              <button
+                onClick={handleOpenAddBranch}
+                className="px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Nueva Sucursal</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -255,6 +277,11 @@ export const BranchManagementView: React.FC = () => {
           const branchUsers = snapshot.userBranches.filter((ub) => ub.branchId === b.id);
           const branchAppointments = snapshot.appointments.filter((a) => a.branchId === b.id);
           const isCurrentActive = session?.currentBranchId === b.id;
+          const canToggleStatus = session?.role === 'SUPER_ADMIN' || session?.role === 'ADMIN_ORGANIZACION';
+          const canManageThisBranch =
+            session?.role === 'SUPER_ADMIN' ||
+            session?.role === 'ADMIN_ORGANIZACION' ||
+            (session?.role === 'ADMIN_SUCURSAL' && (session.allowedBranchIds?.includes(b.id) ?? false));
 
           return (
             <div
@@ -355,37 +382,51 @@ export const BranchManagementView: React.FC = () => {
 
               {/* Action Buttons */}
               <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleToggleStatus(b.id)}
-                  title={b.status === 'ACTIVE' ? 'Desactivar sucursal' : 'Activar sucursal'}
-                  className={`p-2 rounded-xl border transition-colors ${
-                    b.status === 'ACTIVE'
-                      ? 'border-slate-200 text-slate-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200'
-                      : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                  }`}
-                >
-                  <Power className="h-3.5 w-3.5" />
-                </button>
+                {canToggleStatus ? (
+                  <button
+                    type="button"
+                    onClick={() => handleToggleStatus(b.id)}
+                    title={b.status === 'ACTIVE' ? 'Desactivar sucursal' : 'Activar sucursal'}
+                    className={`p-2 rounded-xl border transition-colors ${
+                      b.status === 'ACTIVE'
+                        ? 'border-slate-200 text-slate-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200'
+                        : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                    }`}
+                  >
+                    <Power className="h-3.5 w-3.5" />
+                  </button>
+                ) : (
+                  <span className="text-[10px] text-slate-400 font-semibold px-2 py-1 rounded bg-slate-50 border border-slate-100">
+                    Solo Org Admin
+                  </span>
+                )}
 
                 <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenSettings(b)}
-                    className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1"
-                  >
-                    <Settings className="h-3.5 w-3.5 text-slate-500" />
-                    <span>Sillones & Reglas</span>
-                  </button>
+                  {canManageThisBranch ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSettings(b)}
+                        className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1"
+                      >
+                        <Settings className="h-3.5 w-3.5 text-slate-500" />
+                        <span>Sillones & Reglas</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEditBranch(b)}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-xs flex items-center gap-1"
-                  >
-                    <Edit2 className="h-3.5 w-3.5" />
-                    <span>Editar</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditBranch(b)}
+                        className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-xs flex items-center gap-1"
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                        <span>Editar</span>
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 font-medium italic">
+                      Sucursal no asignada
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

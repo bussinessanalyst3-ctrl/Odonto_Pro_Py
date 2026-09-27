@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Building2, MapPin, Phone, Clock, ShieldCheck, Check } from 'lucide-react';
 import { PARAGUAY_DEPARTMENTS } from '../../db/seeds/paraguay-catalogs.ts';
 import { dbStore } from '../../db/inMemoryStore.ts';
+import { useAuth } from '../../auth/authContext.tsx';
 
 interface BranchModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ export const BranchModal: React.FC<BranchModalProps> = ({
   onClose,
   branchToEdit,
 }) => {
+  const { session } = useAuth();
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [department, setDepartment] = useState('Central');
@@ -25,6 +27,7 @@ export const BranchModal: React.FC<BranchModalProps> = ({
   const [email, setEmail] = useState('');
   const [openingTime, setOpeningTime] = useState('07:30');
   const [closingTime, setClosingTime] = useState('19:30');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (branchToEdit) {
@@ -61,43 +64,55 @@ export const BranchModal: React.FC<BranchModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
 
     if (!code || !name || !address || !phone) {
-      alert('Por favor complete los campos obligatorios (*).');
+      setErrorMsg('Por favor complete los campos obligatorios (*).');
       return;
     }
 
-    if (branchToEdit) {
-      dbStore.updateBranch(branchToEdit.id, {
-        code: code.toUpperCase(),
-        name,
-        department,
-        city,
-        neighborhood,
-        address,
-        phone,
-        whatsapp,
-        email: email || `sucursal.${code.toLowerCase()}@odontosol.com.py`,
-        openingTime,
-        closingTime,
-      });
-    } else {
-      dbStore.addBranch({
-        code,
-        name,
-        department,
-        city,
-        neighborhood,
-        address,
-        phone,
-        whatsapp,
-        email,
-        openingTime,
-        closingTime,
-      });
-    }
+    const actor = session ? {
+      userId: session.userId,
+      role: session.role,
+      organizationId: session.organizationId,
+      allowedBranchIds: session.allowedBranchIds,
+    } : undefined;
 
-    onClose();
+    try {
+      if (branchToEdit) {
+        dbStore.updateBranch(branchToEdit.id, {
+          code: code.toUpperCase(),
+          name,
+          department,
+          city,
+          neighborhood,
+          address,
+          phone,
+          whatsapp,
+          email: email || `sucursal.${code.toLowerCase()}@odontosol.com.py`,
+          openingTime,
+          closingTime,
+        }, actor);
+      } else {
+        dbStore.addBranch({
+          code,
+          name,
+          department,
+          city,
+          neighborhood,
+          address,
+          phone,
+          whatsapp,
+          email,
+          openingTime,
+          closingTime,
+        }, actor);
+      }
+
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Error de autorización al guardar sucursal');
+    }
   };
 
   return (
@@ -126,6 +141,12 @@ export const BranchModal: React.FC<BranchModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+          {errorMsg && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold animate-in fade-in">
+              {errorMsg}
+            </div>
+          )}
+
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
