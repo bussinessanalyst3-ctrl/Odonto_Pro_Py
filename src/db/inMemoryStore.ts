@@ -430,6 +430,11 @@ class DatabaseStore {
     return branch;
   }
 
+  public findUserByEmail(email: string) {
+    const safeEmail = email.toLowerCase().trim();
+    return this.data.users.find((u) => u.email.toLowerCase() === safeEmail) || null;
+  }
+
   /**
    * Obtiene la lista de usuarios con filtrado estricto en backend.
    * REGLA DE PROTECCIÓN FUNDAMENTAL:
