@@ -10,6 +10,7 @@ interface AuthContextType {
   login: (credentials: AuthCredentials) => Promise<LoginResult>;
   logout: () => void;
   switchBranch: (branchId: string) => void;
+  switchOrganization: (orgId: string) => void;
   hasRole: (requiredRoles: UserRole | UserRole[]) => boolean;
   quickLoginAs: (role: UserRole) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<PasswordChangeResult>;
@@ -88,6 +89,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const switchOrganization = (orgId: string) => {
+    if (!session) return;
+    const target = dbStore.getOrganizations().find((o) => o.id === orgId);
+    if (!target) return;
+
+    dbStore.switchOrganization(orgId, {
+      userId: session.userId,
+      role: session.role,
+      organizationId: session.organizationId,
+      allowedBranchIds: session.allowedBranchIds,
+    });
+
+    const orgBranches = dbStore.getBranches();
+    const updated: UserSession = {
+      ...session,
+      organizationId: target.id,
+      organizationName: target.name,
+      organizationTaxId: target.taxId,
+      allowedBranchIds: session.role === 'SUPER_ADMIN' ? orgBranches.map((b) => b.id) : session.allowedBranchIds,
+      currentBranchId: orgBranches[0]?.id || '',
+    };
+    setSession(updated);
+    try {
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+  };
+
   const hasRole = (requiredRoles: UserRole | UserRole[]): boolean => {
     if (!session) return false;
     if (session.role === 'SUPER_ADMIN') return true;
@@ -161,6 +189,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         logout,
         switchBranch,
+        switchOrganization,
         hasRole,
         quickLoginAs,
         changePassword,

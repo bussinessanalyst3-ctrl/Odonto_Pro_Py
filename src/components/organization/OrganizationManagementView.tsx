@@ -33,7 +33,7 @@ const THEME_COLORS = [
 
 export const OrganizationManagementView: React.FC = () => {
   const { branding, updateBranding, resetBranding } = useBranding();
-  const { session } = useAuth();
+  const { session, switchOrganization } = useAuth();
 
   const [tradeName, setTradeName] = useState(branding.tradeName);
   const [legalName, setLegalName] = useState(branding.legalName);
@@ -79,25 +79,33 @@ export const OrganizationManagementView: React.FC = () => {
     e.preventDefault();
     if (!newOrgName.trim()) return;
 
+    const actor = session ? {
+      userId: session.userId,
+      role: session.role,
+      organizationId: session.organizationId,
+      allowedBranchIds: session.allowedBranchIds,
+    } : undefined;
+
     const created = dbStore.addOrganization({
       name: newOrgName.trim(),
       tradeName: newOrgName.trim(),
       legalName: `${newOrgName.trim()} S.R.L.`,
       taxId: newOrgTaxId.trim() || '80000000-1',
       primaryColor,
-    });
+    }, actor);
 
-    dbStore.switchOrganization(created.id);
+    switchOrganization(created.id);
     updateBranding({
       tradeName: created.name,
       legalName: created.legalName,
       taxId: created.taxId,
+      primaryColor: created.primaryColor,
     });
 
     setIsNewOrgModalOpen(false);
     setNewOrgName('');
     setNewOrgTaxId('');
-    setNotification(`Nueva Organización "${created.name}" creada y seleccionada.`);
+    setNotification(`Nueva Organización "${created.name}" creada e inicializada con su propia sede central independiente.`);
     setTimeout(() => setNotification(null), 5000);
   };
 
@@ -108,14 +116,7 @@ export const OrganizationManagementView: React.FC = () => {
       return;
     }
 
-    const actor = session ? {
-      userId: session.userId,
-      role: session.role,
-      organizationId: session.organizationId,
-      allowedBranchIds: session.allowedBranchIds,
-    } : undefined;
-
-    dbStore.switchOrganization(orgId, actor);
+    switchOrganization(orgId);
     const target = organizations.find((o) => o.id === orgId);
     if (target) {
       // REGLA FUNDAMENTAL: Seleccionar una empresa activa debe ser una acción de CONTEXTO/NAVEGACIÓN,

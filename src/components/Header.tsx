@@ -332,7 +332,7 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-50 text-cyan-800 border border-cyan-200">
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
-                  Clínica Nórdica
+                  {org?.tradeName || org?.name || 'Clínica Odontológica'}
                 </span>
                 {userRole === 'SUPER_ADMIN' ? (
                   <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
@@ -367,7 +367,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onChange={(e) => onSelectBranch(e.target.value)}
                 className="bg-transparent font-semibold text-slate-900 focus:outline-none cursor-pointer"
               >
-                <option value="">Todas las sucursales (3)</option>
+                <option value="">Todas las sucursales ({branches.length})</option>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name} ({b.city})

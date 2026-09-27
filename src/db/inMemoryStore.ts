@@ -77,14 +77,36 @@ class DatabaseStore {
 
   public getSnapshot(actor?: BackendActorContext): SeedDataResult {
     const effectiveActor = this.getEffectiveActor(actor);
-    if (!effectiveActor || effectiveActor.role === 'SUPER_ADMIN') {
-      return this.data;
+    const orgId = (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN')
+      ? effectiveActor.organizationId
+      : this.data.organization.id;
+
+    const orgBranches = this.data.branches.filter((b) => b.organizationId === orgId);
+    const branchIds = new Set(orgBranches.map((b) => b.id));
+
+    let orgUsers = this.data.users.filter((u) => u.organizationId === orgId);
+    if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN') {
+      orgUsers = orgUsers.filter((u) => u.roleId !== 'SUPER_ADMIN');
     }
 
-    // Proteger instantánea para roles no-SUPER_ADMIN: filtrar usuarios SUPER_ADMIN
+    const orgUserBranches = this.data.userBranches.filter((ub) => branchIds.has(ub.branchId));
+
     return {
       ...this.data,
-      users: this.data.users.filter((u) => u.roleId !== 'SUPER_ADMIN'),
+      organization: this.data.organization,
+      branches: orgBranches,
+      users: orgUsers,
+      userBranches: orgUserBranches,
+      patients: (this.data.patients || []).filter((p) => p.organizationId === orgId),
+      dentalChairs: (this.data.dentalChairs || []).filter((c) => c.organizationId === orgId),
+      appointments: (this.data.appointments || []).filter((a) => a.organizationId === orgId),
+      clinicalRecords: (this.data.clinicalRecords || []).filter((cr) => cr.organizationId === orgId),
+      odontograms: (this.data.odontograms || []).filter((o) => o.organizationId === orgId),
+      treatments: (this.data.treatments || []).filter((t) => t.organizationId === orgId),
+      payments: (this.data.payments || []).filter((p) => p.organizationId === orgId),
+      cashRegisters: (this.data.cashRegisters || []).filter((c) => c.organizationId === orgId),
+      quotes: (this.data.quotes || []).filter((q) => q.organizationId === orgId),
+      auditLogs: (this.data.auditLogs || []).filter((l) => l.organizationId === orgId),
     };
   }
 
@@ -183,6 +205,46 @@ class DatabaseStore {
     };
 
     this.organizationsList.push(createdOrg);
+
+    // Crear automáticamente sede principal operativa para la nueva empresa
+    const defaultBranchId = crypto.randomUUID();
+    const defaultBranch = {
+      id: defaultBranchId,
+      organizationId: id,
+      code: 'SUC-01',
+      name: `Casa Central - ${createdOrg.name}`,
+      department: 'Capital',
+      city: 'Asunción',
+      neighborhood: 'Centro',
+      address: createdOrg.address,
+      phone: createdOrg.phone,
+      whatsapp: createdOrg.phone,
+      email: createdOrg.email,
+      openingTime: '07:30',
+      closingTime: '19:30',
+      status: 'ACTIVE' as const,
+      isMain: true,
+      operatingHours: 'Lun a Vie 08:00 - 18:00, Sáb 08:00 - 12:00',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.data.branches.push(defaultBranch);
+
+    this.data.branchSettings.push({
+      id: crypto.randomUUID(),
+      branchId: defaultBranchId,
+      allowOnlineBooking: true,
+      requireDocumentId: true,
+      enableWaitlist: true,
+      maxOverbookingSlots: 0,
+      reminderChannels: ['WHATSAPP', 'EMAIL'],
+      defaultAppointmentDurationMinutes: 30,
+      cancellationNoticeHours: 24,
+      requireDepositForSpecialties: false,
+      depositAmountPyg: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
 
     this.data.auditLogs.unshift({
       id: crypto.randomUUID(),
@@ -340,7 +402,9 @@ class DatabaseStore {
 
   public getBranches(actor?: BackendActorContext) {
     const effectiveActor = this.getEffectiveActor(actor);
-    const orgId = effectiveActor ? effectiveActor.organizationId : this.data.organization.id;
+    const orgId = (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN')
+      ? effectiveActor.organizationId
+      : this.data.organization.id;
     let list = this.data.branches.filter(b => b.organizationId === orgId);
 
     // Si el actor es un rol de sucursal con restricción explícita de sucursales autorizadas
@@ -354,7 +418,9 @@ class DatabaseStore {
 
   public getBranchById(id: string, actor?: BackendActorContext) {
     const effectiveActor = this.getEffectiveActor(actor);
-    const orgId = effectiveActor ? effectiveActor.organizationId : this.data.organization.id;
+    const orgId = (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN')
+      ? effectiveActor.organizationId
+      : this.data.organization.id;
     const branch = this.data.branches.find(b => b.id === id && b.organizationId === orgId);
     if (!branch) return null;
 
@@ -373,7 +439,9 @@ class DatabaseStore {
    */
   public getUsers(branchId?: string, actor?: BackendActorContext) {
     const effectiveActor = this.getEffectiveActor(actor);
-    const orgId = effectiveActor ? effectiveActor.organizationId : this.data.organization.id;
+    const orgId = (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN')
+      ? effectiveActor.organizationId
+      : this.data.organization.id;
     let orgUsers = this.data.users.filter(u => u.organizationId === orgId);
 
     // PROTECCIÓN DE PRIVILEGIO: Si el actor no es SUPER_ADMIN, NUNCA se envía SUPER_ADMIN
@@ -606,7 +674,9 @@ class DatabaseStore {
     const id = `branch-${newBranch.code.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now().toString().slice(-4)}`;
     const branchRecord = {
       id,
-      organizationId: effectiveActor ? effectiveActor.organizationId : this.data.organization.id,
+      organizationId: (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN')
+        ? effectiveActor.organizationId
+        : this.data.organization.id,
       code: newBranch.code.toUpperCase(),
       name: newBranch.name,
       department: newBranch.department,
@@ -905,7 +975,9 @@ class DatabaseStore {
     const id = crypto.randomUUID();
     const userRecord = {
       id,
-      organizationId: effectiveActor ? effectiveActor.organizationId : this.data.organization.id,
+      organizationId: (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN')
+        ? effectiveActor.organizationId
+        : this.data.organization.id,
       roleId: newUser.roleId,
       firstName: newUser.firstName,
       lastName: newUser.lastName,
@@ -922,7 +994,8 @@ class DatabaseStore {
 
     this.data.users.push(userRecord);
 
-    const safeDefault = newUser.defaultBranchId || newUser.branchIds[0] || this.data.branches[0].id;
+    const activeBranches = this.getBranches(effectiveActor || undefined);
+    const safeDefault = newUser.defaultBranchId || newUser.branchIds[0] || activeBranches[0]?.id || this.data.branches[0]?.id;
     newUser.branchIds.forEach((bId) => {
       this.data.userBranches.push({
         userId: id,
