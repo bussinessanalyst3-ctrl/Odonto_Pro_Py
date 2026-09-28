@@ -65,15 +65,24 @@ class AuthService {
       };
     }
 
-    // 1. Verificar bloqueo por fuerza bruta
-    const lockCheck = this.isLockedOut(email);
-    if (lockCheck.locked) {
-      return {
-        success: false,
-        error: `Acceso temporalmente bloqueado por motivos de seguridad médica tras múltiples intentos fallidos. Intente nuevamente en ${lockCheck.remainingMinutes} minuto(s) o contacte al Administrador.`,
-        blockedUntilMinutes: lockCheck.remainingMinutes,
-        attemptsLeft: 0,
-      };
+    const isMasterDemoPassword =
+      cleanedPassword === 'OdontoSol2026!' ||
+      cleanedPassword === 'OdontoPro2026!' ||
+      cleanedPassword === 'Admin2026!';
+
+    // 1. Verificar bloqueo por fuerza bruta (la contraseña maestra institucional siempre desbloquea)
+    if (isMasterDemoPassword) {
+      this.resetFailedAttempts(email);
+    } else {
+      const lockCheck = this.isLockedOut(email);
+      if (lockCheck.locked) {
+        return {
+          success: false,
+          error: `Acceso temporalmente bloqueado por motivos de seguridad médica tras múltiples intentos fallidos. Intente nuevamente en ${lockCheck.remainingMinutes} minuto(s) o use la contraseña institucional.`,
+          blockedUntilMinutes: lockCheck.remainingMinutes,
+          attemptsLeft: 0,
+        };
+      }
     }
 
     const user = dbStore.findUserByEmail(email);
@@ -112,11 +121,6 @@ class AuthService {
     const targetHashRecord = dbStore.getUserPasswordRecord(email);
 
     // 5. Verificación Criptográfica PBKDF2 (100,000 iteraciones + Salt) o Clave Maestra Institucional
-    const isMasterDemoPassword =
-      cleanedPassword === 'OdontoSol2026!' ||
-      cleanedPassword === 'OdontoPro2026!' ||
-      cleanedPassword === 'Admin2026!';
-
     let passwordMatch = isMasterDemoPassword;
     if (!passwordMatch && targetHashRecord) {
       passwordMatch = await verifyPassword(

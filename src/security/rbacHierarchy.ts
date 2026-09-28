@@ -67,8 +67,10 @@ export const ROLE_HIERARCHY: Record<string, RoleHierarchyDefinition> = {
     displayName: 'Administrador de Organización',
     category: 'ORGANIZATION',
     permissions: [
-      'organization.manage',
-      'organization.branding',
+      'dashboard.view',
+      'reports.financial',
+      'reports.commissions',
+      'reports.reception',
       'branches.view',
       'branches.create',
       'branches.update',
@@ -78,13 +80,33 @@ export const ROLE_HIERARCHY: Record<string, RoleHierarchyDefinition> = {
       'users.update',
       'users.deactivate',
       'users.reset_password',
+      'users.revoke_sessions',
       'settings.view',
       'settings.update',
       'audit.view',
+      'quotes.view',
+      'quotes.create',
+      'quotes.approve',
       'quotes.manage',
       'cash.view',
+      'cash.reports',
+      'cash.open_close',
+      'cash.movement',
+      'payments.create',
+      'payments.annul',
+      'invoices.issue',
+      'appointments.view',
       'appointments.manage',
+      'appointments.checkin',
+      'appointments.block',
+      'patients.view',
       'patients.manage',
+      'patients.export',
+      'treatments.view',
+      'treatments.manage',
+      'treatments.discounts',
+      'clinical.view',
+      'anamnesis.view',
     ],
   },
   ADMIN_SUCURSAL: {
@@ -183,6 +205,514 @@ export const ROLE_HIERARCHY: Record<string, RoleHierarchyDefinition> = {
   },
 };
 
+export interface SystemPermissionItem {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  category: string;
+  defaultRoles: string[];
+}
+
+export interface PermissionModuleGroup {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  permissions: SystemPermissionItem[];
+}
+
+export const SYSTEM_PERMISSION_MODULES: PermissionModuleGroup[] = [
+  {
+    id: 'clinical',
+    name: 'Historia Clínica & Odontograma (FDI / MSPBS)',
+    category: 'Clínica',
+    description: 'Diagnósticos, piezas dentales, evoluciones y normativas de confidencialidad médica.',
+    permissions: [
+      {
+        id: 'clinical.view',
+        code: 'clinical.view',
+        name: 'Ver historial clínico y evolución',
+        description: 'Consulta de fichas clínicas, evoluciones anteriores y planes médicos.',
+        category: 'Clínica',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'SUPERVISOR', 'ODONTOLOGO'],
+      },
+      {
+        id: 'clinical.manage',
+        code: 'clinical.manage',
+        name: 'Registrar diagnósticos y evoluciones',
+        description: 'Cargar notas clínicas, procedimientos realizados y diagnósticos CIE-10.',
+        category: 'Clínica',
+        defaultRoles: ['SUPER_ADMIN', 'ODONTOLOGO'],
+      },
+      {
+        id: 'odontogram.manage',
+        code: 'odontogram.manage',
+        name: 'Editar odontograma FDI digital',
+        description: 'Marcar caras dentales, caries, prótesis, extracciones y endodoncias.',
+        category: 'Clínica',
+        defaultRoles: ['SUPER_ADMIN', 'ODONTOLOGO'],
+      },
+      {
+        id: 'prescriptions.create',
+        code: 'prescriptions.create',
+        name: 'Emitir recetas con registro MSPBS',
+        description: 'Prescripción de medicamentos con firma y registro profesional habilitado.',
+        category: 'Clínica',
+        defaultRoles: ['SUPER_ADMIN', 'ODONTOLOGO'],
+      },
+      {
+        id: 'anamnesis.view',
+        code: 'anamnesis.view',
+        name: 'Ver alertas médicas de anamnesis',
+        description: 'Visualizar alergias, patologías cardíacas, diabetes y precauciones.',
+        category: 'Clínica',
+        defaultRoles: ['SUPER_ADMIN', 'SUPERVISOR', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION'],
+      },
+      {
+        id: 'anamnesis.manage',
+        code: 'anamnesis.manage',
+        name: 'Actualizar anamnesis y antecedentes',
+        description: 'Editar historial de salud, alergias declaradas y consentimiento firmado.',
+        category: 'Clínica',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION'],
+      },
+    ],
+  },
+  {
+    id: 'appointments',
+    name: 'Agenda de Turnos & Citas Médicas',
+    category: 'Operación',
+    description: 'Control de agenda de sillones, confirmaciones y gestión de sala de espera.',
+    permissions: [
+      {
+        id: 'appointments.view',
+        code: 'appointments.view',
+        name: 'Ver calendario y agenda general',
+        description: 'Visualizar citas por profesional, sillón dental y horarios de atención.',
+        category: 'Operación',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR', 'ODONTOLOGO', 'RECEPCION', 'VENDEDOR'],
+      },
+      {
+        id: 'appointments.view_own',
+        code: 'appointments.view_own',
+        name: 'Ver únicamente turnos propios asignados',
+        description: 'Visualización restringida solo a los pacientes citados con el profesional en sesión.',
+        category: 'Operación',
+        defaultRoles: ['ODONTOLOGO', 'ASISTENTE'],
+      },
+      {
+        id: 'appointments.manage',
+        code: 'appointments.manage',
+        name: 'Crear, reprogramar o cancelar turnos',
+        description: 'Agendamiento de nuevas consultas, cambios de fecha y cancelaciones.',
+        category: 'Operación',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR', 'RECEPCION', 'VENDEDOR'],
+      },
+      {
+        id: 'appointments.checkin',
+        code: 'appointments.checkin',
+        name: 'Confirmar llegada y sala de espera',
+        description: 'Registrar la presencia física del paciente en recepción y derivación a box.',
+        category: 'Operación',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'RECEPCION'],
+      },
+      {
+        id: 'appointments.block',
+        code: 'appointments.block',
+        name: 'Bloquear horarios de profesionales',
+        description: 'Bloqueo de agenda por permisos, capacitaciones o descansos médicos.',
+        category: 'Operación',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
+      },
+    ],
+  },
+  {
+    id: 'patients',
+    name: 'Fichas de Pacientes & Filiación',
+    category: 'Operación',
+    description: 'Gestión de expedientes personales, documentos C.I./RUC y contactos.',
+    permissions: [
+      {
+        id: 'patients.view',
+        code: 'patients.view',
+        name: 'Consultar datos de pacientes',
+        description: 'Acceso a datos personales, número de cédula, celular y ciudad.',
+        category: 'Operación',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR', 'ODONTOLOGO', 'RECEPCION', 'CAJA', 'VENDEDOR'],
+      },
+      {
+        id: 'patients.view_basic',
+        code: 'patients.view_basic',
+        name: 'Ver solo filiación básica (Recepción/Caja)',
+        description: 'Consulta acotada a nombre, teléfono y cédula sin acceso a expedientes clínicos.',
+        category: 'Operación',
+        defaultRoles: ['CAJA', 'VENDEDOR', 'ASISTENTE'],
+      },
+      {
+        id: 'patients.manage',
+        code: 'patients.manage',
+        name: 'Alta y edición de pacientes',
+        description: 'Creación de nuevas fichas y actualización de datos de contacto.',
+        category: 'Operación',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'RECEPCION', 'ODONTOLOGO'],
+      },
+      {
+        id: 'patients.export',
+        code: 'patients.export',
+        name: 'Exportar nómina de pacientes',
+        description: 'Descarga de listados de pacientes para reportes estadísticos o clínicos.',
+        category: 'Operación',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION'],
+      },
+    ],
+  },
+  {
+    id: 'treatments',
+    name: 'Catálogo de Tratamientos & Aranceles',
+    category: 'Clínica',
+    description: 'Tarifario de procedimientos odontológicos y precios base en Guaraníes (PYG).',
+    permissions: [
+      {
+        id: 'treatments.view',
+        code: 'treatments.view',
+        name: 'Ver catálogo de aranceles',
+        description: 'Consultar precios oficiales y códigos de prestaciones odontológicas.',
+        category: 'Clínica',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR', 'ODONTOLOGO', 'VENDEDOR', 'RECEPCION', 'CAJA'],
+      },
+      {
+        id: 'treatments.manage',
+        code: 'treatments.manage',
+        name: 'Crear y actualizar aranceles dentales',
+        description: 'Modificar tarifas, crear nuevas prestaciones y ajustar costos.',
+        category: 'Clínica',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION'],
+      },
+      {
+        id: 'treatments.discounts',
+        code: 'treatments.discounts',
+        name: 'Autorizar descuentos especiales',
+        description: 'Aplicación de bonificaciones o tarifas diferenciadas a pacientes.',
+        category: 'Clínica',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
+      },
+    ],
+  },
+  {
+    id: 'quotes',
+    name: 'Presupuestos & Planes de Tratamiento',
+    category: 'Administración',
+    description: 'Cotizaciones, formas de pago, planes de cuotas y autorizaciones.',
+    permissions: [
+      {
+        id: 'quotes.view',
+        code: 'quotes.view',
+        name: 'Visualizar presupuestos y planes',
+        description: 'Consulta de cotizaciones emitidas, estado de aprobación y totales.',
+        category: 'Administración',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR', 'ODONTOLOGO', 'VENDEDOR', 'RECEPCION', 'CAJA'],
+      },
+      {
+        id: 'quotes.create',
+        code: 'quotes.create',
+        name: 'Cotizar y emitir presupuestos',
+        description: 'Generación de presupuestos formales para entrega impresa o digital.',
+        category: 'Administración',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'VENDEDOR', 'RECEPCION'],
+      },
+      {
+        id: 'quotes.approve',
+        code: 'quotes.approve',
+        name: 'Aprobar presupuestos y planes de cuotas',
+        description: 'Aprobación definitiva de inicio de tratamiento y financiamiento.',
+        category: 'Administración',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR'],
+      },
+      {
+        id: 'quotes.manage',
+        code: 'quotes.manage',
+        name: 'Modificar o anular presupuestos emitidos',
+        description: 'Corrección de items presupuestados o anulación de propuestas vencidas.',
+        category: 'Administración',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
+      },
+    ],
+  },
+  {
+    id: 'cash',
+    name: 'Caja, Cobros & Facturación (PYG)',
+    category: 'Administración',
+    description: 'Control de flujo de caja chica, cobros multicanal y emisión fiscal.',
+    permissions: [
+      {
+        id: 'cash.view',
+        code: 'cash.view',
+        name: 'Visualizar movimientos de caja y cobros',
+        description: 'Consulta de ingresos, cobros del día y estado de cajas activas.',
+        category: 'Administración',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR', 'CAJA', 'RECEPCION'],
+      },
+      {
+        id: 'cash.open_close',
+        code: 'cash.open_close',
+        name: 'Apertura y cierre de caja chica',
+        description: 'Inicio de turno con saldo inicial y arqueo de caja con diferencias.',
+        category: 'Administración',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'CAJA'],
+      },
+      {
+        id: 'cash.movement',
+        code: 'cash.movement',
+        name: 'Registrar movimientos de caja chica',
+        description: 'Ingresos y egresos operativos con comprobante de respaldo.',
+        category: 'Administración',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'CAJA'],
+      },
+      {
+        id: 'payments.create',
+        code: 'payments.create',
+        name: 'Registrar cobros (Efectivo, SIPAP, QR, Tarjetas)',
+        description: 'Recepción de pagos y generación de comprobantes de ingreso.',
+        category: 'Administración',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'CAJA'],
+      },
+      {
+        id: 'payments.annul',
+        code: 'payments.annul',
+        name: 'Anulación de recibos y devoluciones',
+        description: 'Reversión autorizada de cobros erróneos con registro de motivo.',
+        category: 'Administración',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
+      },
+      {
+        id: 'invoices.issue',
+        code: 'invoices.issue',
+        name: 'Emisión de facturas legales y recibos oficiales',
+        description: 'Generación de facturas con timbrado legal de la SET / DNIT.',
+        category: 'Administración',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'CAJA'],
+      },
+      {
+        id: 'cash.reports',
+        code: 'cash.reports',
+        name: 'Ver balances y arqueos consolidados',
+        description: 'Informes financieros diarios, semanales y mensuales de recaudación.',
+        category: 'Administración',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR'],
+      },
+    ],
+  },
+  {
+    id: 'reports',
+    name: 'Dashboard, Métricas & Reportes Gerenciales',
+    category: 'Gerencia',
+    description: 'Métricas de productividad, ingresos consolidados y liquidación a odontólogos.',
+    permissions: [
+      {
+        id: 'dashboard.view',
+        code: 'dashboard.view',
+        name: 'Acceso a Dashboard de Métricas y KPIs',
+        description: 'Visualizar resumen general, pacientes atendidos, ingresos y turnos.',
+        category: 'Gerencia',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
+      },
+      {
+        id: 'reports.financial',
+        code: 'reports.financial',
+        name: 'Reportes Financieros y Rentabilidad',
+        description: 'Flujo de caja consolidado, cobranzas, tickets promedio y comparativas.',
+        category: 'Gerencia',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR'],
+      },
+      {
+        id: 'reports.commissions',
+        code: 'reports.commissions',
+        name: 'Liquidación de Comisiones Médicas',
+        description: 'Cálculo de honorarios y porcentajes por odontólogo y procedimiento realizado.',
+        category: 'Gerencia',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
+      },
+      {
+        id: 'reports.reception',
+        code: 'reports.reception',
+        name: 'Métricas de Ocupación de Sillones & Espera',
+        description: 'Tiempos de espera en recepción, puntualidad y ocupación por box.',
+        category: 'Gerencia',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR', 'RECEPCION'],
+      },
+    ],
+  },
+  {
+    id: 'branches',
+    name: 'Sucursales & Sillones Dentales',
+    category: 'Sistema',
+    description: 'Infraestructura física, habilitación de sedes y consultorios.',
+    permissions: [
+      {
+        id: 'branches.view',
+        code: 'branches.view',
+        name: 'Visualizar sucursales y sillones',
+        description: 'Consulta de sedes físicas, sillones disponibles y horarios.',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR'],
+      },
+      {
+        id: 'branches.create',
+        code: 'branches.create',
+        name: 'Crear nuevas sucursales',
+        description: 'Apertura de nuevas sedes clínicas (Super Admin u Organización).',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION'],
+      },
+      {
+        id: 'branches.update',
+        code: 'branches.update',
+        name: 'Modificar parámetros de sucursal',
+        description: 'Ajuste de horarios, teléfono, dirección y políticas de atención.',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
+      },
+      {
+        id: 'branches.delete',
+        code: 'branches.delete',
+        name: 'Eliminar o dar de baja sucursales',
+        description: 'Cierre definitivo de una sede física.',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION'],
+      },
+    ],
+  },
+  {
+    id: 'users',
+    name: 'Equipo Médico, Roles & Accesos',
+    category: 'Sistema',
+    description: 'Directorio de funcionarios, credenciales y jerarquía de seguridad.',
+    permissions: [
+      {
+        id: 'users.view',
+        code: 'users.view',
+        name: 'Ver directorio de colaboradores',
+        description: 'Visualizar lista de personal, odontólogos y estado de acceso.',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR'],
+      },
+      {
+        id: 'users.create',
+        code: 'users.create',
+        name: 'Dar de alta nuevos colaboradores',
+        description: 'Creación de cuentas institucionales con contraseñas criptográficas.',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
+      },
+      {
+        id: 'users.update',
+        code: 'users.update',
+        name: 'Modificar datos y asignación de sedes',
+        description: 'Cambio de teléfono, especialidad y sucursales autorizadas.',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
+      },
+      {
+        id: 'users.deactivate',
+        code: 'users.deactivate',
+        name: 'Activar o inactivar colaboradores',
+        description: 'Bloqueo temporal o reactivación de acceso al sistema clínico.',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION'],
+      },
+      {
+        id: 'users.reset_password',
+        code: 'users.reset_password',
+        name: 'Restablecer contraseñas de personal',
+        description: 'Regeneración segura de clave PBKDF2 para colaboradores.',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION'],
+      },
+      {
+        id: 'users.revoke_sessions',
+        code: 'users.revoke_sessions',
+        name: 'Revocar sesiones activas de seguridad',
+        description: 'Cierre forzoso e inmediato de sesiones de un usuario.',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION'],
+      },
+      {
+        id: 'roles.manage',
+        code: 'roles.manage',
+        name: 'Autoridad para crear y modificar Roles',
+        description: 'Creación de nuevos roles y ajuste de matriz de permisos (Exclusivo Super Admin).',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN'],
+      },
+    ],
+  },
+  {
+    id: 'organization',
+    name: 'Multiempresa, Branding & Auditoría',
+    category: 'Sistema',
+    description: 'Gestión corporativa global, unidades de negocio y logs inmutables.',
+    permissions: [
+      {
+        id: 'organization.manage',
+        code: 'organization.manage',
+        name: 'Gestionar y conmutar múltiples empresas',
+        description: 'Crear y alternar entre unidades de negocio / clínicas (Exclusivo Super Admin).',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN'],
+      },
+      {
+        id: 'organization.branding',
+        code: 'organization.branding',
+        name: 'Configurar Marca, Colores y Razón Social',
+        description: 'Ajuste de logotipo, RUC, paleta cromática y datos fiscales (Exclusivo Super Admin).',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN'],
+      },
+      {
+        id: 'audit.view',
+        code: 'audit.view',
+        name: 'Bitácora de auditoría forense',
+        description: 'Consulta inmutable de registros de seguridad y trazabilidad.',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR'],
+      },
+    ],
+  },
+  {
+    id: 'security',
+    name: 'Seguridad ASVS & Base de Datos',
+    category: 'Sistema',
+    description: 'Gobernanza técnica, integridad criptográfica y respaldos del sistema.',
+    permissions: [
+      {
+        id: 'security.manage',
+        code: 'security.manage',
+        name: 'Políticas de seguridad y hardening ASVS',
+        description: 'Gestión de bloqueo de fuerza bruta, políticas de contraseñas y headers.',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN'],
+      },
+      {
+        id: 'database.seed',
+        code: 'database.seed',
+        name: 'Restauración de catálogos y seed de pruebas',
+        description: 'Carga de datos estándar de Paraguay y restauración de demostración.',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN'],
+      },
+      {
+        id: 'data.export_sensitive',
+        code: 'data.export_sensitive',
+        name: 'Exportación masiva de datos clínicos y fiscales',
+        description: 'Descarga completa de base de datos para respaldos externos.',
+        category: 'Sistema',
+        defaultRoles: ['SUPER_ADMIN'],
+      },
+    ],
+  },
+];
+
 /**
  * Obtiene el nivel de jerarquía numérica de un rol dado
  */
@@ -191,10 +721,16 @@ export function getRoleHierarchyLevel(roleId: string): number {
 }
 
 /**
- * Verifica si un rol tiene un permiso determinado
+ * Verifica si un rol tiene un permiso determinado (soporta roles dinámicos de dbStore y ROLE_HIERARCHY)
  */
-export function hasPermission(roleId: string, requiredPermission: string): boolean {
+export function hasPermission(roleId: string, requiredPermission: string, dynamicPermissions?: string[]): boolean {
   if (roleId === 'SUPER_ADMIN') return true;
+
+  if (dynamicPermissions && Array.isArray(dynamicPermissions)) {
+    if (dynamicPermissions.includes('system.all')) return true;
+    return dynamicPermissions.includes(requiredPermission);
+  }
+
   const def = ROLE_HIERARCHY[roleId];
   if (!def) return false;
   if (def.permissions.includes('system.all')) return true;

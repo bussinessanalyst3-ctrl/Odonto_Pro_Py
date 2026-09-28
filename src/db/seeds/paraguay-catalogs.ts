@@ -206,9 +206,9 @@ export const BASE_ROLES = [
   {
     id: 'ADMIN_ORGANIZACION',
     name: 'Administrador de Organización',
-    description: 'Administración integral de la empresa médica, creación y gestión de sucursales, personal y branding institucional.',
+    description: 'Administración integral de su empresa médica, gestión de sucursales, finanzas y personal asignado, sin acceso a unidades de negocio ni configuración de branding global.',
     isSystem: true,
-    allowedNavTabs: ['dashboard', 'appointments', 'patients', 'odontogram', 'treatments', 'clinical', 'quotes', 'cash', 'branches', 'organization', 'users', 'audit'],
+    allowedNavTabs: ['dashboard', 'appointments', 'patients', 'odontogram', 'treatments', 'clinical', 'quotes', 'cash', 'branches', 'users', 'audit'],
   },
   {
     id: 'ADMIN_SUCURSAL',

@@ -121,6 +121,34 @@ export const UserSessionMenu: React.FC = () => {
                 <button
                   type="button"
                   onClick={async () => {
+                    await quickLoginAs('ADMIN_ORGANIZACION');
+                    setIsOpen(false);
+                  }}
+                  className={`px-2 py-1.5 rounded-lg text-[11px] font-medium text-left border transition-colors ${
+                    (session.role as string) === 'ADMIN_ORGANIZACION'
+                      ? 'bg-teal-100 text-teal-900 border-teal-300 font-bold'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  🏢 Admin Org
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await quickLoginAs('ADMIN_SUCURSAL');
+                    setIsOpen(false);
+                  }}
+                  className={`px-2 py-1.5 rounded-lg text-[11px] font-medium text-left border transition-colors ${
+                    (session.role as string) === 'ADMIN_SUCURSAL'
+                      ? 'bg-cyan-100 text-cyan-900 border-cyan-300 font-bold'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  🏥 Admin Sede
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
                     await quickLoginAs('SUPERVISOR');
                     setIsOpen(false);
                   }}
@@ -131,20 +159,6 @@ export const UserSessionMenu: React.FC = () => {
                   }`}
                 >
                   🛡️ Supervisor
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await quickLoginAs('VENDEDOR');
-                    setIsOpen(false);
-                  }}
-                  className={`px-2 py-1.5 rounded-lg text-[11px] font-medium text-left border transition-colors ${
-                    (session.role as string) === 'VENDEDOR'
-                      ? 'bg-orange-100 text-orange-900 border-orange-300 font-bold'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  🏷️ Vendedor
                 </button>
                 <button
                   type="button"
@@ -187,6 +201,20 @@ export const UserSessionMenu: React.FC = () => {
                   }`}
                 >
                   💵 Cajero
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await quickLoginAs('VENDEDOR');
+                    setIsOpen(false);
+                  }}
+                  className={`px-2 py-1.5 rounded-lg text-[11px] font-medium text-left border transition-colors ${
+                    (session.role as string) === 'VENDEDOR'
+                      ? 'bg-orange-100 text-orange-900 border-orange-300 font-bold'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  🏷️ Vendedor
                 </button>
               </div>
               <p className="text-[10px] text-slate-400 mt-1">

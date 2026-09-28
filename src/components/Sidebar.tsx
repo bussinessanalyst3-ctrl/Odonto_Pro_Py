@@ -95,7 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'dashboard',
           label: 'Dashboard & Métricas',
           icon: BarChart3,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
+          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
         },
       ],
     },
@@ -107,13 +107,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'agenda',
           label: 'Agenda de Citas',
           icon: Calendar,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION'],
+          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION'],
         },
         {
           id: 'patients',
           label: 'Fichas de Pacientes',
           icon: HeartPulse,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
+          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
         },
       ],
     },
@@ -125,20 +125,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'odontogram',
           label: 'Odontograma FDI',
           icon: Stethoscope,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
+          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
           badge: 'FDI',
         },
         {
           id: 'treatments',
           label: 'Planes & Tratamientos',
           icon: Building2,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
+          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
         },
         {
           id: 'clinical',
           label: 'Historias Clínicas MSPBS',
           icon: FileText,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
+          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
         },
       ],
     },
@@ -150,13 +150,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'quotes',
           label: 'Presupuestos & Planes',
           icon: Calculator,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
+          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
         },
         {
           id: 'cash',
           label: 'Caja & Facturación',
           icon: DollarSign,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'RECEPCION', 'CAJA'],
+          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'RECEPCION', 'CAJA'],
         },
       ],
     },
@@ -168,25 +168,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'branches',
           label: 'Sucursales & Sillones',
           icon: Landmark,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL'],
+          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
         },
         {
           id: 'organization',
           label: 'Empresa & Branding',
           icon: Building2,
-          allowedRoles: ['SUPER_ADMIN'],
+          allowedRoles: ['SUPER_ADMIN'], // Exclusivo Super Administrador
         },
         {
           id: 'users',
           label: 'Equipo, Roles & Accesos',
           icon: Users,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL'],
+          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
         },
         {
           id: 'audit',
           label: 'Auditoría & Logs',
           icon: ShieldAlert,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL'],
+          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
         },
       ],
     },
@@ -236,9 +236,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Encabezado del Sidebar / Branding Dinámico */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 bg-white">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white shadow-sm shadow-teal-600/30 font-bold overflow-hidden">
+            <div
+              className="h-10 w-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white shadow-sm font-bold overflow-hidden"
+              style={branding.customHexColor ? { background: branding.customHexColor } : undefined}
+            >
               {branding.logoUrl ? (
                 <img src={branding.logoUrl} alt={branding.tradeName} className="h-full w-full object-contain p-1" />
+              ) : branding.logoIcon === 'heart-pulse' ? (
+                <HeartPulse className="h-5 w-5" />
+              ) : branding.logoIcon === 'hospital' ? (
+                <Hospital className="h-5 w-5" />
+              ) : branding.logoIcon === 'building' ? (
+                <Building2 className="h-5 w-5" />
+              ) : branding.logoIcon === 'sparkles' ? (
+                <Sparkles className="h-5 w-5" />
+              ) : branding.logoIcon === 'shield' ? (
+                <ShieldCheck className="h-5 w-5" />
+              ) : branding.logoIcon === 'activity' ? (
+                <Activity className="h-5 w-5" />
+              ) : branding.logoIcon === 'landmark' ? (
+                <Landmark className="h-5 w-5" />
               ) : (
                 <Stethoscope className="h-5 w-5" />
               )}

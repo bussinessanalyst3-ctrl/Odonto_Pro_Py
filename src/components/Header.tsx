@@ -68,7 +68,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     devLabel: 'Agenda & Citas (Fase 7)',
     icon: Calendar,
     category: 'clinical',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION'],
     color: 'bg-teal-600',
   },
   {
@@ -77,7 +77,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     devLabel: 'Ficha Pacientes (Fase 6)',
     icon: HeartPulse,
     category: 'clinical',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
     color: 'bg-teal-600',
   },
   {
@@ -86,7 +86,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     devLabel: 'Odontograma FDI (Fase 9)',
     icon: Stethoscope,
     category: 'clinical',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
     color: 'bg-teal-600',
   },
   {
@@ -95,7 +95,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     devLabel: 'Historias Clínicas (Fase 8)',
     icon: FileText,
     category: 'clinical',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
     color: 'bg-teal-600',
   },
   {
@@ -104,7 +104,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     devLabel: 'Tratamientos (Fase 10)',
     icon: Building2,
     category: 'clinical',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
     color: 'bg-teal-600',
   },
   {
@@ -113,7 +113,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     devLabel: 'Presupuestos (Fase 11)',
     icon: Calculator,
     category: 'clinical',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
     color: 'bg-teal-600',
   },
 
@@ -124,7 +124,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     devLabel: 'Caja Diaria (Fase 12)',
     icon: DollarSign,
     category: 'management',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL', 'RECEPCION', 'CAJA'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'RECEPCION', 'CAJA'],
     color: 'bg-emerald-600',
   },
   {
@@ -133,7 +133,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     devLabel: 'Dashboard & Reportes (Fase 13)',
     icon: BarChart3,
     category: 'management',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
     color: 'bg-teal-600',
   },
   {
@@ -142,7 +142,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     devLabel: 'Equipo & Roles (Fase 5)',
     icon: Users,
     category: 'management',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
     color: 'bg-teal-600',
   },
   {
@@ -151,7 +151,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     devLabel: 'Sucursales (Fase 4)',
     icon: Landmark,
     category: 'management',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
     color: 'bg-teal-600',
   },
   {
@@ -160,7 +160,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     devLabel: 'Multiempresa & Marca (Fase 18)',
     icon: Building2,
     category: 'management',
-    allowedRoles: ['SUPER_ADMIN'],
+    allowedRoles: ['SUPER_ADMIN'], // Exclusivo Super Administrador
     color: 'bg-teal-600',
   },
   {
@@ -169,7 +169,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     devLabel: 'Auditoría MSPBS (Fase 14)',
     icon: ShieldAlert,
     category: 'management',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_SUCURSAL'],
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
     color: 'bg-purple-600',
   },
 
