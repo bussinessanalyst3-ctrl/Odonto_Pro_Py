@@ -47,11 +47,38 @@ const getBrandingForOrg = (org: any): OrganizationBranding => {
   };
 };
 
+export const BRANDING_STORAGE_KEY = 'odontopro_active_branding_v2';
+
+const getInitialBranding = (): OrganizationBranding => {
+  let storedBranding: Partial<OrganizationBranding> | null = null;
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = localStorage.getItem(BRANDING_STORAGE_KEY);
+      if (stored) {
+        storedBranding = JSON.parse(stored);
+      }
+    }
+  } catch (e) {
+    console.warn('Error leyendo branding de localStorage:', e);
+  }
+
+  const org = dbStore.getActiveOrganization();
+  const orgBranding = getBrandingForOrg(org);
+
+  if (storedBranding) {
+    const merged: OrganizationBranding = {
+      ...DEFAULT_BRANDING,
+      ...orgBranding,
+      ...storedBranding,
+    };
+    return merged;
+  }
+
+  return orgBranding;
+};
+
 export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [branding, setBranding] = useState<OrganizationBranding>(() => {
-    const org = dbStore.getActiveOrganization();
-    return getBrandingForOrg(org);
-  });
+  const [branding, setBranding] = useState<OrganizationBranding>(getInitialBranding);
 
   // Efecto para sincronizar variables CSS en el DOM
   useEffect(() => {
@@ -66,45 +93,87 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const unsub = dbStore.subscribe(() => {
       const org = dbStore.getActiveOrganization();
       if (org) {
-        setBranding(getBrandingForOrg(org));
+        const nextFromOrg = getBrandingForOrg(org);
+        setBranding((prev) => {
+          // Si el objeto de la organización tiene datos válidos, actualizar
+          const updated = {
+            ...prev,
+            ...nextFromOrg,
+            // Mantener logoUrl o logoIcon si la organización los tiene
+            logoUrl: org.logoUrl !== undefined ? org.logoUrl : prev.logoUrl,
+            logoIcon: org.logoIcon || prev.logoIcon,
+          };
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(updated));
+            }
+          } catch (e) {}
+          return updated;
+        });
       }
     });
     return unsub;
   }, []);
 
   const updateBranding = (updates: Partial<OrganizationBranding>) => {
-    const next = { ...branding, ...updates };
+    const next: OrganizationBranding = { ...branding, ...updates };
     setBranding(next);
 
-    // Actualizar también en el dbStore para coherencia con reportes y auditoría
+    // Persistir de inmediato en localStorage para que sobreviva cierres de sesión y recargas
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(next));
+      }
+    } catch (e) {
+      console.warn('Error al guardar branding en localStorage:', e);
+    }
+
+    // Actualizar también en el dbStore para coherencia en facturación, reportes y auditoría
     dbStore.updateOrganization({
       name: next.tradeName,
+      tradeName: next.tradeName,
       legalName: next.legalName,
       taxId: next.taxId,
       phone: next.phone,
       email: next.email,
       address: next.address,
-      ...(next.logoUrl !== undefined ? { logoUrl: next.logoUrl } : {}),
-      ...(next.logoIcon !== undefined ? { logoIcon: next.logoIcon } : {}),
-      ...(next.primaryColor ? { primaryColor: next.primaryColor } : {}),
-      ...(next.customHexColor ? { customHexColor: next.customHexColor } : {}),
-      ...(next.companyType ? { companyType: next.companyType } : {}),
-      ...(next.timbradoNumber ? { timbradoNumber: next.timbradoNumber } : {}),
-      ...(next.timbradoVencimiento ? { timbradoVencimiento: next.timbradoVencimiento } : {}),
-      ...(next.whatsapp ? { whatsapp: next.whatsapp } : {}),
+      website: next.website,
+      logoUrl: next.logoUrl !== undefined ? next.logoUrl : '',
+      logoIcon: next.logoIcon || 'stethoscope',
+      primaryColor: next.primaryColor || 'teal',
+      customHexColor: next.customHexColor,
+      companyType: next.companyType,
+      timbradoNumber: next.timbradoNumber,
+      timbradoVencimiento: next.timbradoVencimiento,
+      whatsapp: next.whatsapp,
     });
   };
 
   const resetBranding = () => {
     setBranding(DEFAULT_BRANDING);
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.removeItem(BRANDING_STORAGE_KEY);
+      }
+    } catch (e) {}
+
     dbStore.updateOrganization({
       name: DEFAULT_BRANDING.tradeName,
+      tradeName: DEFAULT_BRANDING.tradeName,
       legalName: DEFAULT_BRANDING.legalName,
       taxId: DEFAULT_BRANDING.taxId,
       phone: DEFAULT_BRANDING.phone,
       email: DEFAULT_BRANDING.email,
       address: DEFAULT_BRANDING.address,
+      website: DEFAULT_BRANDING.website,
       primaryColor: DEFAULT_BRANDING.primaryColor,
+      customHexColor: DEFAULT_BRANDING.customHexColor,
+      logoUrl: '',
+      logoIcon: DEFAULT_BRANDING.logoIcon,
+      companyType: DEFAULT_BRANDING.companyType,
+      timbradoNumber: DEFAULT_BRANDING.timbradoNumber,
+      timbradoVencimiento: DEFAULT_BRANDING.timbradoVencimiento,
+      whatsapp: DEFAULT_BRANDING.whatsapp,
     });
   };
 

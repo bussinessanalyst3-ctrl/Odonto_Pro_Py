@@ -46,6 +46,35 @@ class DatabaseStore {
       this.data = generateInitialSeedData();
       this.organizationsList = [this.data.organization];
     }
+
+    // Failsafe: Sincronizar branding personalizado persistente si existe
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const storedBranding = localStorage.getItem('odontopro_active_branding_v2');
+        if (storedBranding) {
+          const b = JSON.parse(storedBranding);
+          if (b && (b.tradeName || b.logoUrl !== undefined || b.logoIcon || b.customHexColor)) {
+            this.data.organization = {
+              ...this.data.organization,
+              name: b.tradeName || this.data.organization.name,
+              tradeName: b.tradeName || this.data.organization.tradeName,
+              legalName: b.legalName || this.data.organization.legalName,
+              taxId: b.taxId || this.data.organization.taxId,
+              logoUrl: b.logoUrl,
+              logoIcon: b.logoIcon || this.data.organization.logoIcon,
+              primaryColor: b.primaryColor || this.data.organization.primaryColor,
+              customHexColor: b.customHexColor || this.data.organization.customHexColor,
+            };
+            const orgIdx = this.organizationsList.findIndex((o) => o.id === this.data.organization.id);
+            if (orgIdx >= 0) {
+              this.organizationsList[orgIdx] = { ...this.data.organization };
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Ignorar errores menores de parsing
+    }
   }
 
   public setBackendActorContext(actor: BackendActorContext | null) {
@@ -63,16 +92,50 @@ class DatabaseStore {
   private saveToStorage() {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem(
-          DB_STORAGE_KEY,
-          JSON.stringify({
-            data: this.data,
-            organizationsList: this.organizationsList,
-          })
-        );
+        // Sanear auditLogs para evitar exceder cuota de 5MB por imágenes en base64
+        const safeAuditLogs = (this.data.auditLogs || []).slice(0, 100).map((log) => {
+          if (
+            log.newValues &&
+            typeof log.newValues === 'object' &&
+            typeof log.newValues.logoUrl === 'string' &&
+            log.newValues.logoUrl.length > 200
+          ) {
+            return {
+              ...log,
+              newValues: {
+                ...log.newValues,
+                logoUrl: `[Imagen Logo Base64: ${log.newValues.logoUrl.length} bytes]`,
+              },
+            };
+          }
+          return log;
+        });
+
+        const payload = JSON.stringify({
+          data: {
+            ...this.data,
+            auditLogs: safeAuditLogs,
+          },
+          organizationsList: this.organizationsList,
+        });
+
+        localStorage.setItem(DB_STORAGE_KEY, payload);
       }
     } catch (e) {
-      // Ignore quota exceeded or storage disabled
+      console.warn('Alerta de almacenamiento local (posible límite de cuota):', e);
+      try {
+        // Respaldo de emergencia con menos historial si la cuota fue sobrepasada
+        const compactPayload = JSON.stringify({
+          data: {
+            ...this.data,
+            auditLogs: (this.data.auditLogs || []).slice(0, 20),
+          },
+          organizationsList: this.organizationsList,
+        });
+        localStorage.setItem(DB_STORAGE_KEY, compactPayload);
+      } catch (inner) {
+        // Fallback silencioso
+      }
     }
   }
 
@@ -648,6 +711,24 @@ class DatabaseStore {
       updatedAt: new Date(),
     };
 
+    // Sincronizar siempre con organizationsList para evitar que cambios de contexto reviertan el branding
+    const orgIndex = this.organizationsList.findIndex((o) => o.id === this.data.organization.id);
+    if (orgIndex >= 0) {
+      this.organizationsList[orgIndex] = { ...this.data.organization };
+    } else {
+      this.organizationsList.push({ ...this.data.organization });
+    }
+
+    // Sanitizar updates para registro de auditoría sin cargar datos binarios pesados
+    const sanitizedAuditUpdates: any = { ...updates };
+    if (
+      sanitizedAuditUpdates.logoUrl &&
+      typeof sanitizedAuditUpdates.logoUrl === 'string' &&
+      sanitizedAuditUpdates.logoUrl.startsWith('data:')
+    ) {
+      sanitizedAuditUpdates.logoUrl = `[Imagen Logo Base64: ${sanitizedAuditUpdates.logoUrl.length} bytes]`;
+    }
+
     this.data.auditLogs.unshift({
       id: crypto.randomUUID(),
       organizationId: this.data.organization.id,
@@ -659,7 +740,7 @@ class DatabaseStore {
       ipAddress: '190.52.144.12',
       userAgent: 'OdontoPro Web Admin',
       oldValues: null,
-      newValues: updates,
+      newValues: sanitizedAuditUpdates,
       description: `Actualización de parámetros institucionales de la clínica (${this.data.organization.name})`,
       createdAt: new Date(),
     });

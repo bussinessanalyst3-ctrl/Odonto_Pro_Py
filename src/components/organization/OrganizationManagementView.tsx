@@ -169,8 +169,61 @@ export const OrganizationManagementView: React.FC = () => {
     ? customHexColor
     : (THEME_PRESETS.find((p) => p.id === primaryColor)?.hex || '#0d9488');
 
+  // Optimización y compresión automática de logos para evitar problemas de cuota
+  const optimizeImageFile = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (file.type === 'image/svg+xml') {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 256;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          canvas.width = Math.max(1, width);
+          canvas.height = Math.max(1, height);
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result as string);
+            return;
+          }
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const compressed = canvas.toDataURL('image/png', 0.92);
+          resolve(compressed);
+        };
+        img.onerror = () => resolve(e.target?.result as string);
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   // Handler para subir archivo local de imagen (Logo)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -179,28 +232,29 @@ export const OrganizationManagementView: React.FC = () => {
       return;
     }
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('La imagen no debe superar los 2 MB para un óptimo rendimiento.');
+    if (file.size > 5 * 1024 * 1024) {
+      alert('La imagen no debe superar los 5 MB.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
+    try {
+      const dataUrl = await optimizeImageFile(file);
       setLogoUrl(dataUrl);
       setLogoMode('upload');
       setImageError(false);
-      setNotification('Logotipo cargado exitosamente. No olvide hacer clic en "Guardar Configuración de Marca".');
+      setNotification('Logotipo procesado y optimizado. Haga clic en "Guardar Configuración de Marca" para aplicar permanentemente.');
       setTimeout(() => setNotification(null), 4000);
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Error al procesar logotipo:', err);
+      alert('No se pudo procesar la imagen seleccionada.');
+    }
   };
 
   // Guardar configuración completa
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const finalLogoUrl = logoMode === 'icon' ? undefined : (logoUrl.trim() || undefined);
+    const finalLogoUrl = logoMode === 'icon' ? '' : (logoUrl.trim() || '');
 
     updateBranding({
       tradeName: tradeName.trim(),
@@ -625,7 +679,10 @@ export const OrganizationManagementView: React.FC = () => {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setLogoUrl('')}
+                      onClick={() => {
+                        setLogoUrl('');
+                        setLogoMode('icon');
+                      }}
                       className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
                       title="Eliminar logo cargado"
                     >
