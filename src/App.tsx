@@ -94,7 +94,9 @@ function MainApplication() {
   const currentItem = ALL_NAV_ITEMS.find((item) => item.id === activeTab);
   const isAuthorized =
     session?.role === 'SUPER_ADMIN' ||
-    (roleObj?.allowedNavTabs
+    (session?.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0
+      ? session.allowedNavTabs.includes(activeTab)
+      : roleObj?.allowedNavTabs
       ? roleObj.allowedNavTabs.includes(activeTab)
       : currentItem
       ? currentItem.allowedRoles.includes(session?.role || 'SUPER_ADMIN')

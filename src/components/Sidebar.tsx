@@ -286,9 +286,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Lista de navegación con scroll */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin">
           {navGroups.map((group) => {
-            // Filtrar ítems permitidos para este rol
+            // Filtrar ítems permitidos para este usuario / rol
             const allowedItems = group.items.filter((item) => {
               if (userRole === 'SUPER_ADMIN') return true;
+              if (session?.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0) {
+                return session.allowedNavTabs.includes(item.id);
+              }
               if (currentRoleObj?.allowedNavTabs) {
                 return currentRoleObj.allowedNavTabs.includes(item.id);
               }

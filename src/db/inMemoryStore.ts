@@ -6,6 +6,12 @@ import {
   isSuperAdminRole,
   getRoleHierarchyLevel,
   ROLE_HIERARCHY,
+  REGULATORY_RESTRICTIONS_CATALOG,
+  RegulatoryRestrictionItem,
+  UserSecurityOverrides,
+  UserEffectivePermissions,
+  getUserEffectivePermissions,
+  validateBackendAuthorization,
 } from '../security/rbacHierarchy.ts';
 
 export interface BackendActorContext {
@@ -13,6 +19,11 @@ export interface BackendActorContext {
   role: string;
   organizationId: string;
   allowedBranchIds?: string[];
+  customPermissions?: string[];
+  revokedPermissions?: string[];
+  assignedRestrictions?: string[];
+  allowedNavTabs?: string[];
+  permissionsVersion?: number;
 }
 
 const DB_STORAGE_KEY = 'odontopro_db_state_v3';
@@ -58,6 +69,17 @@ class DatabaseStore {
             }
           }
         });
+      }
+      if (this.data && this.data.users) {
+        this.data.users.forEach((u: any) => {
+          if (!Array.isArray(u.customPermissions)) u.customPermissions = [];
+          if (!Array.isArray(u.revokedPermissions)) u.revokedPermissions = [];
+          if (!Array.isArray(u.assignedRestrictions)) u.assignedRestrictions = [];
+          if (typeof u.permissionsVersion !== 'number') u.permissionsVersion = 1;
+        });
+      }
+      if (this.data && !(this.data as any).regulatoryRestrictions) {
+        (this.data as any).regulatoryRestrictions = REGULATORY_RESTRICTIONS_CATALOG.filter((r) => r.defaultEnforced).map((r) => r.id);
       }
     } catch (e) {
       // Ignorar
@@ -114,7 +136,22 @@ class DatabaseStore {
   }
 
   private getEffectiveActor(actor?: BackendActorContext | null): BackendActorContext | null {
-    return actor || this.currentBackendActor;
+    const raw = actor || this.currentBackendActor;
+    if (!raw) return null;
+    const userInDb = this.data?.users?.find((u) => u.id === raw.userId);
+    if (userInDb) {
+      return {
+        ...raw,
+        role: userInDb.roleId || raw.role,
+        organizationId: userInDb.organizationId || raw.organizationId,
+        customPermissions: userInDb.customPermissions || [],
+        revokedPermissions: userInDb.revokedPermissions || [],
+        assignedRestrictions: userInDb.assignedRestrictions || [],
+        allowedNavTabs: userInDb.allowedNavTabs || [],
+        permissionsVersion: userInDb.permissionsVersion || 1,
+      };
+    }
+    return raw;
   }
 
   private saveToLocalStorageOnly() {
@@ -169,7 +206,29 @@ class DatabaseStore {
   private saveToStorage() {
     this.saveToLocalStorageOnly();
 
-    // Sincronización asíncrona permanente hacia el servidor backend
+    // Persistencia directa en disco si se ejecuta en entorno Node.js (tests, scripts, server)
+    if (typeof window === 'undefined' && typeof process !== 'undefined' && process.versions?.node) {
+      import('fs').then((fs) => {
+        import('path').then((path) => {
+          try {
+            const DATA_DIR = path.join(process.cwd(), 'data');
+            const DB_FILE = path.join(DATA_DIR, 'db_store.json');
+            if (!fs.existsSync(DATA_DIR)) {
+              fs.mkdirSync(DATA_DIR, { recursive: true });
+            }
+            const tmp = `${DB_FILE}.tmp`;
+            fs.writeFileSync(
+              tmp,
+              JSON.stringify({ data: this.data, organizationsList: this.organizationsList }, null, 2),
+              'utf-8'
+            );
+            fs.renameSync(tmp, DB_FILE);
+          } catch (e) {}
+        });
+      }).catch(() => {});
+    }
+
+    // Sincronización asíncrona permanente hacia el servidor backend (Browser)
     if (typeof fetch !== 'undefined') {
       try {
         const baseUrl = typeof window !== 'undefined' ? '' : (process?.env?.API_BASE_URL || 'http://localhost:3000');
@@ -298,7 +357,7 @@ class DatabaseStore {
       phone?: string;
     };
   }, actor?: BackendActorContext) {
-    if (actor && !hasPermission(actor.role, 'organization.create')) {
+    if (actor && !hasPermission(actor, 'organization.create')) {
       throw new Error('403 Prohibido: No tiene permisos para registrar nuevas organizaciones médicas.');
     }
 
@@ -367,29 +426,42 @@ class DatabaseStore {
     // Si se especifica administrador inicial o correo de contacto, habilitar usuario administrador institucional
     const adminEmail = newOrg.initialAdmin?.email || (newOrg.email && !this.findUserByEmail(newOrg.email) ? newOrg.email : null);
     if (adminEmail) {
-      const adminUserId = crypto.randomUUID();
-      this.data.users.push({
-        id: adminUserId,
-        organizationId: id,
-        roleId: 'ADMIN_ORGANIZACION',
-        firstName: newOrg.initialAdmin?.firstName || 'Administrador',
-        lastName: newOrg.initialAdmin?.lastName || createdOrg.name,
-        email: adminEmail.toLowerCase().trim(),
-        passwordHash: '$2b$10$e8wDbgW2n2v19WfG7h.HquK9eR6q7yB3e1gL2m1p0o9n8b7v6c5x4',
-        phone: newOrg.initialAdmin?.phone || createdOrg.phone,
-        professionalLicense: null,
-        specialty: 'Administración Clínica',
-        status: 'ACTIVE' as const,
-        lastLoginAt: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-      this.data.userBranches.push({
-        userId: adminUserId,
-        branchId: defaultBranchId,
-        isDefault: true,
-        createdAt: new Date(),
-      });
+      const existing = this.findUserByEmail(adminEmail);
+      if (existing) {
+        existing.organizationId = id;
+        existing.roleId = 'ADMIN_ORGANIZACION';
+        this.data.userBranches = this.data.userBranches.filter((ub) => ub.userId !== existing.id);
+        this.data.userBranches.push({
+          userId: existing.id,
+          branchId: defaultBranchId,
+          isDefault: true,
+          createdAt: new Date(),
+        });
+      } else {
+        const adminUserId = crypto.randomUUID();
+        this.data.users.push({
+          id: adminUserId,
+          organizationId: id,
+          roleId: 'ADMIN_ORGANIZACION',
+          firstName: newOrg.initialAdmin?.firstName || 'Administrador',
+          lastName: newOrg.initialAdmin?.lastName || createdOrg.name,
+          email: adminEmail.toLowerCase().trim(),
+          passwordHash: '$2b$10$e8wDbgW2n2v19WfG7h.HquK9eR6q7yB3e1gL2m1p0o9n8b7v6c5x4',
+          phone: newOrg.initialAdmin?.phone || createdOrg.phone,
+          professionalLicense: null,
+          specialty: 'Administración Clínica',
+          status: 'ACTIVE' as const,
+          lastLoginAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        this.data.userBranches.push({
+          userId: adminUserId,
+          branchId: defaultBranchId,
+          isDefault: true,
+          createdAt: new Date(),
+        });
+      }
     }
 
     this.data.auditLogs.unshift({
@@ -521,6 +593,8 @@ class DatabaseStore {
 
     const revocationTime = Date.now();
     this.revokedUserSessions.set(userId, revocationTime);
+    (user as any).sessionRevokedAt = new Date(revocationTime).toISOString();
+    user.permissionsVersion = (user.permissionsVersion || 0) + 1;
 
     this.data.auditLogs.unshift({
       id: crypto.randomUUID(),
@@ -543,10 +617,15 @@ class DatabaseStore {
   }
 
   public isSessionRevoked(userId: string, sessionIssuedAtIso: string): boolean {
-    const revokedAt = this.revokedUserSessions.get(userId);
-    if (!revokedAt) return false;
     const sessionTime = new Date(sessionIssuedAtIso).getTime();
-    return sessionTime <= revokedAt;
+    const user = this.data.users?.find((u) => u.id === userId);
+    if ((user as any)?.sessionRevokedAt) {
+      const revokedAt = new Date((user as any).sessionRevokedAt).getTime();
+      if (sessionTime <= revokedAt) return true;
+    }
+    const inMemRevokedAt = this.revokedUserSessions.get(userId);
+    if (inMemRevokedAt && sessionTime <= inMemRevokedAt) return true;
+    return false;
   }
 
   // --- GENERACIÓN SEGURA DE CORRELATIVOS (FISCALES / CLÍNICOS) ---
@@ -711,6 +790,10 @@ class DatabaseStore {
     return user;
   }
 
+  public findUserById(id: string) {
+    return this.data.users.find((u) => u.id === id) || null;
+  }
+
   public getPatients(branchId?: string) {
     const orgId = this.data.organization.id;
     const orgPatients = this.data.patients.filter(p => p.organizationId === orgId);
@@ -804,9 +887,13 @@ class DatabaseStore {
     return this.data.organization;
   }
 
-  public getAuditLogs() {
-    const orgId = this.data.organization.id;
-    return (this.data.auditLogs || []).filter(l => l.organizationId === orgId);
+  public getAuditLogs(actor?: BackendActorContext) {
+    const effectiveActor = this.getEffectiveActor(actor);
+    if (effectiveActor && effectiveActor.role === 'SUPER_ADMIN') {
+      return this.data.auditLogs || [];
+    }
+    const orgId = effectiveActor?.organizationId || this.data.organization.id;
+    return (this.data.auditLogs || []).filter((l) => l.organizationId === orgId);
   }
 
   public addAuditLog(entry: {
@@ -931,7 +1018,7 @@ class DatabaseStore {
     // REGLA DE SEGURIDAD N° 1: Un Administrador de Sucursal (ADMIN_SUCURSAL) o roles operativos
     // NO tienen permitido crear nuevas sucursales bajo ninguna circunstancia.
     if (effectiveActor) {
-      if (effectiveActor.role === 'ADMIN_SUCURSAL' || !hasPermission(effectiveActor.role, 'branches.create')) {
+      if (effectiveActor.role === 'ADMIN_SUCURSAL' || !hasPermission(effectiveActor, 'branches.create')) {
         this.addAuditLog({
           action: 'ACCESS_DENIED_SECURITY',
           entity: 'BRANCH',
@@ -1020,7 +1107,7 @@ class DatabaseStore {
           });
           throw new Error('403 Prohibido: El Administrador de Sucursal no puede modificar sucursales ajenas a las asignadas.');
         }
-      } else if (!hasPermission(effectiveActor.role, 'branches.update')) {
+      } else if (!hasPermission(effectiveActor, 'branches.update')) {
         throw new Error('403 Prohibido: No tiene permisos para modificar parámetros de sucursales.');
       }
     }
@@ -1059,7 +1146,7 @@ class DatabaseStore {
     const effectiveActor = this.getEffectiveActor(actor);
 
     if (effectiveActor) {
-      if (effectiveActor.role === 'ADMIN_SUCURSAL' || !hasPermission(effectiveActor.role, 'branches.delete')) {
+      if (effectiveActor.role === 'ADMIN_SUCURSAL' || !hasPermission(effectiveActor, 'branches.delete')) {
         this.addAuditLog({
           action: 'ACCESS_DENIED_SECURITY',
           entity: 'BRANCH',
@@ -1100,7 +1187,7 @@ class DatabaseStore {
     const effectiveActor = this.getEffectiveActor(actor);
 
     if (effectiveActor) {
-      if (effectiveActor.role === 'ADMIN_SUCURSAL' || !hasPermission(effectiveActor.role, 'branches.delete')) {
+      if (effectiveActor.role === 'ADMIN_SUCURSAL' || !hasPermission(effectiveActor, 'branches.delete')) {
         this.addAuditLog({
           action: 'ACCESS_DENIED_SECURITY',
           entity: 'BRANCH',
@@ -1489,7 +1576,7 @@ class DatabaseStore {
     const roleId = roleData.id.toUpperCase().trim().replace(/[^A-Z0-9_]/g, '_');
 
     if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN') {
-      if (!hasPermission(effectiveActor.role, 'roles.manage')) {
+      if (!hasPermission(effectiveActor, 'roles.manage')) {
         throw new Error('403 Prohibido: No tiene autorización para crear nuevos roles.');
       }
       // Un actor solo puede crear roles de jerarquía estrictamente inferior
@@ -1573,7 +1660,7 @@ class DatabaseStore {
   ) {
     const effectiveActor = this.getEffectiveActor(actor);
     if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN') {
-      if (!hasPermission(effectiveActor.role, 'roles.manage')) {
+      if (!hasPermission(effectiveActor, 'roles.manage')) {
         throw new Error('403 Prohibido: No tiene autorización para modificar roles.');
       }
       if (!canManageRole(effectiveActor.role, roleId)) {
@@ -1631,7 +1718,7 @@ class DatabaseStore {
   public updateRolePermissions(roleId: string, permissions: string[], actor?: BackendActorContext) {
     const effectiveActor = this.getEffectiveActor(actor);
     if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN') {
-      if (!hasPermission(effectiveActor.role, 'roles.manage')) {
+      if (!hasPermission(effectiveActor, 'roles.manage')) {
         throw new Error('403 Prohibido: Solo el Super Administrador o usuarios con permiso de autoridad pueden modificar la matriz de permisos.');
       }
 
@@ -1749,6 +1836,161 @@ class DatabaseStore {
 
     this.notify();
     return true;
+  }
+
+  public getUserEffectivePermissions(userId: string): UserEffectivePermissions {
+    const user = this.data.users.find((u) => u.id === userId);
+    return getUserEffectivePermissions(user, this.data.roles);
+  }
+
+  public getRegulatoryRestrictionsCatalog(): RegulatoryRestrictionItem[] {
+    return REGULATORY_RESTRICTIONS_CATALOG;
+  }
+
+  public getActiveRegulatoryRestrictions(): string[] {
+    if (!Array.isArray((this.data as any).regulatoryRestrictions)) {
+      (this.data as any).regulatoryRestrictions = REGULATORY_RESTRICTIONS_CATALOG.filter((r) => r.defaultEnforced).map((r) => r.id);
+    }
+    return (this.data as any).regulatoryRestrictions;
+  }
+
+  public updateRegulatoryRestrictions(restrictions: string[], actor?: BackendActorContext) {
+    const effectiveActor = this.getEffectiveActor(actor);
+    if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN') {
+      throw new Error('403 Prohibido: Solo el Super Administrador tiene autorización para modificar restricciones sanitarias regulatorias globales.');
+    }
+
+    const oldRestrictions = [...this.getActiveRegulatoryRestrictions()];
+    (this.data as any).regulatoryRestrictions = [...restrictions];
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: null,
+      userId: effectiveActor?.userId || null,
+      action: 'REGULATORY_RESTRICTIONS_UPDATE',
+      entity: 'SYSTEM_SECURITY',
+      entityId: 'MSPBS_GLOBAL',
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Security Governance',
+      oldValues: { count: oldRestrictions.length, restrictions: oldRestrictions },
+      newValues: { count: restrictions.length, restrictions },
+      description: `Actualización de directivas sanitarias del MSPBS: ${restrictions.length} restricciones regulatorias activas.`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return (this.data as any).regulatoryRestrictions;
+  }
+
+  public updateUserPermissions(
+    targetUserId: string,
+    overrides: {
+      customPermissions?: string[];
+      revokedPermissions?: string[];
+      assignedRestrictions?: string[];
+      allowedNavTabs?: string[];
+    },
+    actor?: BackendActorContext
+  ) {
+    const effectiveActor = this.getEffectiveActor(actor);
+    const targetIdx = this.data.users.findIndex((u) => u.id === targetUserId);
+    if (targetIdx === -1) {
+      throw new Error(`Usuario no encontrado: ${targetUserId}`);
+    }
+
+    const targetUser = this.data.users[targetIdx];
+
+    // SEGURIDAD: Solo SUPER_ADMIN o administradores con jerarquía pueden alterar permisos de usuarios
+    if (effectiveActor) {
+      if (effectiveActor.role !== 'SUPER_ADMIN') {
+        if (!hasPermission(effectiveActor, 'users.edit')) {
+          throw new Error('403 Prohibido: No tiene autorización para modificar la seguridad de usuarios.');
+        }
+        if (targetUser.roleId === 'SUPER_ADMIN') {
+          throw new Error('403 Prohibido: No se pueden modificar los permisos de un Super Administrador.');
+        }
+        if (!canManageRole(effectiveActor.role, targetUser.roleId)) {
+          throw new Error(`403 Prohibido: Su rol (${effectiveActor.role}) no tiene jerarquía para alterar permisos del rol ${targetUser.roleId}.`);
+        }
+        // Prevenir otorgar permisos de Super Admin
+        const superAdminExclusives = new Set([
+          'system.all',
+          'organization.create',
+          'organization.manage',
+          'organization.branding',
+          'super_admin.manage',
+          'security.manage',
+          'database.seed',
+          'data.export_sensitive',
+        ]);
+        if (overrides.customPermissions?.some((p) => superAdminExclusives.has(p))) {
+          throw new Error('403 Prohibido: No puede otorgar permisos reservados exclusivamente al Super Administrador.');
+        }
+      }
+    }
+
+    const oldCustom = targetUser.customPermissions || [];
+    const oldRevoked = targetUser.revokedPermissions || [];
+    const oldRestrictions = targetUser.assignedRestrictions || [];
+    const oldNavTabs = targetUser.allowedNavTabs || [];
+
+    // Aplicar cambios asegurando arreglos válidos
+    targetUser.customPermissions = Array.isArray(overrides.customPermissions)
+      ? [...overrides.customPermissions]
+      : (targetUser.customPermissions || []);
+
+    targetUser.revokedPermissions = Array.isArray(overrides.revokedPermissions)
+      ? [...overrides.revokedPermissions]
+      : (targetUser.revokedPermissions || []);
+
+    targetUser.assignedRestrictions = Array.isArray(overrides.assignedRestrictions)
+      ? [...overrides.assignedRestrictions]
+      : (targetUser.assignedRestrictions || []);
+
+    targetUser.allowedNavTabs = Array.isArray(overrides.allowedNavTabs)
+      ? [...overrides.allowedNavTabs]
+      : (targetUser.allowedNavTabs || []);
+
+    // Incrementar versión de permisos para forzar invalidación de caché y sesión inmediata
+    targetUser.permissionsVersion = (targetUser.permissionsVersion || 0) + 1;
+    targetUser.updatedAt = new Date();
+
+    // Registrar en auditoría médica y de seguridad
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: targetUser.organizationId,
+      branchId: null,
+      userId: effectiveActor?.userId || this.data.users[0]?.id || null,
+      action: 'USER_PERMISSIONS_OVERRIDE',
+      entity: 'USER_SECURITY',
+      entityId: targetUserId,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Security Governance',
+      oldValues: {
+        customPermissions: oldCustom,
+        revokedPermissions: oldRevoked,
+        assignedRestrictions: oldRestrictions,
+        allowedNavTabs: oldNavTabs,
+      },
+      newValues: {
+        customPermissions: targetUser.customPermissions,
+        revokedPermissions: targetUser.revokedPermissions,
+        assignedRestrictions: targetUser.assignedRestrictions,
+        allowedNavTabs: targetUser.allowedNavTabs,
+        permissionsVersion: targetUser.permissionsVersion,
+      },
+      description: `Ajuste granular de permisos y restricciones para ${targetUser.firstName} ${targetUser.lastName} (${targetUser.email}). Grants: ${targetUser.customPermissions.length}, Revocaciones: ${targetUser.revokedPermissions.length}, Restricciones: ${targetUser.assignedRestrictions.length}.`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+
+    const effective = this.getUserEffectivePermissions(targetUserId);
+    return {
+      user: targetUser,
+      effective,
+    };
   }
 
   public resetUserPassword(userId: string, actor?: BackendActorContext) {

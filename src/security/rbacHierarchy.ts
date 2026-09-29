@@ -19,6 +19,7 @@ export interface RoleHierarchyDefinition {
   displayName: string;
   category: 'GLOBAL' | 'ORGANIZATION' | 'BRANCH' | 'OPERATIONAL';
   permissions: string[];
+  allowedNavTabs?: string[];
 }
 
 /**
@@ -720,6 +721,193 @@ export const SYSTEM_PERMISSION_MODULES: PermissionModuleGroup[] = [
   },
 ];
 
+export interface RegulatoryRestrictionItem {
+  id: string;
+  code: string;
+  name: string;
+  category: 'CLINICA' | 'EXPEDIENTE' | 'FINANCIERA' | 'EXPORTACION' | 'SEGURIDAD';
+  description: string;
+  regulatoryStandard: string;
+  targetPermissions: string[];
+  appliesToRoles: string[];
+  defaultEnforced: boolean;
+}
+
+export const REGULATORY_RESTRICTIONS_CATALOG: RegulatoryRestrictionItem[] = [
+  {
+    id: 'rest.mspbs.require_license_clinical',
+    code: 'require_license_clinical',
+    name: 'Exigir Registro Profesional MSPBS para Odontograma y Procedimientos',
+    category: 'CLINICA',
+    description: 'Bloquea la edición del odontograma y emisión de recetas si el usuario no cuenta con número de registro profesional del MSPBS cargado.',
+    regulatoryStandard: 'Ley N° 836/80 Art. 41 & Res. MSPBS Control de Ejercicio Profesional',
+    targetPermissions: ['odontogram.manage', 'prescriptions.create'],
+    appliesToRoles: ['ODONTOLOGO', 'ASISTENTE'],
+    defaultEnforced: true,
+  },
+  {
+    id: 'rest.mspbs.lock_clinical_after_sign',
+    code: 'lock_clinical_after_sign',
+    name: 'Inmutabilidad de Evoluciones Clínicas Firmadas',
+    category: 'EXPEDIENTE',
+    description: 'Prohíbe la modificación o eliminación de notas clínicas y diagnósticos previos una vez asentados en la historia clínica médica.',
+    regulatoryStandard: 'Norma Técnica de Historias Clínicas MSPBS & Trazabilidad Médica Legal',
+    targetPermissions: ['clinical.manage'],
+    appliesToRoles: ['ODONTOLOGO', 'SUPERVISOR', 'ADMIN_SUCURSAL'],
+    defaultEnforced: true,
+  },
+  {
+    id: 'rest.mspbs.prohibit_hard_deletion_clinical',
+    code: 'prohibit_hard_deletion_clinical',
+    name: 'Prohibición Absoluta de Borrado Físico de Expedientes y Pacientes',
+    category: 'EXPEDIENTE',
+    description: 'Impide la eliminación física de fichas clínicas y pacientes; cualquier baja debe ser exclusivamente lógica (soft delete) con trazabilidad de 5 años.',
+    regulatoryStandard: 'Ley N° 836/80 Código Sanitario Paraguayo - Custodia de Archivos Médicos',
+    targetPermissions: ['patients.delete', 'branches.delete'],
+    appliesToRoles: ['ALL'],
+    defaultEnforced: true,
+  },
+  {
+    id: 'rest.mspbs.anonymize_sensitive_export',
+    code: 'anonymize_sensitive_export',
+    name: 'Restricción de Exportación de Datos Clínicos y Cédulas de Identidad',
+    category: 'EXPORTACION',
+    description: 'Bloquea la descarga y exportación de planillas con diagnósticos y cédulas de identidad a personal operativo.',
+    regulatoryStandard: 'Ley N° 1682/01 De Protección de Datos Personales Crediticios y de Salud',
+    targetPermissions: ['data.export_sensitive', 'patients.export'],
+    appliesToRoles: ['RECEPCION', 'CAJA', 'VENDEDOR', 'ASISTENTE'],
+    defaultEnforced: true,
+  },
+  {
+    id: 'rest.mspbs.restrict_financial_to_cashiers',
+    code: 'restrict_financial_to_cashiers',
+    name: 'Segregación Estricta entre Atención Clínica y Manejo de Caja',
+    category: 'FINANCIERA',
+    description: 'Impide que los profesionales odontólogos gestionen o cierren cajas registradoras en las sucursales para evitar conflictos de interés.',
+    regulatoryStandard: 'Normas de Auditoría Interna y Buenas Prácticas de Control Financiero',
+    targetPermissions: ['cash.open_close', 'cash.movement', 'payments.annul'],
+    appliesToRoles: ['ODONTOLOGO', 'ASISTENTE'],
+    defaultEnforced: true,
+  },
+  {
+    id: 'rest.mspbs.block_unassigned_branch_access',
+    code: 'block_unassigned_branch_access',
+    name: 'Aislamiento Estricto por Sucursal Asignada',
+    category: 'SEGURIDAD',
+    description: 'Impide visualizar pacientes, turnos o cobros de sedes donde el usuario no se encuentre formalmente asignado.',
+    regulatoryStandard: 'Manual de Procedimientos Multi-Sede y Confidencialidad Territorial',
+    targetPermissions: ['appointments.manage', 'cash.view', 'patients.view'],
+    appliesToRoles: ['ADMIN_SUCURSAL', 'RECEPCION', 'CAJA', 'ODONTOLOGO'],
+    defaultEnforced: true,
+  },
+  {
+    id: 'rest.mspbs.restrict_clinical_records_access',
+    code: 'restrict_clinical_records_access',
+    name: 'Restricción de Acceso a Historias Clínicas y Antecedentes Médicos',
+    category: 'EXPEDIENTE',
+    description: 'Bloquea la consulta y gestión de historias clínicas y anamnesis médica para personal administrativo sin secreto médico.',
+    regulatoryStandard: 'Ley N° 836/80 Código Sanitario - Secreto Médico Profesional',
+    targetPermissions: ['clinical.view', 'clinical.manage', 'anamnesis.view', 'anamnesis.manage'],
+    appliesToRoles: ['RECEPCION', 'CAJA', 'VENDEDOR'],
+    defaultEnforced: false,
+  },
+  {
+    id: 'rest.mspbs.restrict_patient_demographics',
+    code: 'restrict_patient_demographics',
+    name: 'Protección de Datos Personales y Confidencialidad de Pacientes',
+    category: 'SEGURIDAD',
+    description: 'Impide la modificación de fichas y datos demográficos sensibles de pacientes sin autorización expresa.',
+    regulatoryStandard: 'Ley N° 1682/01 De Protección de Datos Personales',
+    targetPermissions: ['patients.manage', 'patients.export'],
+    appliesToRoles: ['ASISTENTE', 'VENDEDOR'],
+    defaultEnforced: false,
+  },
+  {
+    id: 'rest.mspbs.lock_historical_odontograms',
+    code: 'lock_historical_odontograms',
+    name: 'Bloqueo de Modificación de Odontogramas Históricos Asentados',
+    category: 'CLINICA',
+    description: 'Impide alterar piezas dentales y diagnósticos odontológicos guardados en consultas previas.',
+    regulatoryStandard: 'Norma Técnica Odontológica MSPBS de Trazabilidad Diagnóstica',
+    targetPermissions: ['odontogram.manage'],
+    appliesToRoles: ['ODONTOLOGO', 'ASISTENTE'],
+    defaultEnforced: false,
+  },
+  {
+    id: 'rest.mspbs.restrict_treatment_discounts',
+    code: 'restrict_treatment_discounts',
+    name: 'Control Estricto de Descuentos y Aranceles en Tratamientos',
+    category: 'FINANCIERA',
+    description: 'Bloquea la aplicación de descuentos o alteración de precios de lista en presupuestos y planes odontológicos.',
+    regulatoryStandard: 'Políticas de Aranceles Clínicos y Control Administrativo',
+    targetPermissions: ['treatments.discounts', 'quotes.approve'],
+    appliesToRoles: ['RECEPCION', 'VENDEDOR', 'ASISTENTE'],
+    defaultEnforced: false,
+  },
+  {
+    id: 'rest.mspbs.restrict_financial_reports',
+    code: 'restrict_financial_reports',
+    name: 'Restricción de Acceso a Informes Financieros y Comisiones Médicas',
+    category: 'FINANCIERA',
+    description: 'Bloquea la visualización de balances financieros consolidados, recaudaciones y liquidaciones de honorarios.',
+    regulatoryStandard: 'Confidencialidad Financiera y Gobierno Corporativo',
+    targetPermissions: ['reports.financial', 'reports.commissions', 'cash.reports'],
+    appliesToRoles: ['ODONTOLOGO', 'RECEPCION', 'CAJA', 'ASISTENTE', 'VENDEDOR'],
+    defaultEnforced: false,
+  },
+  {
+    id: 'rest.mspbs.restrict_invoice_issuance',
+    code: 'restrict_invoice_issuance',
+    name: 'Control de Facturación Legal y Anulación de Cobros',
+    category: 'FINANCIERA',
+    description: 'Prohíbe emitir facturas legales y anular recibos de caja sin visto bueno de la Dirección Administrativa.',
+    regulatoryStandard: 'Ley N° 125/91 Tributaria y Reglamentación DNIT',
+    targetPermissions: ['invoices.issue', 'payments.annul'],
+    appliesToRoles: ['RECEPCION', 'ODONTOLOGO', 'ASISTENTE'],
+    defaultEnforced: false,
+  },
+  {
+    id: 'rest.mspbs.restrict_user_management',
+    code: 'restrict_user_management',
+    name: 'Prohibición de Creación y Modificación de Usuarios del Sistema',
+    category: 'SEGURIDAD',
+    description: 'Impide administrar credenciales, altas o bajas de operadores en el sistema clínico.',
+    regulatoryStandard: 'Políticas de Seguridad de la Información y Control de Accesos',
+    targetPermissions: ['users.create', 'users.update', 'users.deactivate', 'users.reset_password', 'users.create_operational'],
+    appliesToRoles: ['ADMIN_SUCURSAL', 'SUPERVISOR'],
+    defaultEnforced: false,
+  },
+  {
+    id: 'rest.mspbs.restrict_clinic_settings',
+    code: 'restrict_clinic_settings',
+    name: 'Restricción de Parámetros Operativos de Clínica y Sucursal',
+    category: 'SEGURIDAD',
+    description: 'Impide modificar políticas de sobreturnos, horarios de atención y configuración de la sede.',
+    regulatoryStandard: 'Manual de Habilitación de Establecimientos de Salud MSPBS',
+    targetPermissions: ['settings.update', 'settings.update_own_branch', 'branches.update_own'],
+    appliesToRoles: ['ADMIN_SUCURSAL', 'RECEPCION'],
+    defaultEnforced: false,
+  },
+];
+
+export interface UserSecurityOverrides {
+  customPermissions?: string[];
+  revokedPermissions?: string[];
+  assignedRestrictions?: string[];
+  allowedNavTabs?: string[];
+  permissionsVersion?: number;
+}
+
+export interface UserEffectivePermissions {
+  roleId: string;
+  rolePermissions: string[];
+  customPermissions: string[];
+  revokedPermissions: string[];
+  activeRestrictions: string[];
+  effectivePermissions: string[];
+  allowedNavTabs: string[];
+}
+
 /**
  * Obtiene el nivel de jerarquía numérica de un rol dado
  */
@@ -728,9 +916,68 @@ export function getRoleHierarchyLevel(roleId: string): number {
 }
 
 /**
- * Verifica si un rol tiene un permiso determinado (soporta roles dinámicos de dbStore y ROLE_HIERARCHY)
+ * Verifica si un rol o usuario tiene un permiso determinado.
+ * Soporta tanto identificador de rol (string) como objeto de usuario con overrides específicos y dinámicos.
+ * JERARQUÍA ESTRICTA:
+ * 1. SUPER_ADMIN -> Autorizado siempre.
+ * 2. Revocación explícita (revokedPermissions) -> DENEGADO (Deny overrides Allow).
+ * 3. Restricción regulatoria activa (assignedRestrictions) -> DENEGADO.
+ * 4. Otorgamiento explícito (customPermissions) -> AUTORIZADO.
+ * 5. Permiso dinámico de rol (dynamicPermissions / role.permissions) -> AUTORIZADO.
+ * 6. Fallback a catálogo ROLE_HIERARCHY -> Según catálogo base.
  */
-export function hasPermission(roleId: string, requiredPermission: string, dynamicPermissions?: string[]): boolean {
+export function hasPermission(
+  roleOrUser: string | any,
+  requiredPermission: string,
+  dynamicPermissions?: string[]
+): boolean {
+  if (!roleOrUser) return false;
+
+  // Si se pasa un objeto de usuario o contexto de sesión
+  if (typeof roleOrUser === 'object') {
+    const roleId = roleOrUser.roleId || roleOrUser.role;
+    if (roleId === 'SUPER_ADMIN') return true;
+
+    // 1. REGLA DENY OVERRIDES ALLOW: Si el permiso está explícitamente revocado para este usuario
+    if (Array.isArray(roleOrUser.revokedPermissions) && roleOrUser.revokedPermissions.includes(requiredPermission)) {
+      return false;
+    }
+
+    // 2. Restricciones sanitarias asignadas (MSPBS)
+    if (Array.isArray(roleOrUser.assignedRestrictions)) {
+      for (const restId of roleOrUser.assignedRestrictions) {
+        const restDef = REGULATORY_RESTRICTIONS_CATALOG.find((r) => r.id === restId || r.code === restId);
+        if (restDef && Array.isArray(restDef.targetPermissions) && restDef.targetPermissions.includes(requiredPermission)) {
+          // Si exige licencia profesional y el usuario no la tiene
+          if (restDef.code === 'require_license_clinical') {
+            if (!roleOrUser.professionalLicense?.trim()) {
+              return false;
+            }
+          } else {
+            // Toda restricción asignada bloquea categóricamente las acciones objetivo
+            return false;
+          }
+        }
+      }
+    }
+
+    // 3. Otorgamiento personalizado explícito
+    if (Array.isArray(roleOrUser.customPermissions) && roleOrUser.customPermissions.includes(requiredPermission)) {
+      return true;
+    }
+
+    // 4. Si el usuario ya tiene effectivePermissions pre-calculados
+    if (Array.isArray(roleOrUser.effectivePermissions)) {
+      if (roleOrUser.effectivePermissions.includes('system.all')) return true;
+      return roleOrUser.effectivePermissions.includes(requiredPermission);
+    }
+
+    // 5. Permisos de su rol base
+    return hasPermission(roleId, requiredPermission, dynamicPermissions);
+  }
+
+  // Si se pasa solo el string del rol (ej: 'ODONTOLOGO')
+  const roleId = roleOrUser;
   if (roleId === 'SUPER_ADMIN') return true;
 
   if (dynamicPermissions && Array.isArray(dynamicPermissions)) {
@@ -783,6 +1030,93 @@ export interface BackendAuthorizationParams {
   targetUserRole?: string;
   targetUserId?: string;
   newRoleToAssign?: string;
+}
+
+/**
+ * Calcula el conjunto consolidado de permisos efectivos para un usuario.
+ * Resuelve la jerarquía: (Rol Base + Otorgamientos Específicos) - Revocaciones Explícitas - Restricciones Sanitarias.
+ */
+export function getUserEffectivePermissions(user: any, allRoles: any[] = []): UserEffectivePermissions {
+  if (!user) {
+    return {
+      roleId: '',
+      rolePermissions: [],
+      customPermissions: [],
+      revokedPermissions: [],
+      activeRestrictions: [],
+      effectivePermissions: [],
+      allowedNavTabs: [],
+    };
+  }
+
+  const roleId = user.roleId || user.role || '';
+
+  // 1. SUPER_ADMIN tiene todos los permisos universales incondicionalmente
+  if (roleId === 'SUPER_ADMIN') {
+    const allCodes = SYSTEM_PERMISSION_MODULES.flatMap((g) => g.permissions.map((p) => p.code));
+    return {
+      roleId: 'SUPER_ADMIN',
+      rolePermissions: ['system.all', ...allCodes],
+      customPermissions: [],
+      revokedPermissions: [],
+      activeRestrictions: [],
+      effectivePermissions: ['system.all', ...allCodes],
+      allowedNavTabs: ['dashboard', 'agenda', 'patients', 'clinical', 'odontogram', 'treatments', 'quotes', 'cash', 'users', 'branches', 'organization', 'audit', 'security', 'testing', 'production'],
+    };
+  }
+
+  // 2. Obtener permisos del rol dinámico
+  const roleObj = allRoles.find((r) => r.id === roleId);
+  const rolePermissions: string[] = (roleObj && Array.isArray((roleObj as any).permissions))
+    ? [...(roleObj as any).permissions]
+    : [...(ROLE_HIERARCHY[roleId]?.permissions || [])];
+
+  const customPermissions: string[] = Array.isArray(user.customPermissions) ? user.customPermissions : [];
+  const revokedPermissions: string[] = Array.isArray(user.revokedPermissions) ? user.revokedPermissions : [];
+  const activeRestrictions: string[] = Array.isArray(user.assignedRestrictions) ? user.assignedRestrictions : [];
+
+  // 3. Evaluar permisos base + custom grants
+  const basePlusCustom = new Set<string>([...rolePermissions, ...customPermissions]);
+
+  // 4. Aplicar revocaciones explícitas (DENY ALWAYS WINS)
+  for (const revoked of revokedPermissions) {
+    basePlusCustom.delete(revoked);
+  }
+
+  // 5. Aplicar restricciones regulatorias sanitarias activas
+  for (const restId of activeRestrictions) {
+    const restDef = REGULATORY_RESTRICTIONS_CATALOG.find((r) => r.id === restId || r.code === restId);
+    if (restDef && Array.isArray(restDef.targetPermissions)) {
+      // Exigencia de registro profesional
+      if (restDef.code === 'require_license_clinical' && !user.professionalLicense?.trim()) {
+        for (const targetPerm of restDef.targetPermissions) {
+          basePlusCustom.delete(targetPerm);
+        }
+      } else if (restDef.code !== 'require_license_clinical') {
+        for (const targetPerm of restDef.targetPermissions) {
+          basePlusCustom.delete(targetPerm);
+        }
+      }
+    }
+  }
+
+  const effectivePermissions = Array.from(basePlusCustom);
+
+  // Módulos visibles
+  const defaultNavTabs = roleObj?.allowedNavTabs || ROLE_HIERARCHY[roleId]?.allowedNavTabs || ['dashboard'];
+  const allowedNavTabs = (user.allowedNavTabs && Array.isArray(user.allowedNavTabs) && user.allowedNavTabs.length > 0)
+    ? user.allowedNavTabs
+    : defaultNavTabs;
+
+  return {
+    roleId,
+    rolePermissions,
+    customPermissions,
+    revokedPermissions,
+    activeRestrictions,
+    effectivePermissions,
+    allowedNavTabs,
+  };
 }
 
 /**
@@ -867,7 +1201,7 @@ export function validateBackendAuthorization(params: BackendAuthorizationParams)
   // - Modificar otras sucursales fuera de sus asignadas.
   if (resource === 'BRANCH') {
     if (action === 'CREATE') {
-      if (actor.role === 'ADMIN_SUCURSAL' || !hasPermission(actor.role, 'branches.create')) {
+      if (actor.role === 'ADMIN_SUCURSAL' || !hasPermission(actor, 'branches.create')) {
         return {
           authorized: false,
           statusCode: 403,
@@ -876,7 +1210,7 @@ export function validateBackendAuthorization(params: BackendAuthorizationParams)
       }
     }
     if (action === 'DELETE' || action === 'DEACTIVATE') {
-      if (actor.role === 'ADMIN_SUCURSAL' || !hasPermission(actor.role, 'branches.delete')) {
+      if (actor.role === 'ADMIN_SUCURSAL' || !hasPermission(actor, 'branches.delete')) {
         return {
           authorized: false,
           statusCode: 403,
@@ -933,11 +1267,11 @@ export function validateBackendAuthorization(params: BackendAuthorizationParams)
   }
 
   // 10. Validación de permiso explícito si fue provisto
-  if (permission && !hasPermission(actor.role, permission)) {
+  if (permission && !hasPermission(actor, permission)) {
     return {
       authorized: false,
       statusCode: 403,
-      reason: `403 Prohibido: El rol ${actor.role} no tiene asignado el permiso "${permission}".`,
+      reason: `403 Prohibido: El usuario no tiene autorización para la acción "${permission}". Acción bloqueada por políticas de control de acceso o restricción específica.`,
     };
   }
 

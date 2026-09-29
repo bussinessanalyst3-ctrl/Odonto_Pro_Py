@@ -42,18 +42,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<UserSession | null>(getInitialSession);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Verificación periódica de expiración y revocación de sesión
+  // Sincronización reactiva inmediata de cambios de permisos, revocación y versionado
   useEffect(() => {
     if (!session) return;
 
+    // Verificación periódica de expiración y revocación
     const interval = setInterval(() => {
       if (!authService.isSessionValid(session)) {
         console.warn('Sesión caducada o revocada por el Administrador. Cerrando sesión...');
         logout();
       }
-    }, 15000); // Revisar cada 15 segundos
+    }, 10000);
 
-    return () => clearInterval(interval);
+    // Suscripción reactiva instantánea a cambios en base de datos
+    const unsubscribe = dbStore.subscribe(() => {
+      const userInDb = dbStore.findUserById(session.userId);
+      if (!userInDb || userInDb.status === 'INACTIVE') {
+        logout();
+        return;
+      }
+
+      if (dbStore.isSessionRevoked(session.userId, session.issuedAt)) {
+        console.warn('Sesión revocada explícitamente por el Super Administrador.');
+        logout();
+        return;
+      }
+
+      const dbPermVersion = (userInDb as any).permissionsVersion || 1;
+      const sessionPermVersion = session.permissionsVersion || 1;
+      const roleChanged = userInDb.roleId !== session.role;
+
+      if (dbPermVersion !== sessionPermVersion || roleChanged) {
+        const effective = dbStore.getUserEffectivePermissions(userInDb.id);
+        const roleObj = dbStore.getRoles().find((r) => r.id === userInDb.roleId);
+
+        const updatedSession: UserSession = {
+          ...session,
+          role: userInDb.roleId as any,
+          roleName: roleObj?.name || userInDb.roleId,
+          effectivePermissions: effective.effectivePermissions,
+          customPermissions: effective.customPermissions,
+          revokedPermissions: effective.revokedPermissions,
+          assignedRestrictions: effective.activeRestrictions,
+          allowedNavTabs: effective.allowedNavTabs,
+          permissionsVersion: dbPermVersion,
+        };
+
+        setSession(updatedSession);
+        try {
+          localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updatedSession));
+        } catch (e) {}
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [session]);
 
   const login = async (credentials: AuthCredentials): Promise<LoginResult> => {
@@ -148,12 +193,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 8 * 60 * 60 * 1000);
 
+    const userEffective = dbStore.getUserEffectivePermissions(targetUser.id);
+
     const customSession: UserSession = {
       userId: targetUser.id,
       organizationId: org.id,
       organizationName: org.name,
       organizationTaxId: org.taxId,
-      role: role as any,
+      role: (targetUser.roleId || role) as any,
       roleName: roleObj ? roleObj.name : role,
       firstName: userWithRole ? userWithRole.firstName : targetUser.firstName,
       lastName: userWithRole ? userWithRole.lastName : targetUser.lastName,
@@ -164,6 +211,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       allowedBranchIds: snapshot.branches.map((b) => b.id),
       currentBranchId: snapshot.branches[0]?.id || '',
       sessionToken: `sess_${crypto.randomUUID().replace(/-/g, '')}`,
+      effectivePermissions: userEffective.effectivePermissions,
+      customPermissions: userEffective.customPermissions,
+      revokedPermissions: userEffective.revokedPermissions,
+      assignedRestrictions: userEffective.activeRestrictions,
+      allowedNavTabs: userEffective.allowedNavTabs,
+      permissionsVersion: (targetUser as any).permissionsVersion || 1,
       issuedAt: now.toISOString(),
       expiresAt: expiresAt.toISOString(),
       cookieConfig: {

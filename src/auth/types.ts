@@ -27,6 +27,12 @@ export interface UserSession {
   allowedBranchIds: string[];
   currentBranchId: string;
   sessionToken: string;
+  effectivePermissions?: string[];
+  customPermissions?: string[];
+  revokedPermissions?: string[];
+  assignedRestrictions?: string[];
+  allowedNavTabs?: string[];
+  permissionsVersion?: number;
   issuedAt: string;
   expiresAt: string;
   cookieConfig: {

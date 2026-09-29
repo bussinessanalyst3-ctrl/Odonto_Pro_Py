@@ -186,6 +186,7 @@ class AuthService {
     const expiresAt = new Date(now.getTime() + expirationMs).toISOString();
 
     const roleObj = snapshot.roles.find((r) => r.id === user.roleId);
+    const userEffective = dbStore.getUserEffectivePermissions(user.id);
 
     const session: UserSession = {
       userId: user.id,
@@ -203,6 +204,12 @@ class AuthService {
       allowedBranchIds,
       currentBranchId: safeBranchId,
       sessionToken,
+      effectivePermissions: userEffective.effectivePermissions,
+      customPermissions: userEffective.customPermissions,
+      revokedPermissions: userEffective.revokedPermissions,
+      assignedRestrictions: userEffective.activeRestrictions,
+      allowedNavTabs: userEffective.allowedNavTabs,
+      permissionsVersion: (user as any).permissionsVersion || 1,
       issuedAt,
       expiresAt,
       cookieConfig: {

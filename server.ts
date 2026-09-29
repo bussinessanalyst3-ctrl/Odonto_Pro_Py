@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { generateInitialSeedData } from './src/db/seeds/initial-seed.ts';
+import { canManageRole, isSuperAdminRole } from './src/security/rbacHierarchy.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -223,6 +224,155 @@ async function startServer() {
 
     saveDatabaseState();
     res.json({ success: true, message: 'Organización dada de baja correctamente.' });
+  });
+
+  // GET /api/users
+  app.get('/api/users', (req, res) => {
+    const users = (serverDbState.data.users || []).map((u: any) => {
+      const { passwordHash, passwordSalt, ...safe } = u;
+      return safe;
+    });
+    res.json(users);
+  });
+
+  // PUT /api/users/:id/permissions - Super Admin & Hierarchy governed backend endpoint
+  app.put('/api/users/:id/permissions', (req, res) => {
+    const { id } = req.params;
+    const { overrides, actor } = req.body;
+
+    const user = serverDbState.data.users?.find((u: any) => u.id === id);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    // Backend validation: Protecciones de Jerarquía y Super Administrador
+    if (actor) {
+      if (actor.role !== 'SUPER_ADMIN') {
+        if (isSuperAdminRole(user.roleId)) {
+          return res.status(403).json({
+            error: '403 Prohibido: El usuario Super Administrador está estrictamente protegido y no puede ser alterado.',
+          });
+        }
+        if (!canManageRole(actor.role, user.roleId)) {
+          return res.status(403).json({
+            error: `403 Prohibido: Su rol (${actor.role}) no tiene jerarquía para alterar los permisos de un usuario con rol ${user.roleId}.`,
+          });
+        }
+        // Exclusivos de Super Admin
+        const superAdminExclusives = new Set([
+          'system.all',
+          'organization.create',
+          'organization.manage',
+          'organization.branding',
+          'super_admin.manage',
+          'security.manage',
+          'database.seed',
+          'data.export_sensitive',
+        ]);
+        if (overrides?.customPermissions?.some((p: string) => superAdminExclusives.has(p))) {
+          return res.status(403).json({
+            error: '403 Prohibido: No puede asignar permisos exclusivos del Super Administrador.',
+          });
+        }
+      }
+    }
+
+    const oldValues = {
+      customPermissions: user.customPermissions || [],
+      revokedPermissions: user.revokedPermissions || [],
+      assignedRestrictions: user.assignedRestrictions || [],
+      allowedNavTabs: user.allowedNavTabs || [],
+      permissionsVersion: user.permissionsVersion || 1,
+    };
+
+    if (overrides) {
+      if (Array.isArray(overrides.customPermissions)) {
+        user.customPermissions = [...overrides.customPermissions];
+      }
+      if (Array.isArray(overrides.revokedPermissions)) {
+        user.revokedPermissions = [...overrides.revokedPermissions];
+      }
+      if (Array.isArray(overrides.assignedRestrictions)) {
+        user.assignedRestrictions = [...overrides.assignedRestrictions];
+      }
+      if (Array.isArray(overrides.allowedNavTabs)) {
+        user.allowedNavTabs = [...overrides.allowedNavTabs];
+      }
+    }
+
+    user.permissionsVersion = (user.permissionsVersion || 0) + 1;
+    user.updatedAt = new Date().toISOString();
+
+    // Registrar en auditoría del servidor
+    serverDbState.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: user.organizationId,
+      branchId: null,
+      userId: actor?.userId || null,
+      action: 'USER_PERMISSIONS_OVERRIDE',
+      entity: 'USER_SECURITY',
+      entityId: id,
+      ipAddress: req.ip || '127.0.0.1',
+      userAgent: req.headers['user-agent'] || 'Backend API',
+      oldValues,
+      newValues: {
+        customPermissions: user.customPermissions,
+        revokedPermissions: user.revokedPermissions,
+        assignedRestrictions: user.assignedRestrictions,
+        allowedNavTabs: user.allowedNavTabs,
+        permissionsVersion: user.permissionsVersion,
+      },
+      description: `Ajuste granular en Backend de permisos y restricciones para ${user.firstName} ${user.lastName} (Versión ${user.permissionsVersion})`,
+      createdAt: new Date().toISOString(),
+    });
+
+    saveDatabaseState();
+
+    const { passwordHash, passwordSalt, ...safeUser } = user;
+    res.json({ success: true, user: safeUser, permissionsVersion: user.permissionsVersion });
+  });
+
+  // POST /api/users/:id/revoke-sessions
+  app.post('/api/users/:id/revoke-sessions', (req, res) => {
+    const { id } = req.params;
+    const { actor } = req.body;
+
+    const user = serverDbState.data.users?.find((u: any) => u.id === id);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    if (actor && actor.role !== 'SUPER_ADMIN') {
+      if (isSuperAdminRole(user.roleId)) {
+        return res.status(403).json({ error: '403 Prohibido: No se pueden revocar las sesiones del Super Administrador.' });
+      }
+      if (!canManageRole(actor.role, user.roleId)) {
+        return res.status(403).json({ error: `403 Prohibido: Jerarquía insuficiente para revocar sesiones de ${user.roleId}.` });
+      }
+    }
+
+    const now = new Date().toISOString();
+    user.sessionRevokedAt = now;
+    user.permissionsVersion = (user.permissionsVersion || 0) + 1;
+
+    serverDbState.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: user.organizationId,
+      branchId: null,
+      userId: actor?.userId || null,
+      action: 'SESSION_REVOCATION',
+      entity: 'USER_SESSION',
+      entityId: id,
+      ipAddress: req.ip || '127.0.0.1',
+      userAgent: req.headers['user-agent'] || 'Backend API',
+      oldValues: null,
+      newValues: { revokedAt: now, userId: id },
+      description: `Revocación backend forzosa de sesiones para ${user.firstName} ${user.lastName}`,
+      createdAt: now,
+    });
+
+    saveDatabaseState();
+    res.json({ success: true, revokedAt: now });
   });
 
   // Vite Integration: middleware mode

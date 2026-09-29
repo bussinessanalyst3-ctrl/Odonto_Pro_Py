@@ -28,6 +28,8 @@ import { UserModal } from './UserModal.tsx';
 import { RolePermissionsModal } from './RolePermissionsModal.tsx';
 import { ManageRolesModal } from './ManageRolesModal.tsx';
 import { ResetPasswordModal } from './ResetPasswordModal.tsx';
+import { UserPermissionsModal } from './UserPermissionsModal.tsx';
+import { Sliders } from 'lucide-react';
 
 export const UserManagementView: React.FC = () => {
   const { session } = useAuth();
@@ -42,6 +44,8 @@ export const UserManagementView: React.FC = () => {
   const [isManageRolesModalOpen, setIsManageRolesModalOpen] = useState(false);
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
   const [userToResetPassword, setUserToResetPassword] = useState<any | null>(null);
+  const [isUserPermissionsModalOpen, setIsUserPermissionsModalOpen] = useState(false);
+  const [userForPermissions, setUserForPermissions] = useState<any | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -101,6 +105,12 @@ export const UserManagementView: React.FC = () => {
   const canManageRolesAuthority =
     session?.role === 'SUPER_ADMIN' ||
     hasPermission(session?.role || '', 'roles.manage');
+
+  const canManageUserSecurity =
+    session?.role === 'SUPER_ADMIN' ||
+    hasPermission(session?.role || '', 'roles.manage') ||
+    hasPermission(session?.role || '', 'users.update') ||
+    hasPermission(session?.role || '', 'users.edit');
 
   const handleOpenAddUser = () => {
     if (!canCreateUser) {
@@ -473,6 +483,20 @@ export const UserManagementView: React.FC = () => {
                     </button>
                   )}
 
+                  {canManageUserSecurity && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserForPermissions(u);
+                        setIsUserPermissionsModalOpen(true);
+                      }}
+                      title="Gobernanza de permisos dinámicos, módulos visibles y restricciones sanitarias MSPBS"
+                      className="p-2 rounded-xl border border-teal-200 text-teal-700 bg-teal-50/80 hover:bg-teal-100 transition-colors"
+                    >
+                      <Sliders className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+
                   {authService.isLockedOut(u.email).locked && (
                     <button
                       type="button"
@@ -533,6 +557,16 @@ export const UserManagementView: React.FC = () => {
           setNotification(msg);
           setTimeout(() => setNotification(null), 6000);
         }}
+      />
+
+      <UserPermissionsModal
+        isOpen={isUserPermissionsModalOpen}
+        onClose={() => {
+          setIsUserPermissionsModalOpen(false);
+          setUserForPermissions(null);
+        }}
+        targetUser={userForPermissions}
+        actor={actor}
       />
     </div>
   );
