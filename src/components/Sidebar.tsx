@@ -274,17 +274,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </p>
             </div>
           </div>
-          {/* Botón cerrar para móvil */}
+          {/* Botón cerrar para móvil con área táctil accesible (44px) */}
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 lg:hidden"
+            className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 lg:hidden cursor-pointer"
+            aria-label="Cerrar menú"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Lista de navegación con scroll */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin">
+        {/* Lista de navegación con scroll táctil suave */}
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin" style={{ WebkitOverflowScrolling: 'touch' }}>
           {navGroups.map((group) => {
             // Filtrar ítems permitidos para este usuario / rol
             const allowedItems = group.items.filter((item) => {
@@ -301,7 +302,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             return (
               <div key={group.id} className="space-y-1">
-                <div className="px-3 pb-1.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                <div className="px-3 pb-1.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase select-none">
                   {group.label}
                 </div>
                 {allowedItems.map((item) => {
@@ -312,7 +313,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       key={item.id}
                       onClick={() => handleItemClick(item.id)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all group ${
+                      className={`w-full flex items-center justify-between px-3 py-2.5 min-h-[42px] rounded-xl text-xs font-semibold transition-all group cursor-pointer touch-manipulation ${
                         isActive
                           ? 'bg-teal-50 text-teal-800 border border-teal-200/80 shadow-xs'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'

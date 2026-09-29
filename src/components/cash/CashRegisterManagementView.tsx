@@ -191,21 +191,21 @@ export const CashRegisterManagementView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => setIsMovementModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 min-h-[44px] bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-colors shadow-sm cursor-pointer"
                   >
                     <Plus className="h-4 w-4" />
-                    Nuevo Cobro / Movimiento
+                    <span>Nuevo Cobro / Movimiento</span>
                   </button>
 
                   <button
                     onClick={() => setIsCloseModalOpen(true)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 min-h-[44px] bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white rounded-xl text-xs font-bold transition-colors shadow-sm cursor-pointer"
                   >
                     <Lock className="h-4 w-4" />
-                    Arqueo & Cierre de Caja
+                    <span>Arqueo & Cierre de Caja</span>
                   </button>
                 </div>
               </div>

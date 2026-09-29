@@ -194,14 +194,14 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={isProcessing}
-              className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+              className="flex-1 sm:flex-none px-4 py-2.5 min-h-[44px] flex items-center justify-center text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isProcessing}
-              className="px-5 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
+              className="flex-1 sm:flex-none px-5 py-2.5 min-h-[44px] flex items-center justify-center text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl transition-colors shadow-sm gap-1.5 cursor-pointer disabled:opacity-50"
             >
               {isProcessing ? (
                 <>

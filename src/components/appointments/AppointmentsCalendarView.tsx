@@ -280,11 +280,11 @@ export const AppointmentsCalendarView: React.FC = () => {
         </div>
 
         {/* Date Selector Navigation */}
-        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => changeDateBy(-1)}
-              className="p-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+              className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
               title="Día anterior"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -294,12 +294,12 @@ export const AppointmentsCalendarView: React.FC = () => {
               type="date"
               value={currentDate}
               onChange={(e) => setCurrentDate(e.target.value)}
-              className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 min-h-[40px] focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
 
             <button
               onClick={() => changeDateBy(1)}
-              className="p-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+              className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
               title="Día siguiente"
             >
               <ChevronRight className="h-4 w-4" />
@@ -307,7 +307,7 @@ export const AppointmentsCalendarView: React.FC = () => {
 
             <button
               onClick={() => setCurrentDate('2026-09-21')}
-              className="px-2.5 py-1 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors"
+              className="px-3 py-2 min-h-[40px] text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors"
             >
               Hoy (Fecha Simulación)
             </button>

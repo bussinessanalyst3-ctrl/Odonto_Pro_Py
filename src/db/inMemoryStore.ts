@@ -1340,10 +1340,13 @@ class DatabaseStore {
     firstName: string;
     lastName: string;
     email: string;
+    username?: string;
+    organizationId?: string;
     roleId: string;
     phone: string;
     specialty?: string;
     professionalLicense?: string;
+    status?: 'ACTIVE' | 'INACTIVE';
     branchIds: string[];
     defaultBranchId?: string;
   }, actor?: BackendActorContext) {
@@ -1373,21 +1376,44 @@ class DatabaseStore {
       }
     }
 
+    // Validar unicidad de correo electrónico
+    const safeEmail = newUser.email.toLowerCase().trim();
+    const existingEmail = this.data.users.find((u) => u.email.toLowerCase() === safeEmail);
+    if (existingEmail) {
+      throw new Error(`400 Error: Ya existe un usuario registrado con el correo "${newUser.email}".`);
+    }
+
+    // Validar unicidad de nombre de usuario (username)
+    const rawUsername = newUser.username?.trim() || safeEmail.split('@')[0];
+    const safeUsername = rawUsername.toLowerCase().replace(/[^a-z0-9._-]/g, '');
+    const existingUsername = this.data.users.find(
+      (u: any) => u.username && u.username.toLowerCase() === safeUsername
+    );
+    if (existingUsername) {
+      throw new Error(`400 Error: El nombre de usuario "${safeUsername}" ya se encuentra en uso.`);
+    }
+
+    const targetOrgId =
+      effectiveActor?.role === 'SUPER_ADMIN' && newUser.organizationId
+        ? newUser.organizationId
+        : effectiveActor && effectiveActor.role !== 'SUPER_ADMIN'
+        ? effectiveActor.organizationId
+        : this.data.organization.id;
+
     const id = crypto.randomUUID();
     const userRecord = {
       id,
-      organizationId: (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN')
-        ? effectiveActor.organizationId
-        : this.data.organization.id,
+      organizationId: targetOrgId,
       roleId: newUser.roleId,
-      firstName: newUser.firstName,
-      lastName: newUser.lastName,
-      email: newUser.email.toLowerCase().trim(),
+      username: safeUsername,
+      firstName: newUser.firstName.trim(),
+      lastName: newUser.lastName.trim(),
+      email: safeEmail,
       passwordHash: '$2b$10$e8wDbgW2n2v19WfG7h.HquK9eR6q7yB3e1gL2m1p0o9n8b7v6c5x4',
-      phone: newUser.phone,
+      phone: newUser.phone.trim(),
       professionalLicense: newUser.professionalLicense?.trim() || null,
       specialty: newUser.specialty?.trim() || 'Odontología General',
-      status: 'ACTIVE' as const,
+      status: (newUser.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE') as 'ACTIVE' | 'INACTIVE',
       lastLoginAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -1408,7 +1434,7 @@ class DatabaseStore {
 
     this.data.auditLogs.unshift({
       id: crypto.randomUUID(),
-      organizationId: this.data.organization.id,
+      organizationId: targetOrgId,
       branchId: safeDefault,
       userId: effectiveActor?.userId || this.data.users[0]?.id || null,
       action: 'CREATE',
@@ -1419,12 +1445,13 @@ class DatabaseStore {
       oldValues: null,
       newValues: {
         name: `${newUser.firstName} ${newUser.lastName}`,
+        username: safeUsername,
         email: newUser.email,
         role: newUser.roleId,
         license: newUser.professionalLicense,
         branches: newUser.branchIds,
       },
-      description: `Alta de usuario institucional: ${newUser.firstName} ${newUser.lastName} (${newUser.roleId})`,
+      description: `Alta de usuario institucional: ${newUser.firstName} ${newUser.lastName} (@${safeUsername} - ${newUser.roleId})`,
       createdAt: new Date(),
     });
 
@@ -1445,6 +1472,26 @@ class DatabaseStore {
     if (idx === -1) return null;
 
     const targetUser = this.data.users[idx];
+
+    // Validar unicidad de correo si se modifica
+    if (updates.email && updates.email.toLowerCase().trim() !== targetUser.email.toLowerCase().trim()) {
+      const safeNewEmail = updates.email.toLowerCase().trim();
+      const duplicateEmail = this.data.users.find((u) => u.id !== userId && u.email.toLowerCase() === safeNewEmail);
+      if (duplicateEmail) {
+        throw new Error(`400 Error: Ya existe otro usuario registrado con el correo "${updates.email}".`);
+      }
+    }
+
+    // Validar unicidad de username si se modifica
+    if (updates.username && updates.username.toLowerCase().trim() !== (targetUser as any).username?.toLowerCase()?.trim()) {
+      const safeNewUsername = updates.username.toLowerCase().trim();
+      const duplicateUsername = this.data.users.find(
+        (u: any) => u.id !== userId && u.username && u.username.toLowerCase() === safeNewUsername
+      );
+      if (duplicateUsername) {
+        throw new Error(`400 Error: El nombre de usuario "${updates.username}" ya se encuentra registrado por otro usuario.`);
+      }
+    }
 
     // REGLA DE SEGURIDAD N° 2: Protección del SUPER_ADMIN y jerarquía
     if (effectiveActor) {
@@ -1497,7 +1544,7 @@ class DatabaseStore {
         }
       }
 
-      // 3. Prohibido modificar a usuarios de jerarquía igual o superior
+      // 4. Prohibido modificar a usuarios de jerarquía igual o superior
       if (effectiveActor.userId !== targetUser.id && !canManageRole(effectiveActor.role, targetUser.roleId)) {
         this.addAuditLog({
           action: 'ACCESS_DENIED_SECURITY',
@@ -1508,6 +1555,11 @@ class DatabaseStore {
         });
         throw new Error(`403 Prohibido: El rol ${effectiveActor.role} no tiene jerarquía para modificar usuarios con rol ${targetUser.roleId}.`);
       }
+    }
+
+    // Inactivación invalida sesiones activas inmediatamente
+    if (updates.status === 'INACTIVE' && targetUser.status !== 'INACTIVE') {
+      this.revokeUserSessions(userId, effectiveActor?.userId);
     }
 
     const old = { ...this.data.users[idx] };
