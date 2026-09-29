@@ -1,4 +1,5 @@
 import { BASE_ROLES, STANDARD_SERVICES, PARAGUAY_DEPARTMENTS } from './paraguay-catalogs.ts';
+import { ROLE_HIERARCHY } from '../../security/rbacHierarchy.ts';
 
 export interface SeedDataResult {
   organization: any;
@@ -188,6 +189,7 @@ export function generateInitialSeedData(): SeedDataResult {
   // 3. Roles
   const roles = BASE_ROLES.map(r => ({
     ...r,
+    permissions: ROLE_HIERARCHY[r.id]?.permissions ? [...ROLE_HIERARCHY[r.id].permissions] : [],
     createdAt: new Date('2026-01-10T08:00:00.000Z'),
   }));
 

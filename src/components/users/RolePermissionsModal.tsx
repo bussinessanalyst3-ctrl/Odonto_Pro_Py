@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { dbStore, BackendActorContext } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
-import { SYSTEM_PERMISSION_MODULES, PermissionModuleGroup } from '../../security/rbacHierarchy.ts';
+import { SYSTEM_PERMISSION_MODULES, PermissionModuleGroup, canManageRole, isSuperAdminRole } from '../../security/rbacHierarchy.ts';
 
 interface RolePermissionsModalProps {
   isOpen: boolean;
@@ -62,10 +62,15 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
     setNotification(null);
     setErrorMsg(null);
 
-    // Si el rol seleccionado actual ya no existe, seleccionar el primero no-SUPER_ADMIN
-    if (!currentRoles.find((r) => r.id === selectedRoleId)) {
-      const firstTarget = currentRoles.find((r) => r.id !== 'SUPER_ADMIN') || currentRoles[0];
-      if (firstTarget) setSelectedRoleId(firstTarget.id);
+    // Si el rol seleccionado actual ya no existe o no es configurable, seleccionar por defecto el primer rol subordinado
+    const defaultTarget = effectiveActor?.role && effectiveActor.role !== 'SUPER_ADMIN'
+      ? currentRoles.find((r) => canManageRole(effectiveActor.role, r.id))
+      : (currentRoles.find((r) => r.id !== 'SUPER_ADMIN') || currentRoles[0]);
+
+    if (!selectedRoleId || (effectiveActor?.role && effectiveActor.role !== 'SUPER_ADMIN' && !canManageRole(effectiveActor.role, selectedRoleId))) {
+      if (defaultTarget) setSelectedRoleId(defaultTarget.id);
+    } else if (!currentRoles.find((r) => r.id === selectedRoleId)) {
+      if (defaultTarget) setSelectedRoleId(defaultTarget.id);
     }
   }, [isOpen]);
 
@@ -73,10 +78,24 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
 
   const currentRoleObj = roles.find((r) => r.id === selectedRoleId);
   const isSuperAdminSelected = selectedRoleId === 'SUPER_ADMIN';
+  const isSuperAdminActor = effectiveActor?.role === 'SUPER_ADMIN';
+
+  // Un rol es configurable si y solo si el actor tiene jerarquía estricta sobre él
+  const isRoleConfigurable = (roleId: string): boolean => {
+    if (roleId === 'SUPER_ADMIN') return false; // Super Admin siempre tiene acceso universal e inmutable
+    if (isSuperAdminActor) return true;
+    if (!effectiveActor) return false;
+    return canManageRole(effectiveActor.role, roleId);
+  };
+
+  const isSelectedRoleConfigurable = isRoleConfigurable(selectedRoleId);
 
   // Toggle de un permiso específico para un rol
   const handleTogglePermission = (roleId: string, permissionCode: string) => {
-    if (roleId === 'SUPER_ADMIN') return; // Super Admin siempre tiene acceso irrestricto
+    if (!isRoleConfigurable(roleId)) {
+      setErrorMsg(`403 Prohibido: No tiene jerarquía para modificar permisos del rol ${roleId}. Solo puede configurar roles inferiores.`);
+      return;
+    }
 
     setRolePermissionsMap((prev) => {
       const currentList = prev[roleId] || [];
@@ -95,7 +114,10 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
 
   // Habilitar o deshabilitar todos los permisos de un módulo
   const handleToggleModuleGroup = (roleId: string, group: PermissionModuleGroup, enable: boolean) => {
-    if (roleId === 'SUPER_ADMIN') return;
+    if (!isRoleConfigurable(roleId)) {
+      setErrorMsg(`403 Prohibido: No tiene jerarquía para modificar permisos del rol ${roleId}.`);
+      return;
+    }
 
     setRolePermissionsMap((prev) => {
       const currentList = prev[roleId] || [];
@@ -119,14 +141,30 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
 
   // Habilitar o deshabilitar todos los permisos para el rol seleccionado
   const handleToggleAllRolePermissions = (roleId: string, enable: boolean) => {
-    if (roleId === 'SUPER_ADMIN') return;
+    if (!isRoleConfigurable(roleId)) {
+      setErrorMsg(`403 Prohibido: No tiene jerarquía para modificar permisos del rol ${roleId}.`);
+      return;
+    }
 
     if (enable) {
-      // Recopilar todos los permisos existentes en todos los módulos
+      // Recopilar todos los permisos existentes en todos los módulos (excluyendo exclusivos de Super Admin si no es Super Admin)
       const allCodes: string[] = [];
+      const superAdminExclusives = new Set([
+        'system.all',
+        'organization.create',
+        'organization.manage',
+        'organization.branding',
+        'super_admin.manage',
+        'security.manage',
+        'database.seed',
+        'data.export_sensitive',
+      ]);
+
       SYSTEM_PERMISSION_MODULES.forEach((mod) => {
         mod.permissions.forEach((p) => {
-          allCodes.push(p.code);
+          if (isSuperAdminActor || !superAdminExclusives.has(p.code)) {
+            allCodes.push(p.code);
+          }
         });
       });
       setRolePermissionsMap((prev) => ({
@@ -146,8 +184,9 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
   const handleSaveChanges = () => {
     setErrorMsg(null);
     try {
-      // Guardar todos los roles modificados
-      Object.keys(rolePermissionsMap).forEach((roleId) => {
+      // Guardar únicamente los roles modificados sobre los que el usuario tiene jerarquía
+      const allowedRolesToSave = Object.keys(rolePermissionsMap).filter(isRoleConfigurable);
+      allowedRolesToSave.forEach((roleId) => {
         dbStore.updateRolePermissions(roleId, rolePermissionsMap[roleId], effectiveActor);
       });
 
@@ -161,7 +200,10 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
 
   // Restablecer valores recomendados MSPBS para el rol activo
   const handleResetRoleDefaults = () => {
-    if (isSuperAdminSelected) return;
+    if (!isSelectedRoleConfigurable) {
+      setErrorMsg('No tiene jerarquía suficiente para restablecer este rol.');
+      return;
+    }
     try {
       const restored = dbStore.resetRolePermissionsToDefault(selectedRoleId, effectiveActor);
       setRolePermissionsMap((prev) => ({
@@ -313,42 +355,51 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
         {/* Controls Toolbar: Role Selector + Search + Category Filter */}
         <div className="p-4 border-b border-slate-100 bg-white space-y-3 shrink-0">
           {viewMode === 'by-role' && (
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
                 <Sliders className="h-3.5 w-3.5 text-teal-600" />
-                Rol:
+                Rol a Configurar:
               </span>
-              {roles.map((r: any) => {
-                const isSelected = r.id === selectedRoleId;
-                const isSuper = r.id === 'SUPER_ADMIN';
-                const permsCount = rolePermissionsMap[r.id]?.length || 0;
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {roles.map((r: any) => {
+                  const isSelected = r.id === selectedRoleId;
+                  const isSuper = r.id === 'SUPER_ADMIN';
+                  const permsCount = rolePermissionsMap[r.id]?.length || 0;
+                  const isConfigurable = isRoleConfigurable(r.id);
 
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => setSelectedRoleId(r.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-all flex items-center gap-1.5 border ${
-                      isSelected
-                        ? isSuper
-                          ? 'bg-purple-600 text-white border-purple-700 shadow-xs'
-                          : 'bg-teal-600 text-white border-teal-700 shadow-xs'
-                        : isSuper
-                        ? 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>{r.name}</span>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setSelectedRoleId(r.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-all flex items-center gap-1.5 border cursor-pointer ${
+                        isSelected
+                          ? isConfigurable
+                            ? 'bg-teal-600 text-white border-teal-700 shadow-xs'
+                            : 'bg-slate-700 text-white border-slate-800 shadow-xs'
+                          : isConfigurable
+                          ? 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                          : 'bg-slate-100/90 text-slate-500 border-dashed border-slate-300 hover:bg-slate-200/60'
                       }`}
                     >
-                      {isSuper ? 'Total' : permsCount}
-                    </span>
-                  </button>
-                );
-              })}
+                      {!isConfigurable && <Lock className="h-3 w-3 shrink-0 text-amber-500" />}
+                      <span>{r.name}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          isSelected ? 'bg-white/20 text-white' : isConfigurable ? 'bg-slate-200 text-slate-700' : 'bg-slate-200 text-slate-500'
+                        }`}
+                      >
+                        {isSuper ? 'Total' : permsCount}
+                      </span>
+                      {!isConfigurable && (
+                        <span className="text-[9px] uppercase px-1 rounded bg-amber-100 text-amber-900 font-bold">
+                          Fijo
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -453,7 +504,16 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
                   </p>
                 </div>
 
-                {!isSuperAdminSelected && (
+                {!isSelectedRoleConfigurable ? (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold shrink-0">
+                    <Lock className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                    <span>
+                      {isSuperAdminSelected
+                        ? 'Acceso universal inmutable'
+                        : 'Rol protegido: solo administrable por jerarquía superior'}
+                    </span>
+                  </div>
+                ) : (
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
@@ -486,6 +546,24 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
                 )}
               </div>
 
+              {/* Warning banner when viewing a protected role */}
+              {!isSelectedRoleConfigurable && !isSuperAdminSelected && (
+                <div className="p-4 bg-amber-50/95 border border-amber-200 rounded-2xl flex items-start gap-3 text-xs text-amber-950 shadow-2xs animate-in fade-in">
+                  <ShieldCheck className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="font-extrabold text-amber-950 block">
+                      Aislamiento de Autoridad & Prevención de Auto-Escalamiento de Privilegios:
+                    </span>
+                    <p className="text-amber-900 leading-relaxed">
+                      Como {effectiveActor?.role === 'ADMIN_ORGANIZACION' ? 'Administrador de Organización (Nivel 80)' : effectiveActor?.role || 'Administrador'}, su perfil <strong>ya dispone por defecto de todas las atribuciones de agendamiento de turnos, gestión de pacientes, clínica y soporte operacional</strong> para las demás áreas de la clínica (exceptuando las exclusivas del Super Administrador).
+                    </p>
+                    <p className="text-amber-800 text-[11px] leading-relaxed">
+                      Para garantizar la gobernanza del sistema y prevenir la elevación de privilegios no autorizada, su propio rol es institucional y fijo. <strong>Solo tiene autorización para asignar o retirar permisos a los roles subordinados a su jerarquía (Nivel &lt; 80).</strong>
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Modules Loop */}
               {filteredGroups.map((group) => {
                 const rolePerms = rolePermissionsMap[selectedRoleId] || [];
@@ -517,7 +595,11 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
                         </p>
                       </div>
 
-                      {!isSuperAdminSelected && (
+                      {!isSelectedRoleConfigurable ? (
+                        <span className="text-[10px] font-bold text-slate-500 bg-slate-200/80 px-2 py-1 rounded-lg flex items-center gap-1 shrink-0">
+                          <Lock className="h-3 w-3" /> Solo Lectura
+                        </span>
+                      ) : (
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button
                             type="button"
@@ -567,10 +649,16 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
 
                             {/* Toggle Button */}
                             <div className="shrink-0 pt-0.5">
-                              {isSuperAdminSelected ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                              {!isSelectedRoleConfigurable ? (
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                  isSuperAdminSelected
+                                    ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                    : isChecked
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                    : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                }`}>
                                   <Lock className="h-3 w-3" />
-                                  <span>Siempre Activo</span>
+                                  <span>{isSuperAdminSelected ? 'Siempre Activo' : isChecked ? 'Habilitado' : 'Inactivo'}</span>
                                 </span>
                               ) : (
                                 <button
@@ -639,14 +727,28 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
                               const isSuper = r.id === 'SUPER_ADMIN';
                               const currentRolePerms = rolePermissionsMap[r.id] || [];
                               const isEnabled = isSuper || currentRolePerms.includes(p.code);
+                              const isConfigurable = isRoleConfigurable(r.id);
 
                               return (
                                 <td
                                   key={r.id}
                                   className="p-3 text-center border-l border-slate-100 align-middle"
                                 >
-                                  {isSuper ? (
-                                    <span className="inline-flex p-1 rounded-md bg-purple-100 text-purple-800">
+                                  {!isConfigurable ? (
+                                    <span
+                                      className={`inline-flex p-1 rounded-md ${
+                                        isSuper
+                                          ? 'bg-purple-100 text-purple-800'
+                                          : isEnabled
+                                          ? 'bg-emerald-100 text-emerald-800'
+                                          : 'bg-slate-100 text-slate-400'
+                                      }`}
+                                      title={
+                                        isSuper
+                                          ? 'Acceso universal inmutable'
+                                          : `Rol ${r.name} protegido por jerarquía (no modificable)`
+                                      }
+                                    >
                                       <Lock className="h-3.5 w-3.5" />
                                     </span>
                                   ) : (

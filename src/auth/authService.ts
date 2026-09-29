@@ -4,11 +4,11 @@ import { verifyPassword, hashPassword, generateSalt } from './cryptoUtils.ts';
 
 // Configuración de sesiones y seguridad desde variables de entorno
 const SESSION_EXPIRATION_HOURS =
-  Number(import.meta.env.VITE_SESSION_EXPIRATION_HOURS) || 8;
+  Number(import.meta?.env?.VITE_SESSION_EXPIRATION_HOURS) || 8;
 const MAX_LOGIN_ATTEMPTS =
-  Number(import.meta.env.VITE_MAX_LOGIN_ATTEMPTS) || 5;
+  Number(import.meta?.env?.VITE_MAX_LOGIN_ATTEMPTS) || 5;
 const LOCKOUT_DURATION_MINUTES =
-  Number(import.meta.env.VITE_LOCKOUT_DURATION_MINUTES) || 15;
+  Number(import.meta?.env?.VITE_LOCKOUT_DURATION_MINUTES) || 15;
 
 interface FailedAttemptTracker {
   count: number;

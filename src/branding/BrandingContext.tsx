@@ -50,31 +50,8 @@ const getBrandingForOrg = (org: any): OrganizationBranding => {
 export const BRANDING_STORAGE_KEY = 'odontopro_active_branding_v2';
 
 const getInitialBranding = (): OrganizationBranding => {
-  let storedBranding: Partial<OrganizationBranding> | null = null;
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const stored = localStorage.getItem(BRANDING_STORAGE_KEY);
-      if (stored) {
-        storedBranding = JSON.parse(stored);
-      }
-    }
-  } catch (e) {
-    console.warn('Error leyendo branding de localStorage:', e);
-  }
-
   const org = dbStore.getActiveOrganization();
-  const orgBranding = getBrandingForOrg(org);
-
-  if (storedBranding) {
-    const merged: OrganizationBranding = {
-      ...DEFAULT_BRANDING,
-      ...orgBranding,
-      ...storedBranding,
-    };
-    return merged;
-  }
-
-  return orgBranding;
+  return getBrandingForOrg(org);
 };
 
 export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -94,41 +71,18 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const org = dbStore.getActiveOrganization();
       if (org) {
         const nextFromOrg = getBrandingForOrg(org);
-        setBranding((prev) => {
-          // Si el objeto de la organización tiene datos válidos, actualizar
-          const updated = {
-            ...prev,
-            ...nextFromOrg,
-            // Mantener logoUrl o logoIcon si la organización los tiene
-            logoUrl: org.logoUrl !== undefined ? org.logoUrl : prev.logoUrl,
-            logoIcon: org.logoIcon || prev.logoIcon,
-          };
-          try {
-            if (typeof window !== 'undefined' && window.localStorage) {
-              localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(updated));
-            }
-          } catch (e) {}
-          return updated;
-        });
+        setBranding(nextFromOrg);
       }
     });
     return unsub;
   }, []);
 
   const updateBranding = (updates: Partial<OrganizationBranding>) => {
+    const activeOrg = dbStore.getActiveOrganization();
     const next: OrganizationBranding = { ...branding, ...updates };
     setBranding(next);
 
-    // Persistir de inmediato en localStorage para que sobreviva cierres de sesión y recargas
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify(next));
-      }
-    } catch (e) {
-      console.warn('Error al guardar branding en localStorage:', e);
-    }
-
-    // Actualizar también en el dbStore para coherencia en facturación, reportes y auditoría
+    // Actualizar fielmente en el dbStore para coherencia en facturación, reportes y auditoría
     dbStore.updateOrganization({
       name: next.tradeName,
       tradeName: next.tradeName,
@@ -146,7 +100,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       timbradoNumber: next.timbradoNumber,
       timbradoVencimiento: next.timbradoVencimiento,
       whatsapp: next.whatsapp,
-    });
+    }, activeOrg.id);
   };
 
   const resetBranding = () => {

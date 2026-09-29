@@ -513,11 +513,13 @@ export const UserManagementView: React.FC = () => {
       <RolePermissionsModal
         isOpen={isPermissionsModalOpen}
         onClose={() => setIsPermissionsModalOpen(false)}
+        actor={actor}
       />
 
       <ManageRolesModal
         isOpen={isManageRolesModalOpen}
         onClose={() => setIsManageRolesModalOpen(false)}
+        actor={actor}
       />
 
       <ResetPasswordModal

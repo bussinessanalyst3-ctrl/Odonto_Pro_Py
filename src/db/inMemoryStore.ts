@@ -47,34 +47,62 @@ class DatabaseStore {
       this.organizationsList = [this.data.organization];
     }
 
-    // Failsafe: Sincronizar branding personalizado persistente si existe
+    // Failsafe de integridad: Asegurar que los roles institucionales tengan sus permisos íntegros
     try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const storedBranding = localStorage.getItem('odontopro_active_branding_v2');
-        if (storedBranding) {
-          const b = JSON.parse(storedBranding);
-          if (b && (b.tradeName || b.logoUrl !== undefined || b.logoIcon || b.customHexColor)) {
-            this.data.organization = {
-              ...this.data.organization,
-              name: b.tradeName || this.data.organization.name,
-              tradeName: b.tradeName || this.data.organization.tradeName,
-              legalName: b.legalName || this.data.organization.legalName,
-              taxId: b.taxId || this.data.organization.taxId,
-              logoUrl: b.logoUrl,
-              logoIcon: b.logoIcon || this.data.organization.logoIcon,
-              primaryColor: b.primaryColor || this.data.organization.primaryColor,
-              customHexColor: b.customHexColor || this.data.organization.customHexColor,
-            };
-            const orgIdx = this.organizationsList.findIndex((o) => o.id === this.data.organization.id);
-            if (orgIdx >= 0) {
-              this.organizationsList[orgIdx] = { ...this.data.organization };
+      if (this.data && this.data.roles) {
+        this.data.roles.forEach((r) => {
+          const defaultPerms = ROLE_HIERARCHY[r.id]?.permissions;
+          if (defaultPerms && defaultPerms.length > 0) {
+            if (!(r as any).permissions || !Array.isArray((r as any).permissions) || (r as any).permissions.length === 0) {
+              (r as any).permissions = [...defaultPerms];
             }
           }
-        }
+        });
       }
     } catch (e) {
-      // Ignorar errores menores de parsing
+      // Ignorar
     }
+
+    // Sincronización transparente con el Backend Persistente (Single Source of Truth)
+    if (typeof window !== 'undefined') {
+      this.syncFromServer();
+      window.addEventListener('focus', () => {
+        this.syncFromServer();
+      });
+    }
+  }
+
+  /**
+   * Sincroniza el almacén de datos con el backend centralizado del servidor.
+   * Garantiza que cualquier navegador, dispositivo o sesión en incógnito comparta la misma verdad.
+   */
+  public async syncFromServer(): Promise<boolean> {
+    try {
+      if (typeof fetch === 'undefined') return false;
+      const baseUrl = typeof window !== 'undefined' ? '' : (process?.env?.API_BASE_URL || 'http://localhost:3000');
+      const res = await fetch(`${baseUrl}/api/db/state`);
+      if (res.ok) {
+        const payload = await res.json();
+        if (payload && payload.data && payload.organizationsList && Array.isArray(payload.organizationsList)) {
+          this.data = payload.data;
+          this.organizationsList = payload.organizationsList;
+          // Mantener consistente la organización activa con la lista actualizada
+          const currentActiveId = this.data.organization?.id;
+          const matched = this.organizationsList.find((o) => o.id === currentActiveId);
+          if (matched) {
+            this.data.organization = matched;
+          } else if (this.organizationsList.length > 0) {
+            this.data.organization = this.organizationsList[0];
+          }
+          this.saveToLocalStorageOnly();
+          this.listeners.forEach((l) => l());
+          return true;
+        }
+      }
+    } catch (err) {
+      // Fallback a almacenamiento local si el backend no responde
+    }
+    return false;
   }
 
   public setBackendActorContext(actor: BackendActorContext | null) {
@@ -89,7 +117,7 @@ class DatabaseStore {
     return actor || this.currentBackendActor;
   }
 
-  private saveToStorage() {
+  private saveToLocalStorageOnly() {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         // Sanear auditLogs para evitar exceder cuota de 5MB por imágenes en base64
@@ -124,7 +152,6 @@ class DatabaseStore {
     } catch (e) {
       console.warn('Alerta de almacenamiento local (posible límite de cuota):', e);
       try {
-        // Respaldo de emergencia con menos historial si la cuota fue sobrepasada
         const compactPayload = JSON.stringify({
           data: {
             ...this.data,
@@ -136,6 +163,27 @@ class DatabaseStore {
       } catch (inner) {
         // Fallback silencioso
       }
+    }
+  }
+
+  private saveToStorage() {
+    this.saveToLocalStorageOnly();
+
+    // Sincronización asíncrona permanente hacia el servidor backend
+    if (typeof fetch !== 'undefined') {
+      try {
+        const baseUrl = typeof window !== 'undefined' ? '' : (process?.env?.API_BASE_URL || 'http://localhost:3000');
+        fetch(`${baseUrl}/api/db/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            data: this.data,
+            organizationsList: this.organizationsList,
+          }),
+        }).catch(() => {
+          // Ignorar desconexión transitoria
+        });
+      } catch (e) {}
     }
   }
 
@@ -243,6 +291,12 @@ class DatabaseStore {
     address?: string;
     primaryColor?: string;
     logoUrl?: string;
+    initialAdmin?: {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      phone?: string;
+    };
   }, actor?: BackendActorContext) {
     if (actor && !hasPermission(actor.role, 'organization.create')) {
       throw new Error('403 Prohibido: No tiene permisos para registrar nuevas organizaciones médicas.');
@@ -310,6 +364,34 @@ class DatabaseStore {
       updatedAt: new Date(),
     });
 
+    // Si se especifica administrador inicial o correo de contacto, habilitar usuario administrador institucional
+    const adminEmail = newOrg.initialAdmin?.email || (newOrg.email && !this.findUserByEmail(newOrg.email) ? newOrg.email : null);
+    if (adminEmail) {
+      const adminUserId = crypto.randomUUID();
+      this.data.users.push({
+        id: adminUserId,
+        organizationId: id,
+        roleId: 'ADMIN_ORGANIZACION',
+        firstName: newOrg.initialAdmin?.firstName || 'Administrador',
+        lastName: newOrg.initialAdmin?.lastName || createdOrg.name,
+        email: adminEmail.toLowerCase().trim(),
+        passwordHash: '$2b$10$e8wDbgW2n2v19WfG7h.HquK9eR6q7yB3e1gL2m1p0o9n8b7v6c5x4',
+        phone: newOrg.initialAdmin?.phone || createdOrg.phone,
+        professionalLicense: null,
+        specialty: 'Administración Clínica',
+        status: 'ACTIVE' as const,
+        lastLoginAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      this.data.userBranches.push({
+        userId: adminUserId,
+        branchId: defaultBranchId,
+        isDefault: true,
+        createdAt: new Date(),
+      });
+    }
+
     this.data.auditLogs.unshift({
       id: crypto.randomUUID(),
       organizationId: this.data.organization.id,
@@ -370,6 +452,62 @@ class DatabaseStore {
       oldValues: null,
       newValues: { activeOrgId: target.id, name: target.name },
       description: `Cambio de contexto activo de navegación a: ${target.name}`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return true;
+  }
+
+  /**
+   * Baja lógica o inactivación de una organización médica.
+   * Exclusivo para SUPER_ADMIN, previene eliminación accidental de la última empresa.
+   */
+  public deleteOrganization(orgId: string, actor?: BackendActorContext): boolean {
+    const effectiveActor = this.getEffectiveActor(actor);
+    if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN') {
+      this.addAuditLog({
+        action: 'ACCESS_DENIED_SECURITY',
+        entity: 'ORGANIZATION',
+        entityId: orgId,
+        userId: effectiveActor.userId,
+        description: `Intento denegado de dar de baja la organización (${orgId}) por usuario sin rol SUPER_ADMIN.`,
+      });
+      throw new Error('403 Prohibido: Solo el Super Administrador tiene autorización para dar de baja organizaciones.');
+    }
+
+    if (this.organizationsList.length <= 1) {
+      throw new Error('400 Error: No es posible dar de baja la única organización registrada en el sistema.');
+    }
+
+    const orgIndex = this.organizationsList.findIndex((o) => o.id === orgId);
+    if (orgIndex < 0) {
+      throw new Error('404 No encontrado: La organización solicitada no existe.');
+    }
+
+    const targetOrg = this.organizationsList[orgIndex];
+    targetOrg.status = 'INACTIVE';
+    targetOrg.deletedAt = new Date();
+
+    // Si la organización dada de baja era la activa, conmutar a la primera organización activa restante
+    if (this.data.organization.id === orgId) {
+      const nextActive = this.organizationsList.find((o) => o.id !== orgId && o.status === 'ACTIVE') || this.organizationsList[0];
+      this.data.organization = nextActive;
+    }
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: orgId,
+      branchId: null,
+      userId: effectiveActor?.userId || null,
+      action: 'DELETE',
+      entity: 'ORGANIZATION',
+      entityId: orgId,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Web Admin',
+      oldValues: null,
+      newValues: { status: 'INACTIVE', deletedAt: targetOrg.deletedAt },
+      description: `Baja lógica / Inactivación de organización: ${targetOrg.name} (RUC: ${targetOrg.taxId})`,
       createdAt: new Date(),
     });
 
@@ -704,19 +842,44 @@ class DatabaseStore {
     return log;
   }
 
-  public updateOrganization(updates: Partial<typeof this.data.organization>) {
-    this.data.organization = {
-      ...this.data.organization,
-      ...updates,
-      updatedAt: new Date(),
-    };
+  public updateOrganization(updates: Partial<typeof this.data.organization>, targetOrgId?: string, actor?: BackendActorContext) {
+    const effectiveActor = this.getEffectiveActor(actor);
+    const orgId = targetOrgId || this.data.organization.id;
 
-    // Sincronizar siempre con organizationsList para evitar que cambios de contexto reviertan el branding
-    const orgIndex = this.organizationsList.findIndex((o) => o.id === this.data.organization.id);
+    if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN') {
+      if (effectiveActor.organizationId !== orgId) {
+        this.addAuditLog({
+          action: 'ACCESS_DENIED_SECURITY',
+          entity: 'ORGANIZATION',
+          entityId: orgId,
+          userId: effectiveActor.userId,
+          description: `Intento denegado de modificar organización ajena (${orgId}) por usuario con rol ${effectiveActor.role}.`,
+        });
+        throw new Error('403 Prohibido: No tiene permisos para modificar organizaciones distintas a la suya.');
+      }
+    }
+
+    const orgIndex = this.organizationsList.findIndex((o) => o.id === orgId);
+    let updatedOrg: any;
     if (orgIndex >= 0) {
-      this.organizationsList[orgIndex] = { ...this.data.organization };
+      this.organizationsList[orgIndex] = {
+        ...this.organizationsList[orgIndex],
+        ...updates,
+        updatedAt: new Date(),
+      };
+      updatedOrg = this.organizationsList[orgIndex];
     } else {
-      this.organizationsList.push({ ...this.data.organization });
+      updatedOrg = {
+        ...this.data.organization,
+        ...updates,
+        id: orgId,
+        updatedAt: new Date(),
+      };
+      this.organizationsList.push(updatedOrg);
+    }
+
+    if (this.data.organization.id === orgId) {
+      this.data.organization = { ...updatedOrg };
     }
 
     // Sanitizar updates para registro de auditoría sin cargar datos binarios pesados
@@ -731,22 +894,22 @@ class DatabaseStore {
 
     this.data.auditLogs.unshift({
       id: crypto.randomUUID(),
-      organizationId: this.data.organization.id,
+      organizationId: orgId,
       branchId: null,
-      userId: this.data.users[0]?.id || null,
+      userId: effectiveActor?.userId || this.data.users[0]?.id || null,
       action: 'UPDATE',
       entity: 'ORGANIZATION',
-      entityId: this.data.organization.id,
+      entityId: orgId,
       ipAddress: '190.52.144.12',
       userAgent: 'OdontoPro Web Admin',
       oldValues: null,
       newValues: sanitizedAuditUpdates,
-      description: `Actualización de parámetros institucionales de la clínica (${this.data.organization.name})`,
+      description: `Actualización de parámetros institucionales de la clínica (${updatedOrg.name})`,
       createdAt: new Date(),
     });
 
     this.notify();
-    return this.data.organization;
+    return updatedOrg;
   }
 
   public addBranch(newBranch: {
@@ -1169,7 +1332,19 @@ class DatabaseStore {
         throw new Error('403 Prohibido: El Super Administrador es un usuario protegido y no puede ser modificado por roles inferiores.');
       }
 
-      // 2. Prohibido auto-elevarse a SUPER_ADMIN o promover a roles superiores a los del actor
+      // 2. Prohibido modificar o auto-elevar su propio rol institucional
+      if (effectiveActor.userId === targetUser.id && updates.roleId && updates.roleId !== targetUser.roleId) {
+        this.addAuditLog({
+          action: 'ACCESS_DENIED_SECURITY',
+          entity: 'USER',
+          entityId: targetUser.id,
+          userId: effectiveActor.userId,
+          description: `Intento de auto-escalamiento de privilegios bloqueado: El usuario ${effectiveActor.userId} intentó modificar su propio rol a ${updates.roleId}.`,
+        });
+        throw new Error('403 Prohibido: Por seguridad institucional y prevención de auto-elevación de privilegios, no está permitido modificar su propio rol.');
+      }
+
+      // 3. Prohibido auto-elevarse a SUPER_ADMIN o promover a roles iguales o superiores a los del actor
       if (updates.roleId && updates.roleId !== targetUser.roleId) {
         if (updates.roleId === 'SUPER_ADMIN' && effectiveActor.role !== 'SUPER_ADMIN') {
           this.addAuditLog({
@@ -1183,7 +1358,14 @@ class DatabaseStore {
         }
 
         if (!canManageRole(effectiveActor.role, updates.roleId)) {
-          throw new Error(`403 Prohibido: No tiene jerarquía para asignar el rol ${updates.roleId}.`);
+          this.addAuditLog({
+            action: 'ACCESS_DENIED_SECURITY',
+            entity: 'USER',
+            entityId: targetUser.id,
+            userId: effectiveActor.userId,
+            description: `Intento denegado de asignar rol ${updates.roleId} por usuario con rol ${effectiveActor.role}. Jerarquía insuficiente.`,
+          });
+          throw new Error(`403 Prohibido: No tiene jerarquía para asignar el rol ${updates.roleId}. Solo puede asignar roles subordinados.`);
         }
       }
 
@@ -1293,14 +1475,54 @@ class DatabaseStore {
     return this.data.roles;
   }
 
-  public addRole(roleData: {
-    id: string;
-    name: string;
-    description: string;
-    allowedNavTabs?: string[];
-    permissions?: string[];
-  }) {
+  public addRole(
+    roleData: {
+      id: string;
+      name: string;
+      description: string;
+      allowedNavTabs?: string[];
+      permissions?: string[];
+    },
+    actor?: BackendActorContext
+  ) {
+    const effectiveActor = this.getEffectiveActor(actor);
     const roleId = roleData.id.toUpperCase().trim().replace(/[^A-Z0-9_]/g, '_');
+
+    if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN') {
+      if (!hasPermission(effectiveActor.role, 'roles.manage')) {
+        throw new Error('403 Prohibido: No tiene autorización para crear nuevos roles.');
+      }
+      // Un actor solo puede crear roles de jerarquía estrictamente inferior
+      if (roleId === 'SUPER_ADMIN' || roleId === 'ADMIN_ORGANIZACION' || !canManageRole(effectiveActor.role, roleId)) {
+        this.addAuditLog({
+          action: 'ACCESS_DENIED_SECURITY',
+          entity: 'ROLE',
+          entityId: roleId,
+          userId: effectiveActor.userId,
+          description: `Intento denegado de crear rol ${roleId} con jerarquía no subordinada por usuario ${effectiveActor.userId}.`,
+        });
+        throw new Error(`403 Prohibido: Solo puede crear roles estrictamente subordinados a su jerarquía (${effectiveActor.role}).`);
+      }
+
+      // Filtrar módulos exclusivos de Super Admin
+      const superAdminModules = new Set([
+        'organization',
+        'production',
+        'security',
+        'testing',
+        'auth-session',
+        'database',
+        'data-explorer',
+        'paraguay',
+        'architecture',
+        'roadmap',
+      ]);
+      const hasExclusiveModule = (roleData.allowedNavTabs || []).some((m) => superAdminModules.has(m));
+      if (hasExclusiveModule) {
+        throw new Error('403 Prohibido: No puede asignar módulos reservados exclusivamente al Super Administrador.');
+      }
+    }
+
     const existing = this.data.roles.find((r) => r.id === roleId);
     if (existing) {
       throw new Error(`Ya existe un rol con el código identificador ${roleId}`);
@@ -1323,7 +1545,7 @@ class DatabaseStore {
       id: crypto.randomUUID(),
       organizationId: this.data.organization.id,
       branchId: null,
-      userId: this.data.users[0]?.id || null,
+      userId: effectiveActor?.userId || this.data.users[0]?.id || null,
       action: 'CREATE',
       entity: 'ROLE',
       entityId: roleId,
@@ -1331,7 +1553,7 @@ class DatabaseStore {
       userAgent: 'OdontoPro Web Admin',
       oldValues: null,
       newValues: newRole,
-      description: `Creación de nuevo rol institucional: "${newRole.name}" (${newRole.id}) con ${newRole.allowedNavTabs.length} módulos habilitados`,
+      description: `Creación de nuevo rol institucional subordinado: "${newRole.name}" (${newRole.id}) con ${newRole.allowedNavTabs.length} módulos habilitados`,
       createdAt: new Date(),
     });
 
@@ -1346,8 +1568,26 @@ class DatabaseStore {
       description?: string;
       allowedNavTabs?: string[];
       permissions?: string[];
-    }
+    },
+    actor?: BackendActorContext
   ) {
+    const effectiveActor = this.getEffectiveActor(actor);
+    if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN') {
+      if (!hasPermission(effectiveActor.role, 'roles.manage')) {
+        throw new Error('403 Prohibido: No tiene autorización para modificar roles.');
+      }
+      if (!canManageRole(effectiveActor.role, roleId)) {
+        this.addAuditLog({
+          action: 'ACCESS_DENIED_SECURITY',
+          entity: 'ROLE',
+          entityId: roleId,
+          userId: effectiveActor.userId,
+          description: `Intento denegado de modificar rol ${roleId} por actor con rol ${effectiveActor.role}. Jerarquía insuficiente.`,
+        });
+        throw new Error(`403 Prohibido: El rol ${effectiveActor.role} solo puede administrar roles de menor jerarquía. No puede modificar el rol ${roleId}.`);
+      }
+    }
+
     const idx = this.data.roles.findIndex((r) => r.id === roleId);
     if (idx === -1) return null;
 
@@ -1364,7 +1604,7 @@ class DatabaseStore {
       id: crypto.randomUUID(),
       organizationId: this.data.organization.id,
       branchId: null,
-      userId: this.data.users[0]?.id || null,
+      userId: effectiveActor?.userId || this.data.users[0]?.id || null,
       action: 'UPDATE',
       entity: 'ROLE',
       entityId: roleId,
@@ -1390,8 +1630,40 @@ class DatabaseStore {
 
   public updateRolePermissions(roleId: string, permissions: string[], actor?: BackendActorContext) {
     const effectiveActor = this.getEffectiveActor(actor);
-    if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN' && !hasPermission(effectiveActor.role, 'roles.manage')) {
-      throw new Error('403 Prohibido: Solo el Super Administrador o usuarios con permiso de autoridad pueden modificar la matriz de permisos.');
+    if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN') {
+      if (!hasPermission(effectiveActor.role, 'roles.manage')) {
+        throw new Error('403 Prohibido: Solo el Super Administrador o usuarios con permiso de autoridad pueden modificar la matriz de permisos.');
+      }
+
+      // REGLA FUNDAMENTAL DE SEGURIDAD (ANTI-ESCALAMIENTO DE PRIVILEGIOS):
+      // Un Administrador de Organización solo puede asignar o modificar permisos de roles estrictamente INFERIORES a él.
+      // Nunca puede auto-asignarse permisos ni modificar roles de jerarquía igual o superior.
+      if (!canManageRole(effectiveActor.role, roleId)) {
+        this.addAuditLog({
+          action: 'ACCESS_DENIED_SECURITY',
+          entity: 'ROLE_PERMISSIONS',
+          entityId: roleId,
+          userId: effectiveActor.userId,
+          description: `Intento denegado de escalamiento de privilegios: El rol ${effectiveActor.role} intentó modificar permisos para el rol ${roleId}.`,
+        });
+        throw new Error(`403 Prohibido: El rol ${effectiveActor.role} solo tiene autorización para asignar permisos a roles de menor jerarquía. No puede auto-asignarse permisos ni modificar roles superiores o iguales.`);
+      }
+
+      // Prevenir que un rol no-SUPER_ADMIN asigne permisos exclusivos del Super Administrador
+      const superAdminExclusives = new Set([
+        'system.all',
+        'organization.create',
+        'organization.manage',
+        'organization.branding',
+        'super_admin.manage',
+        'security.manage',
+        'database.seed',
+        'data.export_sensitive',
+      ]);
+      const hasExclusivePerm = permissions.some((p) => superAdminExclusives.has(p));
+      if (hasExclusivePerm) {
+        throw new Error('403 Prohibido: No tiene autorización para asignar permisos reservados exclusivamente al Super Administrador.');
+      }
     }
 
     const idx = this.data.roles.findIndex((r) => r.id === roleId);
@@ -1429,11 +1701,23 @@ class DatabaseStore {
   }
 
   public resetRolePermissionsToDefault(roleId: string, actor?: BackendActorContext) {
+    const effectiveActor = this.getEffectiveActor(actor);
+    if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN') {
+      if (!canManageRole(effectiveActor.role, roleId)) {
+        throw new Error(`403 Prohibido: El rol ${effectiveActor.role} no tiene jerarquía para restablecer permisos del rol ${roleId}.`);
+      }
+    }
     const defaultPerms = ROLE_HIERARCHY[roleId]?.permissions || [];
     return this.updateRolePermissions(roleId, defaultPerms, actor);
   }
 
-  public deleteRole(roleId: string) {
+  public deleteRole(roleId: string, actor?: BackendActorContext) {
+    const effectiveActor = this.getEffectiveActor(actor);
+    if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN') {
+      if (!canManageRole(effectiveActor.role, roleId)) {
+        throw new Error(`403 Prohibido: El rol ${effectiveActor.role} no tiene jerarquía para eliminar el rol ${roleId}.`);
+      }
+    }
     const role = this.data.roles.find((r) => r.id === roleId);
     if (!role) return false;
     if (role.isSystem) {

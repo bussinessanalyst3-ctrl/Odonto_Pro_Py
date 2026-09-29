@@ -11,11 +11,14 @@ import {
   Sparkles,
   Info
 } from 'lucide-react';
-import { dbStore } from '../../db/inMemoryStore.ts';
+import { dbStore, BackendActorContext } from '../../db/inMemoryStore.ts';
+import { useAuth } from '../../auth/authContext.tsx';
+import { canManageRole, isSuperAdminRole } from '../../security/rbacHierarchy.ts';
 
 interface ManageRolesModalProps {
   isOpen: boolean;
   onClose: () => void;
+  actor?: BackendActorContext;
 }
 
 const AVAILABLE_MODULES = [
@@ -32,7 +35,25 @@ const AVAILABLE_MODULES = [
   { id: 'audit', name: 'Auditoría Forense & Logs', category: 'Sistema' },
 ];
 
-export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onClose }) => {
+export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onClose, actor }) => {
+  const { session } = useAuth();
+  const effectiveActor = actor || (session ? {
+    userId: session.userId,
+    role: session.role,
+    organizationId: session.organizationId,
+    allowedBranchIds: session.allowedBranchIds,
+  } : undefined);
+
+  const isSuperAdmin = !effectiveActor || effectiveActor.role === 'SUPER_ADMIN';
+
+  // Solo se pueden editar o eliminar roles subordinados a la jerarquía del actor
+  const isRoleManageable = (roleId: string): boolean => {
+    if (roleId === 'SUPER_ADMIN') return false;
+    if (isSuperAdmin) return true;
+    if (!effectiveActor) return false;
+    return canManageRole(effectiveActor.role, roleId);
+  };
+
   const [, setTick] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
@@ -65,6 +86,10 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
   };
 
   const handleStartEdit = (role: any) => {
+    if (!isRoleManageable(role.id)) {
+      setError(`403 Prohibido: El rol "${role.name}" (${role.id}) está protegido contra modificación por jerarquía institucional.`);
+      return;
+    }
     setEditingRoleId(role.id);
     setRoleCode(role.id);
     setRoleName(role.name);
@@ -100,12 +125,16 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
 
     try {
       if (editingRoleId) {
+        if (!isRoleManageable(editingRoleId)) {
+          setError(`403 Prohibido: No tiene jerarquía para modificar el rol ${editingRoleId}. Solo puede gestionar roles subordinados.`);
+          return;
+        }
         // Actualizar rol
         dbStore.updateRole(editingRoleId, {
           name: roleName,
           description: roleDescription,
           allowedNavTabs: selectedModules,
-        });
+        }, effectiveActor);
         setSuccessMsg(`Rol "${roleName}" actualizado con éxito`);
       } else {
         // Crear nuevo rol
@@ -113,12 +142,16 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
           setError('El código único del rol es obligatorio (ej. VENDEDOR_SENIOR).');
           return;
         }
+        if (!isSuperAdmin && (roleCode === 'SUPER_ADMIN' || roleCode === 'ADMIN_ORGANIZACION')) {
+          setError('403 Prohibido: No está autorizado para crear roles con nivel igual o superior al suyo.');
+          return;
+        }
         dbStore.addRole({
           id: roleCode,
           name: roleName,
           description: roleDescription,
           allowedNavTabs: selectedModules,
-        });
+        }, effectiveActor);
         setSuccessMsg(`Rol "${roleName}" creado y habilitado en el sistema`);
       }
 
@@ -131,9 +164,13 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
   };
 
   const handleDeleteRole = (roleId: string, roleTitle: string) => {
+    if (!isRoleManageable(roleId)) {
+      setError(`403 Prohibido: No tiene jerarquía para eliminar el rol "${roleTitle}".`);
+      return;
+    }
     if (confirm(`¿Estás seguro de eliminar el rol "${roleTitle}"? Esta acción no se puede deshacer.`)) {
       try {
-        dbStore.deleteRole(roleId);
+        dbStore.deleteRole(roleId, effectiveActor);
         setSuccessMsg(`Rol "${roleTitle}" eliminado del sistema`);
         setTimeout(() => setSuccessMsg(null), 3000);
       } catch (err: any) {
@@ -386,23 +423,35 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleStartEdit(r)}
-                          title="Editar permisos o descripción"
-                          className="p-1.5 text-slate-500 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-colors"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </button>
-                        {!isSystem && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteRole(r.id, r.name)}
-                            title="Eliminar rol personalizado"
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        {isRoleManageable(r.id) ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleStartEdit(r)}
+                              title="Editar permisos o descripción"
+                              className="p-1.5 text-slate-500 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            {!isSystem && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteRole(r.id, r.name)}
+                                title="Eliminar rol personalizado"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200"
+                            title="Rol institucional protegido por jerarquía (no modificable)"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                            <Lock className="h-3 w-3 text-slate-400" />
+                            <span>Protegido</span>
+                          </span>
                         )}
                       </div>
                     </div>

@@ -338,6 +338,27 @@ export const OrganizationManagementView: React.FC = () => {
     }
   };
 
+  // Dar de baja organización (Exclusivo Super Administrador)
+  const handleDeleteOrg = (orgId: string, orgName: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`¿Está seguro de que desea inactivar la empresa "${orgName}"?`)) return;
+
+    try {
+      const actor = session ? {
+        userId: session.userId,
+        role: session.role,
+        organizationId: session.organizationId,
+        allowedBranchIds: session.allowedBranchIds,
+      } : undefined;
+
+      dbStore.deleteOrganization(orgId, actor);
+      setNotification(`Organización "${orgName}" dada de baja correctamente.`);
+      setTimeout(() => setNotification(null), 4000);
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar la empresa.');
+    }
+  };
+
   const ActiveDentalIconComponent = DENTAL_ICONS.find((i) => i.id === selectedIcon)?.icon || Stethoscope;
 
   return (
@@ -431,9 +452,21 @@ export const OrganizationManagementView: React.FC = () => {
                         ACTIVA
                       </span>
                     ) : (
-                      <span className="text-[10px] font-semibold text-slate-400">
-                        Clic para conmutar
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-semibold text-slate-400">
+                          Clic para conmutar
+                        </span>
+                        {organizations.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteOrg(org.id, org.name, e)}
+                            title="Inactivar / Dar de baja empresa"
+                            className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                   <h4 className="text-sm font-bold text-slate-900">{org.name}</h4>

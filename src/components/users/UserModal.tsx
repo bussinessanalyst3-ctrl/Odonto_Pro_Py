@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, Shield, Award, Building2, Phone, Mail, Check, AlertCircle, KeyRound, Sparkles } from 'lucide-react';
+import { X, UserPlus, Shield, Award, Building2, Phone, Mail, Check, AlertCircle, KeyRound, Sparkles, Lock } from 'lucide-react';
 import { BASE_ROLES } from '../../db/seeds/paraguay-catalogs.ts';
 import { dbStore, BackendActorContext } from '../../db/inMemoryStore.ts';
 import { hashPassword } from '../../auth/cryptoUtils.ts';
@@ -29,6 +29,9 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
   }
 
   const allRoles = dbStore.getRoles();
+  const isEditingSelf = !!userToEdit && effectiveActor?.userId === userToEdit.id;
+  const isRoleSelectDisabled = isEditingSelf && effectiveActor?.role !== 'SUPER_ADMIN';
+
   const availableRoles = allRoles.filter((r) => {
     if (!effectiveActor || effectiveActor.role === 'SUPER_ADMIN') {
       return true;
@@ -136,7 +139,7 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
           firstName,
           lastName,
           email,
-          roleId,
+          roleId: isRoleSelectDisabled ? userToEdit.roleId : roleId,
           phone,
           specialty,
           professionalLicense: isOdonto ? license : null,
@@ -293,17 +296,31 @@ export const UserModal: React.FC<UserModalProps> = ({ isOpen, onClose, userToEdi
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Rol en el Sistema *</label>
-              <select
-                value={roleId}
-                onChange={(e) => setRoleId(e.target.value)}
-                className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-medium text-slate-900 focus:ring-2 focus:ring-teal-500"
-              >
-                {availableRoles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name} {r.isSystem ? '(Sistema)' : '(Personalizado)'}
-                  </option>
-                ))}
-              </select>
+              {isRoleSelectDisabled ? (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs bg-slate-100 border border-slate-300 rounded-xl px-3 py-2 font-bold text-slate-800">
+                    <span>{allRoles.find((r) => r.id === (userToEdit?.roleId || roleId))?.name || roleId}</span>
+                    <span className="text-[10px] text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md font-semibold flex items-center gap-1">
+                      <Lock className="h-3 w-3" /> Fijo
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-amber-800 font-medium">
+                    Su rol está protegido para prevenir auto-elevación de privilegios.
+                  </p>
+                </div>
+              ) : (
+                <select
+                  value={roleId}
+                  onChange={(e) => setRoleId(e.target.value)}
+                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 font-medium text-slate-900 focus:ring-2 focus:ring-teal-500"
+                >
+                  {availableRoles.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} {r.isSystem ? '(Sistema)' : '(Personalizado)'}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div>
