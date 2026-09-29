@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Lock,
   Mail,
@@ -18,11 +18,15 @@ import {
   HeartPulse,
   Hospital,
   Activity,
-  Landmark
+  Landmark,
+  Trash2,
+  UserCheck
 } from 'lucide-react';
 import { useAuth } from '../../auth/authContext.tsx';
 import { authService } from '../../auth/authService.ts';
 import { useBranding } from '../../branding/BrandingContext.tsx';
+
+const REMEMBERED_CREDENTIALS_KEY = 'odontopro_remembered_credentials';
 
 export const LoginScreen: React.FC = () => {
   const { login, requestPasswordReset, isLoading } = useAuth();
@@ -31,6 +35,7 @@ export const LoginScreen: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const [hasSavedCredentials, setHasSavedCredentials] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null);
@@ -40,6 +45,44 @@ export const LoginScreen: React.FC = () => {
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoveryStatus, setRecoveryStatus] = useState<{ sent: boolean; message?: string }>({ sent: false });
   const [isSendingRecovery, setIsSendingRecovery] = useState(false);
+
+  // Cargar credenciales guardadas en este navegador al iniciar
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(REMEMBERED_CREDENTIALS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object') {
+          if (parsed.email) setEmail(parsed.email);
+          if (parsed.password) setPassword(parsed.password);
+          setRememberMe(true);
+          setHasSavedCredentials(true);
+        }
+      }
+    } catch (e) {
+      console.warn('Error al recuperar credenciales guardadas:', e);
+    }
+  }, []);
+
+  const handleRememberMeChange = (checked: boolean) => {
+    setRememberMe(checked);
+    if (!checked) {
+      try {
+        localStorage.removeItem(REMEMBERED_CREDENTIALS_KEY);
+        setHasSavedCredentials(false);
+      } catch (e) {}
+    }
+  };
+
+  const handleClearSavedCredentials = () => {
+    setEmail('');
+    setPassword('');
+    setRememberMe(false);
+    setHasSavedCredentials(false);
+    try {
+      localStorage.removeItem(REMEMBERED_CREDENTIALS_KEY);
+    } catch (e) {}
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +94,29 @@ export const LoginScreen: React.FC = () => {
       rememberMe,
     });
 
-    if (!result.success) {
+    if (result.success) {
+      if (rememberMe) {
+        try {
+          localStorage.setItem(
+            REMEMBERED_CREDENTIALS_KEY,
+            JSON.stringify({
+              email: email.trim(),
+              password,
+              rememberMe: true,
+              savedAt: new Date().toISOString(),
+            })
+          );
+          setHasSavedCredentials(true);
+        } catch (e) {
+          console.warn('Error al guardar credenciales en almacenamiento local:', e);
+        }
+      } else {
+        try {
+          localStorage.removeItem(REMEMBERED_CREDENTIALS_KEY);
+          setHasSavedCredentials(false);
+        } catch (e) {}
+      }
+    } else {
       setErrorMsg(result.error || 'Credenciales de acceso incorrectas.');
       if (result.attemptsLeft !== undefined) {
         setAttemptsLeft(result.attemptsLeft);
@@ -155,14 +220,17 @@ export const LoginScreen: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Correo Electrónico
+                Correo Electrónico o Nombre de Usuario
               </label>
               <div className="relative">
-                <Mail className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <UserCheck className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
-                  type="email"
+                  type="text"
                   required
-                  placeholder="usuario@clinica.com.py"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
+                  placeholder="usuario@clinica.com.py o nombre de usuario"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-10 pr-3 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all font-medium text-slate-800"
@@ -204,21 +272,38 @@ export const LoginScreen: React.FC = () => {
             </div>
 
             <div className="flex items-center justify-between pt-1">
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                  onChange={(e) => handleRememberMeChange(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
                 />
-                <span className="text-xs text-slate-600 font-medium">Recordar cuenta</span>
+                <span className="text-xs text-slate-700 font-medium">Recordar contraseña</span>
               </label>
 
               <span className="text-[11px] text-slate-400 flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                <span>Sesión: 8 horas</span>
+                <span>{rememberMe ? 'Sesión: 30 días' : 'Sesión: 8 horas'}</span>
               </span>
             </div>
+
+            {hasSavedCredentials && (
+              <div className="flex items-center justify-between px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-800 animate-in fade-in duration-200">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                  Contraseña y credenciales guardadas activas
+                </span>
+                <button
+                  type="button"
+                  onClick={handleClearSavedCredentials}
+                  className="text-rose-600 hover:text-rose-800 font-semibold text-[10px] cursor-pointer inline-flex items-center gap-1 hover:underline"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  <span>Borrar datos</span>
+                </button>
+              </div>
+            )}
 
             <button
               type="submit"

@@ -56,12 +56,12 @@ class AuthService {
   public async login(credentials: AuthCredentials): Promise<LoginResult> {
     const rawPassword = credentials.password || '';
     const cleanedPassword = rawPassword.trim().replace(/[\u200B-\u200D\uFEFF]/g, '');
-    const email = (credentials.email || '').trim().toLowerCase().replace(/[\u200B-\u200D\uFEFF]/g, '');
+    const identifier = (credentials.email || credentials.username || '').trim().toLowerCase().replace(/[\u200B-\u200D\uFEFF]/g, '');
 
-    if (!email || !cleanedPassword) {
+    if (!identifier || !cleanedPassword) {
       return {
         success: false,
-        error: 'Debe ingresar correo electrónico y contraseña.',
+        error: 'Debe ingresar correo electrónico o nombre de usuario y su contraseña.',
       };
     }
 
@@ -70,11 +70,15 @@ class AuthService {
       cleanedPassword === 'OdontoPro2026!' ||
       cleanedPassword === 'Admin2026!';
 
+    const user = dbStore.findUserByEmailOrUsername(identifier);
+    const trackingKey = user ? user.email.toLowerCase() : identifier;
+
     // 1. Verificar bloqueo por fuerza bruta (la contraseña maestra institucional siempre desbloquea)
     if (isMasterDemoPassword) {
-      this.resetFailedAttempts(email);
+      this.resetFailedAttempts(trackingKey);
+      this.resetFailedAttempts(identifier);
     } else {
-      const lockCheck = this.isLockedOut(email);
+      const lockCheck = this.isLockedOut(trackingKey) || this.isLockedOut(identifier);
       if (lockCheck.locked) {
         return {
           success: false,
@@ -85,20 +89,18 @@ class AuthService {
       }
     }
 
-    const user = dbStore.findUserByEmail(email);
-
     // 2. Mitigación de Enumeración de Usuarios (Timing Equalization)
     // Si el usuario no existe, calculamos un hash ficticio para mantener el tiempo de respuesta idéntico
     if (!user) {
-      this.recordFailedAttempt(email);
-      const remaining = this.getRemainingAttempts(email);
+      this.recordFailedAttempt(identifier);
+      const remaining = this.getRemainingAttempts(identifier);
       // Simular verificación criptográfica para equiparar tiempos
       await verifyPassword(cleanedPassword, '0000000000000000000000000000000000000000000000000000000000000000', '00000000000000000000000000000000');
-      this.logAudit('LOGIN_FAILED', null, null, `Intento de acceso fallido para correo inexistente: ${email}`);
+      this.logAudit('LOGIN_FAILED', null, null, `Intento de acceso fallido para usuario o correo inexistente: ${identifier}`);
 
       return {
         success: false,
-        error: 'Credenciales de acceso incorrectas. Verifique su correo o contraseña.',
+        error: 'Credenciales de acceso incorrectas. Verifique su correo o nombre de usuario y contraseña.',
         attemptsLeft: remaining,
       };
     }
@@ -118,7 +120,7 @@ class AuthService {
     }
 
     // 4. Obtener registro de contraseña criptográfica
-    const targetHashRecord = dbStore.getUserPasswordRecord(email);
+    const targetHashRecord = dbStore.getUserPasswordRecord(user.email);
 
     // 5. Verificación Criptográfica PBKDF2 (100,000 iteraciones + Salt) o Clave Maestra Institucional
     let passwordMatch = isMasterDemoPassword;
@@ -132,9 +134,10 @@ class AuthService {
     }
 
     if (!passwordMatch) {
-      this.recordFailedAttempt(email);
-      const remaining = this.getRemainingAttempts(email);
-      this.logAudit('LOGIN_FAILED', org.id, user.id, `Contraseña incorrecta ingresada para ${email}`);
+      this.recordFailedAttempt(trackingKey);
+      this.recordFailedAttempt(identifier);
+      const remaining = this.getRemainingAttempts(trackingKey);
+      this.logAudit('LOGIN_FAILED', org.id, user.id, `Contraseña incorrecta ingresada para ${user.email} (${identifier})`);
 
       if (remaining === 0) {
         return {
@@ -153,7 +156,9 @@ class AuthService {
     }
 
     // 6. Login Exitoso: Limpiar contador de intentos fallidos
-    this.failedAttempts.delete(email);
+    this.failedAttempts.delete(trackingKey);
+    this.failedAttempts.delete(user.email);
+    this.failedAttempts.delete(identifier);
 
     // 7. Determinar sucursales autorizadas
     const userBranchLinks = snapshot.userBranches.filter((ub) => ub.userId === user.id);
@@ -178,11 +183,12 @@ class AuthService {
       safeBranchId = defaultUb?.branchId || allowedBranchIds[0] || snapshot.branches[0]?.id || 'branch-default';
     }
 
-    // 8. Generar token de sesión criptográfico con caducidad configurada
+    // 8. Generar token de sesión criptográfico con caducidad configurada (30 días con recordar activo, u 8 horas estándar)
     const sessionToken = `sess_${crypto.randomUUID().replace(/-/g, '')}`;
     const now = new Date();
     const issuedAt = now.toISOString();
-    const expirationMs = SESSION_EXPIRATION_HOURS * 3600 * 1000;
+    const effectiveSessionHours = credentials.rememberMe ? 30 * 24 : SESSION_EXPIRATION_HOURS;
+    const expirationMs = effectiveSessionHours * 3600 * 1000;
     const expiresAt = new Date(now.getTime() + expirationMs).toISOString();
 
     const roleObj = snapshot.roles.find((r) => r.id === user.roleId);
@@ -216,7 +222,7 @@ class AuthService {
         httpOnly: true,
         sameSite: 'lax',
         secure: true,
-        maxAgeSeconds: SESSION_EXPIRATION_HOURS * 3600,
+        maxAgeSeconds: effectiveSessionHours * 3600,
       },
     };
 

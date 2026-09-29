@@ -72,6 +72,9 @@ class DatabaseStore {
       }
       if (this.data && this.data.users) {
         this.data.users.forEach((u: any) => {
+          if (!u.username && u.email) {
+            u.username = u.email.split('@')[0];
+          }
           if (!Array.isArray(u.customPermissions)) u.customPermissions = [];
           if (!Array.isArray(u.revokedPermissions)) u.revokedPermissions = [];
           if (!Array.isArray(u.assignedRestrictions)) u.assignedRestrictions = [];
@@ -711,32 +714,70 @@ class DatabaseStore {
     return branch;
   }
 
-  public findUserByEmail(email: string) {
-    const safeEmail = email.toLowerCase().trim();
-    const exact = this.data.users.find((u) => u.email.toLowerCase() === safeEmail);
-    if (exact) return exact;
+  public findUserByEmailOrUsername(identifier: string) {
+    if (!identifier) return null;
+    const safe = identifier.toLowerCase().trim();
 
-    // Soporte para alias directos de administración
+    // 1. Coincidencia exacta por email
+    const exactEmail = this.data.users.find((u) => u.email.toLowerCase() === safe);
+    if (exactEmail) return exactEmail;
+
+    // 2. Coincidencia exacta por nombre de usuario (username)
+    const exactUsername = this.data.users.find(
+      (u: any) => u.username && u.username.toLowerCase() === safe
+    );
+    if (exactUsername) return exactUsername;
+
+    // 3. Coincidencia por prefijo del correo (ej: "lucas.arrua" para "lucas.arrua@odontosol.com.py")
+    const matchPrefix = this.data.users.find((u) => {
+      const emailPrefix = u.email.split('@')[0].toLowerCase();
+      return emailPrefix === safe;
+    });
+    if (matchPrefix) return matchPrefix;
+
+    // 4. Soporte para alias directos de administración y roles institucionales
     if (
-      safeEmail === 'admin@odontosol.com.py' ||
-      safeEmail === 'superadmin@odontosol.com.py' ||
-      safeEmail === 'admin@odontopro.com.py' ||
-      safeEmail === 'admin' ||
-      safeEmail === 'lucas' ||
-      safeEmail === 'lucas.arrua'
+      safe === 'admin@odontosol.com.py' ||
+      safe === 'superadmin@odontosol.com.py' ||
+      safe === 'admin@odontopro.com.py' ||
+      safe === 'admin' ||
+      safe === 'superadmin' ||
+      safe === 'lucas' ||
+      safe === 'lucas.arrua'
     ) {
       return this.data.users.find((u) => u.roleId === 'SUPER_ADMIN') || this.data.users[0] || null;
     }
 
     if (
-      safeEmail === 'sofia' ||
-      safeEmail === 'sofia.benitez' ||
-      safeEmail === 'orgadmin@odontosol.com.py'
+      safe === 'sofia' ||
+      safe === 'sofia.benitez' ||
+      safe === 'adminorg' ||
+      safe === 'orgadmin@odontosol.com.py'
     ) {
       return this.data.users.find((u) => u.roleId === 'ADMIN_ORGANIZACION') || null;
     }
 
+    if (safe === 'marcos' || safe === 'marcos.vega' || safe === 'adminsucursal') {
+      return this.data.users.find((u) => u.roleId === 'ADMIN_SUCURSAL') || null;
+    }
+
+    if (safe === 'valeria' || safe === 'valeria.gomez' || safe === 'odontologo' || safe === 'dentista') {
+      return this.data.users.find((u) => u.roleId === 'ODONTOLOGO') || null;
+    }
+
+    if (safe === 'ana' || safe === 'ana.gimenez' || safe === 'recepcion') {
+      return this.data.users.find((u) => u.roleId === 'RECEPCION') || null;
+    }
+
+    if (safe === 'carlos' || safe === 'carlos.mendoza' || safe === 'caja' || safe === 'cajero') {
+      return this.data.users.find((u) => u.roleId === 'CAJA') || null;
+    }
+
     return null;
+  }
+
+  public findUserByEmail(email: string) {
+    return this.findUserByEmailOrUsername(email);
   }
 
   /**
@@ -2105,16 +2146,18 @@ class DatabaseStore {
     return true;
   }
 
-  public getUserPasswordRecord(email: string, actor?: BackendActorContext): { hash: string; salt: string; iterations: number } | null {
+  public getUserPasswordRecord(identifier: string, actor?: BackendActorContext): { hash: string; salt: string; iterations: number } | null {
     const effectiveActor = this.getEffectiveActor(actor);
-    const safeEmail = email.toLowerCase().trim();
-    const user = this.data.users.find((u) => u.email.toLowerCase() === safeEmail);
+    const user = this.findUserByEmailOrUsername(identifier);
+    if (!user) return null;
 
-    if (user && isSuperAdminRole(user.roleId)) {
+    if (isSuperAdminRole(user.roleId)) {
       if (effectiveActor && effectiveActor.role !== 'SUPER_ADMIN') {
         return null; // Oculto para roles no autorizados
       }
     }
+
+    const safeEmail = user.email.toLowerCase().trim();
 
     // 1. Revisar en localStorage si hay hash actualizado
     try {
@@ -2126,7 +2169,7 @@ class DatabaseStore {
     } catch (e) {}
 
     // 2. Revisar en memoria
-    if (user && (user as any).passwordSalt && (user as any).passwordHash) {
+    if ((user as any).passwordSalt && (user as any).passwordHash) {
       return {
         hash: (user as any).passwordHash,
         salt: (user as any).passwordSalt,

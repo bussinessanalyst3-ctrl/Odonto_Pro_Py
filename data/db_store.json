@@ -1,21 +1,17 @@
 {
   "data": {
     "organization": {
-      "id": "064c39f5-5ded-4050-97ee-4a941a506a53",
-      "code": "ORG-801234567",
-      "name": "Clínica Dental Asunción Este S.A.",
-      "legalName": "Clínica Dental Asunción Este Sociedad Anónima",
-      "taxId": "80123456-7",
+      "id": "11111111-1111-4111-8111-111111111111",
+      "code": "ODONTOSOL-PY",
+      "name": "Clínica Odontológica OdontoSol S.R.L.",
+      "legalName": "OdontoSol Servicios Odontológicos Integrales S.R.L.",
+      "taxId": "80098765-4",
       "countryCode": "PRY",
       "defaultCurrency": "PYG",
       "timezone": "America/Asuncion",
       "status": "ACTIVE",
-      "phone": "+595 21 999 888",
-      "email": "contacto@asuncioneste.com.py",
-      "address": "Nueva Dirección Comercial 1234, Asunción",
-      "primaryColor": "cyan",
-      "createdAt": "2026-09-29T16:46:13.179Z",
-      "updatedAt": "2026-09-29T16:46:13.813Z"
+      "createdAt": "2026-01-10T08:00:00.000Z",
+      "updatedAt": "2026-01-10T08:00:00.000Z"
     },
     "branches": [
       {
@@ -71,86 +67,6 @@
         "status": "ACTIVE",
         "createdAt": "2026-02-01T08:00:00.000Z",
         "updatedAt": "2026-02-01T08:00:00.000Z"
-      },
-      {
-        "id": "d72079b4-b1e9-4674-962e-87301bc849fc",
-        "organizationId": "fb1b7c58-a1f5-4573-a2f1-5ab925ff7809",
-        "code": "SUC-01",
-        "name": "Casa Central - Clínica Dental Asunción Este S.A.",
-        "department": "Capital",
-        "city": "Asunción",
-        "neighborhood": "Centro",
-        "address": "Av. Eusebio Ayala 3450, Asunción",
-        "phone": "+595 21 654 321",
-        "whatsapp": "+595 21 654 321",
-        "email": "contacto@asuncioneste.com.py",
-        "openingTime": "07:30",
-        "closingTime": "19:30",
-        "status": "ACTIVE",
-        "isMain": true,
-        "operatingHours": "Lun a Vie 08:00 - 18:00, Sáb 08:00 - 12:00",
-        "createdAt": "2026-09-29T13:00:52.654Z",
-        "updatedAt": "2026-09-29T13:00:52.654Z"
-      },
-      {
-        "id": "ae33655c-0dcb-4fa4-9a3e-588f02b25b33",
-        "organizationId": "f9811ee7-9120-4be9-a69d-8009c977c22e",
-        "code": "SUC-01",
-        "name": "Casa Central - Clínica Dental Asunción Este S.A.",
-        "department": "Capital",
-        "city": "Asunción",
-        "neighborhood": "Centro",
-        "address": "Av. Eusebio Ayala 3450, Asunción",
-        "phone": "+595 21 654 321",
-        "whatsapp": "+595 21 654 321",
-        "email": "contacto@asuncioneste.com.py",
-        "openingTime": "07:30",
-        "closingTime": "19:30",
-        "status": "ACTIVE",
-        "isMain": true,
-        "operatingHours": "Lun a Vie 08:00 - 18:00, Sáb 08:00 - 12:00",
-        "createdAt": "2026-09-29T16:39:05.716Z",
-        "updatedAt": "2026-09-29T16:39:05.716Z"
-      },
-      {
-        "id": "1922aaef-c6cb-4219-80b9-86218b4989b8",
-        "organizationId": "ea191a62-34fd-423a-926f-cb1e02b3d38b",
-        "code": "SUC-01",
-        "name": "Casa Central - Clínica Dental Asunción Este S.A.",
-        "department": "Capital",
-        "city": "Asunción",
-        "neighborhood": "Centro",
-        "address": "Av. Eusebio Ayala 3450, Asunción",
-        "phone": "+595 21 654 321",
-        "whatsapp": "+595 21 654 321",
-        "email": "contacto@asuncioneste.com.py",
-        "openingTime": "07:30",
-        "closingTime": "19:30",
-        "status": "ACTIVE",
-        "isMain": true,
-        "operatingHours": "Lun a Vie 08:00 - 18:00, Sáb 08:00 - 12:00",
-        "createdAt": "2026-09-29T16:43:14.676Z",
-        "updatedAt": "2026-09-29T16:43:14.676Z"
-      },
-      {
-        "id": "19bf3817-faf2-4ba4-bdee-a2d93bcb8725",
-        "organizationId": "064c39f5-5ded-4050-97ee-4a941a506a53",
-        "code": "SUC-01",
-        "name": "Casa Central - Clínica Dental Asunción Este S.A.",
-        "department": "Capital",
-        "city": "Asunción",
-        "neighborhood": "Centro",
-        "address": "Av. Eusebio Ayala 3450, Asunción",
-        "phone": "+595 21 654 321",
-        "whatsapp": "+595 21 654 321",
-        "email": "contacto@asuncioneste.com.py",
-        "openingTime": "07:30",
-        "closingTime": "19:30",
-        "status": "ACTIVE",
-        "isMain": true,
-        "operatingHours": "Lun a Vie 08:00 - 18:00, Sáb 08:00 - 12:00",
-        "createdAt": "2026-09-29T16:46:13.179Z",
-        "updatedAt": "2026-09-29T16:46:13.179Z"
       }
     ],
     "branchSettings": [
@@ -180,78 +96,6 @@
         "requireDocumentOnBooking": true,
         "createdAt": "2026-01-15T08:00:00.000Z",
         "updatedAt": "2026-01-15T08:00:00.000Z"
-      },
-      {
-        "id": "4fce1d4b-261a-4192-91a9-f429123bd951",
-        "branchId": "d72079b4-b1e9-4674-962e-87301bc849fc",
-        "allowOnlineBooking": true,
-        "requireDocumentId": true,
-        "enableWaitlist": true,
-        "maxOverbookingSlots": 0,
-        "reminderChannels": [
-          "WHATSAPP",
-          "EMAIL"
-        ],
-        "defaultAppointmentDurationMinutes": 30,
-        "cancellationNoticeHours": 24,
-        "requireDepositForSpecialties": false,
-        "depositAmountPyg": 0,
-        "createdAt": "2026-09-29T13:00:52.654Z",
-        "updatedAt": "2026-09-29T13:00:52.654Z"
-      },
-      {
-        "id": "8b202a59-9d1c-4b59-a9c8-fc5ac66705c4",
-        "branchId": "ae33655c-0dcb-4fa4-9a3e-588f02b25b33",
-        "allowOnlineBooking": true,
-        "requireDocumentId": true,
-        "enableWaitlist": true,
-        "maxOverbookingSlots": 0,
-        "reminderChannels": [
-          "WHATSAPP",
-          "EMAIL"
-        ],
-        "defaultAppointmentDurationMinutes": 30,
-        "cancellationNoticeHours": 24,
-        "requireDepositForSpecialties": false,
-        "depositAmountPyg": 0,
-        "createdAt": "2026-09-29T16:39:05.716Z",
-        "updatedAt": "2026-09-29T16:39:05.716Z"
-      },
-      {
-        "id": "15f2fc15-3ffc-4126-88dc-b825d945e7cf",
-        "branchId": "1922aaef-c6cb-4219-80b9-86218b4989b8",
-        "allowOnlineBooking": true,
-        "requireDocumentId": true,
-        "enableWaitlist": true,
-        "maxOverbookingSlots": 0,
-        "reminderChannels": [
-          "WHATSAPP",
-          "EMAIL"
-        ],
-        "defaultAppointmentDurationMinutes": 30,
-        "cancellationNoticeHours": 24,
-        "requireDepositForSpecialties": false,
-        "depositAmountPyg": 0,
-        "createdAt": "2026-09-29T16:43:14.676Z",
-        "updatedAt": "2026-09-29T16:43:14.676Z"
-      },
-      {
-        "id": "b1bcf9b4-100e-4bc5-b03b-2515e444feef",
-        "branchId": "19bf3817-faf2-4ba4-bdee-a2d93bcb8725",
-        "allowOnlineBooking": true,
-        "requireDocumentId": true,
-        "enableWaitlist": true,
-        "maxOverbookingSlots": 0,
-        "reminderChannels": [
-          "WHATSAPP",
-          "EMAIL"
-        ],
-        "defaultAppointmentDurationMinutes": 30,
-        "cancellationNoticeHours": 24,
-        "requireDepositForSpecialties": false,
-        "depositAmountPyg": 0,
-        "createdAt": "2026-09-29T16:46:13.179Z",
-        "updatedAt": "2026-09-29T16:46:13.179Z"
       }
     ],
     "dentalChairs": [
@@ -612,6 +456,7 @@
         "id": "33333333-3333-4333-8333-333333333331",
         "organizationId": "11111111-1111-4111-8111-111111111111",
         "roleId": "SUPER_ADMIN",
+        "username": "lucas.arrua",
         "firstName": "Lucas Eliezer",
         "lastName": "Arrua Almada",
         "email": "lucas.arrua@odontosol.com.py",
@@ -622,14 +467,19 @@
         "professionalLicense": null,
         "specialty": "Dirección General & Auditoría Global",
         "status": "ACTIVE",
-        "lastLoginAt": "2026-09-29T16:46:13.177Z",
+        "lastLoginAt": "2026-09-29T17:15:18.602Z",
         "createdAt": "2026-01-10T08:00:00.000Z",
-        "updatedAt": "2026-01-10T08:00:00.000Z"
+        "updatedAt": "2026-01-10T08:00:00.000Z",
+        "customPermissions": [],
+        "revokedPermissions": [],
+        "assignedRestrictions": [],
+        "permissionsVersion": 1
       },
       {
         "id": "33333333-3333-4333-8333-333333333334",
         "organizationId": "11111111-1111-4111-8111-111111111111",
         "roleId": "ADMIN_ORGANIZACION",
+        "username": "sofia.benitez",
         "firstName": "Lic. Sofía",
         "lastName": "Benítez Cantero",
         "email": "sofia.benitez@odontosol.com.py",
@@ -640,14 +490,19 @@
         "professionalLicense": null,
         "specialty": "Gerencia Administrativa y Finanzas",
         "status": "ACTIVE",
-        "lastLoginAt": "2026-09-29T12:59:36.145Z",
+        "lastLoginAt": "2026-09-29T17:15:18.527Z",
         "createdAt": "2026-01-12T08:00:00.000Z",
-        "updatedAt": "2026-01-12T08:00:00.000Z"
+        "updatedAt": "2026-01-12T08:00:00.000Z",
+        "customPermissions": [],
+        "revokedPermissions": [],
+        "assignedRestrictions": [],
+        "permissionsVersion": 1
       },
       {
         "id": "33333333-3333-4333-8333-333333333335",
         "organizationId": "11111111-1111-4111-8111-111111111111",
         "roleId": "ADMIN_SUCURSAL",
+        "username": "marcos.vega",
         "firstName": "Marcos",
         "lastName": "Vega Portillo",
         "email": "marcos.vega@odontosol.com.py",
@@ -658,14 +513,19 @@
         "professionalLicense": null,
         "specialty": "Administración de Sede San Lorenzo",
         "status": "ACTIVE",
-        "lastLoginAt": "2026-09-29T12:59:36.145Z",
+        "lastLoginAt": "2026-09-29T17:15:18.527Z",
         "createdAt": "2026-01-14T08:00:00.000Z",
-        "updatedAt": "2026-01-14T08:00:00.000Z"
+        "updatedAt": "2026-01-14T08:00:00.000Z",
+        "customPermissions": [],
+        "revokedPermissions": [],
+        "assignedRestrictions": [],
+        "permissionsVersion": 1
       },
       {
         "id": "33333333-3333-4333-8333-333333333332",
         "organizationId": "11111111-1111-4111-8111-111111111111",
         "roleId": "ODONTOLOGO",
+        "username": "valeria.gomez",
         "firstName": "Dra. Valeria",
         "lastName": "Gómez Benítez",
         "email": "valeria.gomez@odontosol.com.py",
@@ -676,28 +536,19 @@
         "professionalLicense": "MSPBS N° 14.821 / Reg. Odontológico",
         "specialty": "Ortodoncia & Rehabilitación Oral",
         "status": "ACTIVE",
-        "lastLoginAt": "2026-09-29T12:59:36.145Z",
+        "lastLoginAt": "2026-09-29T17:15:18.527Z",
         "createdAt": "2026-01-15T08:00:00.000Z",
-        "updatedAt": "2026-09-29T16:46:15.739Z",
-        "customPermissions": [
-          "cash.open_close",
-          "reports.financial"
-        ],
+        "updatedAt": "2026-01-15T08:00:00.000Z",
+        "customPermissions": [],
         "revokedPermissions": [],
-        "assignedRestrictions": [
-          "restrict_financial_to_cashiers"
-        ],
-        "allowedNavTabs": [
-          "agenda",
-          "patients"
-        ],
-        "permissionsVersion": 10,
-        "sessionRevokedAt": "2026-09-29T16:45:18.953Z"
+        "assignedRestrictions": [],
+        "permissionsVersion": 1
       },
       {
         "id": "33333333-3333-4333-8333-333333333333",
         "organizationId": "11111111-1111-4111-8111-111111111111",
         "roleId": "CAJA",
+        "username": "carlos.mendoza",
         "firstName": "Carlos Alberto",
         "lastName": "Mendoza Duarte",
         "email": "carlos.mendoza@odontosol.com.py",
@@ -708,14 +559,19 @@
         "professionalLicense": null,
         "specialty": "Operaciones de Recaudación & Tesorería",
         "status": "ACTIVE",
-        "lastLoginAt": "2026-09-29T12:59:36.145Z",
+        "lastLoginAt": "2026-09-29T17:15:18.527Z",
         "createdAt": "2026-01-18T08:00:00.000Z",
-        "updatedAt": "2026-01-18T08:00:00.000Z"
+        "updatedAt": "2026-01-18T08:00:00.000Z",
+        "customPermissions": [],
+        "revokedPermissions": [],
+        "assignedRestrictions": [],
+        "permissionsVersion": 1
       },
       {
         "id": "33333333-3333-4333-8333-333333333336",
         "organizationId": "11111111-1111-4111-8111-111111111111",
         "roleId": "RECEPCION",
+        "username": "ana.gimenez",
         "firstName": "Ana Sofía",
         "lastName": "Giménez Romero",
         "email": "ana.gimenez@odontosol.com.py",
@@ -726,41 +582,13 @@
         "professionalLicense": null,
         "specialty": "Recepción y Atención al Paciente",
         "status": "ACTIVE",
-        "lastLoginAt": "2026-09-29T12:59:36.145Z",
+        "lastLoginAt": "2026-09-29T17:15:18.527Z",
         "createdAt": "2026-01-20T08:00:00.000Z",
-        "updatedAt": "2026-01-20T08:00:00.000Z"
-      },
-      {
-        "id": "b27f7d5f-c75b-45d2-8dd8-2b6a29c9013e",
-        "organizationId": "064c39f5-5ded-4050-97ee-4a941a506a53",
-        "roleId": "ADMIN_ORGANIZACION",
-        "firstName": "Marcos",
-        "lastName": "Gómez",
-        "email": "marcos.gomez@asuncioneste.com.py",
-        "passwordHash": "$2b$10$e8wDbgW2n2v19WfG7h.HquK9eR6q7yB3e1gL2m1p0o9n8b7v6c5x4",
-        "phone": "+595 981 777888",
-        "professionalLicense": null,
-        "specialty": "Administración Clínica",
-        "status": "ACTIVE",
-        "lastLoginAt": "2026-09-29T16:46:13.810Z",
-        "createdAt": "2026-09-29T13:00:52.654Z",
-        "updatedAt": "2026-09-29T13:00:52.654Z"
-      },
-      {
-        "id": "65a0d586-cd5c-4cc4-8efe-180b1321ef4e",
-        "organizationId": "f9811ee7-9120-4be9-a69d-8009c977c22e",
-        "roleId": "ADMIN_ORGANIZACION",
-        "firstName": "Marcos",
-        "lastName": "Gómez",
-        "email": "marcos.gomez@asuncioneste.com.py",
-        "passwordHash": "$2b$10$e8wDbgW2n2v19WfG7h.HquK9eR6q7yB3e1gL2m1p0o9n8b7v6c5x4",
-        "phone": "+595 981 777888",
-        "professionalLicense": null,
-        "specialty": "Administración Clínica",
-        "status": "ACTIVE",
-        "lastLoginAt": null,
-        "createdAt": "2026-09-29T16:39:05.716Z",
-        "updatedAt": "2026-09-29T16:39:05.716Z"
+        "updatedAt": "2026-01-20T08:00:00.000Z",
+        "customPermissions": [],
+        "revokedPermissions": [],
+        "assignedRestrictions": [],
+        "permissionsVersion": 1
       }
     ],
     "userBranches": [
@@ -768,79 +596,67 @@
         "userId": "33333333-3333-4333-8333-333333333331",
         "branchId": "22222222-2222-4222-8222-222222222221",
         "isDefault": true,
-        "createdAt": "2026-09-29T12:59:36.145Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       },
       {
         "userId": "33333333-3333-4333-8333-333333333331",
         "branchId": "22222222-2222-4222-8222-222222222222",
         "isDefault": false,
-        "createdAt": "2026-09-29T12:59:36.145Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       },
       {
         "userId": "33333333-3333-4333-8333-333333333331",
         "branchId": "22222222-2222-4222-8222-222222222223",
         "isDefault": false,
-        "createdAt": "2026-09-29T12:59:36.145Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       },
       {
         "userId": "33333333-3333-4333-8333-333333333334",
         "branchId": "22222222-2222-4222-8222-222222222221",
         "isDefault": true,
-        "createdAt": "2026-09-29T12:59:36.145Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       },
       {
         "userId": "33333333-3333-4333-8333-333333333334",
         "branchId": "22222222-2222-4222-8222-222222222222",
         "isDefault": false,
-        "createdAt": "2026-09-29T12:59:36.145Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       },
       {
         "userId": "33333333-3333-4333-8333-333333333334",
         "branchId": "22222222-2222-4222-8222-222222222223",
         "isDefault": false,
-        "createdAt": "2026-09-29T12:59:36.145Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       },
       {
         "userId": "33333333-3333-4333-8333-333333333335",
         "branchId": "22222222-2222-4222-8222-222222222222",
         "isDefault": true,
-        "createdAt": "2026-09-29T12:59:36.145Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       },
       {
         "userId": "33333333-3333-4333-8333-333333333332",
         "branchId": "22222222-2222-4222-8222-222222222221",
         "isDefault": true,
-        "createdAt": "2026-09-29T12:59:36.145Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       },
       {
         "userId": "33333333-3333-4333-8333-333333333332",
         "branchId": "22222222-2222-4222-8222-222222222222",
         "isDefault": false,
-        "createdAt": "2026-09-29T12:59:36.145Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       },
       {
         "userId": "33333333-3333-4333-8333-333333333333",
         "branchId": "22222222-2222-4222-8222-222222222221",
         "isDefault": true,
-        "createdAt": "2026-09-29T12:59:36.145Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       },
       {
         "userId": "33333333-3333-4333-8333-333333333336",
         "branchId": "22222222-2222-4222-8222-222222222221",
         "isDefault": true,
-        "createdAt": "2026-09-29T12:59:36.145Z"
-      },
-      {
-        "userId": "65a0d586-cd5c-4cc4-8efe-180b1321ef4e",
-        "branchId": "ae33655c-0dcb-4fa4-9a3e-588f02b25b33",
-        "isDefault": true,
-        "createdAt": "2026-09-29T16:39:05.716Z"
-      },
-      {
-        "userId": "b27f7d5f-c75b-45d2-8dd8-2b6a29c9013e",
-        "branchId": "19bf3817-faf2-4ba4-bdee-a2d93bcb8725",
-        "isDefault": true,
-        "createdAt": "2026-09-29T16:46:13.179Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       }
     ],
     "services": [
@@ -1457,7 +1273,7 @@
         "material": "Resina Compuesta",
         "notes": "Restauración en buen estado, márgenes sellados.",
         "colorCode": "#3B82F6",
-        "createdAt": "2026-09-29T12:59:36.146Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       },
       {
         "id": "88888888-8888-4888-8888-888888888802",
@@ -1468,7 +1284,7 @@
         "material": "Resina Compuesta",
         "notes": "Buen estado clínico.",
         "colorCode": "#3B82F6",
-        "createdAt": "2026-09-29T12:59:36.146Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       },
       {
         "id": "88888888-8888-4888-8888-888888888803",
@@ -1479,7 +1295,7 @@
         "material": null,
         "notes": "Exodoncia realizada previamente.",
         "colorCode": "#6B7280",
-        "createdAt": "2026-09-29T12:59:36.146Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       },
       {
         "id": "88888888-8888-4888-8888-888888888804",
@@ -1490,7 +1306,7 @@
         "material": null,
         "notes": "Caries en esmalte superficial detectada.",
         "colorCode": "#EF4444",
-        "createdAt": "2026-09-29T12:59:36.146Z"
+        "createdAt": "2026-09-29T17:15:18.527Z"
       }
     ],
     "quotes": [
@@ -1613,213 +1429,7 @@
     ],
     "auditLogs": [
       {
-        "id": "36590735-693d-490d-9a61-455a4f9b74c2",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "USER_PERMISSIONS_OVERRIDE",
-        "entity": "USER_SECURITY",
-        "entityId": "33333333-3333-4333-8333-333333333332",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Security Governance",
-        "oldValues": {
-          "customPermissions": [
-            "cash.open_close",
-            "reports.financial"
-          ],
-          "revokedPermissions": [],
-          "assignedRestrictions": [
-            "restrict_financial_to_cashiers"
-          ],
-          "allowedNavTabs": [
-            "dashboard",
-            "agenda"
-          ]
-        },
-        "newValues": {
-          "customPermissions": [
-            "cash.open_close",
-            "reports.financial"
-          ],
-          "revokedPermissions": [],
-          "assignedRestrictions": [
-            "restrict_financial_to_cashiers"
-          ],
-          "allowedNavTabs": [
-            "agenda",
-            "patients"
-          ],
-          "permissionsVersion": 10
-        },
-        "description": "Ajuste granular de permisos y restricciones para Dra. Valeria Gómez Benítez (valeria.gomez@odontosol.com.py). Grants: 2, Revocaciones: 0, Restricciones: 1.",
-        "createdAt": "2026-09-29T16:46:15.739Z"
-      },
-      {
-        "id": "e977f1c6-43e2-47c8-92f4-07fc932765d4",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "USER_PERMISSIONS_OVERRIDE",
-        "entity": "USER_SECURITY",
-        "entityId": "33333333-3333-4333-8333-333333333332",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Security Governance",
-        "oldValues": {
-          "customPermissions": [
-            "reports.financial"
-          ],
-          "revokedPermissions": [
-            "clinical.view"
-          ],
-          "assignedRestrictions": [],
-          "allowedNavTabs": [
-            "dashboard",
-            "agenda"
-          ]
-        },
-        "newValues": {
-          "customPermissions": [
-            "cash.open_close",
-            "reports.financial"
-          ],
-          "revokedPermissions": [],
-          "assignedRestrictions": [
-            "restrict_financial_to_cashiers"
-          ],
-          "allowedNavTabs": [
-            "dashboard",
-            "agenda"
-          ],
-          "permissionsVersion": 9
-        },
-        "description": "Ajuste granular de permisos y restricciones para Dra. Valeria Gómez Benítez (valeria.gomez@odontosol.com.py). Grants: 2, Revocaciones: 0, Restricciones: 1.",
-        "createdAt": "2026-09-29T16:46:15.737Z"
-      },
-      {
-        "id": "c26ec104-0c3f-4652-bb04-6e6ba8b0c367",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "USER_PERMISSIONS_OVERRIDE",
-        "entity": "USER_SECURITY",
-        "entityId": "33333333-3333-4333-8333-333333333332",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Security Governance",
-        "oldValues": {
-          "customPermissions": [],
-          "revokedPermissions": [
-            "clinical.view"
-          ],
-          "assignedRestrictions": [],
-          "allowedNavTabs": [
-            "dashboard",
-            "agenda"
-          ]
-        },
-        "newValues": {
-          "customPermissions": [
-            "reports.financial"
-          ],
-          "revokedPermissions": [
-            "clinical.view"
-          ],
-          "assignedRestrictions": [],
-          "allowedNavTabs": [
-            "dashboard",
-            "agenda"
-          ],
-          "permissionsVersion": 8
-        },
-        "description": "Ajuste granular de permisos y restricciones para Dra. Valeria Gómez Benítez (valeria.gomez@odontosol.com.py). Grants: 1, Revocaciones: 1, Restricciones: 0.",
-        "createdAt": "2026-09-29T16:46:15.734Z"
-      },
-      {
-        "id": "3da36953-422c-4e71-893c-350231c8daf4",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "USER_PERMISSIONS_OVERRIDE",
-        "entity": "USER_SECURITY",
-        "entityId": "33333333-3333-4333-8333-333333333332",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Security Governance",
-        "oldValues": {
-          "customPermissions": [],
-          "revokedPermissions": [],
-          "assignedRestrictions": [],
-          "allowedNavTabs": [
-            "dashboard",
-            "agenda"
-          ]
-        },
-        "newValues": {
-          "customPermissions": [],
-          "revokedPermissions": [
-            "clinical.view"
-          ],
-          "assignedRestrictions": [],
-          "allowedNavTabs": [
-            "dashboard",
-            "agenda"
-          ],
-          "permissionsVersion": 7
-        },
-        "description": "Ajuste granular de permisos y restricciones para Dra. Valeria Gómez Benítez (valeria.gomez@odontosol.com.py). Grants: 0, Revocaciones: 1, Restricciones: 0.",
-        "createdAt": "2026-09-29T16:46:15.727Z"
-      },
-      {
-        "id": "c97c7f25-7d01-4609-8209-b3716bb6cbab",
-        "organizationId": "064c39f5-5ded-4050-97ee-4a941a506a53",
-        "branchId": null,
-        "userId": "b27f7d5f-c75b-45d2-8dd8-2b6a29c9013e",
-        "action": "UPDATE",
-        "entity": "ORGANIZATION",
-        "entityId": "064c39f5-5ded-4050-97ee-4a941a506a53",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Web Admin",
-        "oldValues": null,
-        "newValues": {
-          "phone": "+595 21 999 888",
-          "address": "Nueva Dirección Comercial 1234, Asunción"
-        },
-        "description": "Actualización de parámetros institucionales de la clínica (Clínica Dental Asunción Este S.A.)",
-        "createdAt": "2026-09-29T16:46:13.813Z"
-      },
-      {
-        "id": "1697bf4b-aec0-49a4-857b-ee6c7bb827a2",
-        "organizationId": "064c39f5-5ded-4050-97ee-4a941a506a53",
-        "branchId": null,
-        "userId": "b27f7d5f-c75b-45d2-8dd8-2b6a29c9013e",
-        "action": "ACCESS_DENIED_SECURITY",
-        "entity": "ORGANIZATION",
-        "entityId": "11111111-1111-4111-8111-111111111111",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "Node.js/22",
-        "oldValues": null,
-        "newValues": null,
-        "description": "Intento denegado de conmutar a organización ajena (11111111-1111-4111-8111-111111111111) por usuario con rol ADMIN_ORGANIZACION.",
-        "createdAt": "2026-09-29T16:46:13.811Z"
-      },
-      {
-        "id": "80d1f7d0-ba5b-4e20-9445-6f502bd44e4b",
-        "organizationId": "064c39f5-5ded-4050-97ee-4a941a506a53",
-        "branchId": null,
-        "userId": null,
-        "action": "SWITCH_CONTEXT_ORGANIZATION",
-        "entity": "ORGANIZATION",
-        "entityId": "064c39f5-5ded-4050-97ee-4a941a506a53",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Context Manager",
-        "oldValues": null,
-        "newValues": {
-          "activeOrgId": "064c39f5-5ded-4050-97ee-4a941a506a53",
-          "name": "Clínica Dental Asunción Este S.A."
-        },
-        "description": "Cambio de contexto activo de navegación a: Clínica Dental Asunción Este S.A.",
-        "createdAt": "2026-09-29T16:46:13.807Z"
-      },
-      {
-        "id": "bc4d5425-ab2e-448a-96b7-6458757f9547",
+        "id": "95d8f0fe-7d3f-4901-9215-5e6f6d7c21e0",
         "organizationId": "11111111-1111-4111-8111-111111111111",
         "branchId": null,
         "userId": null,
@@ -1834,41 +1444,10 @@
           "name": "Clínica Odontológica OdontoSol S.R.L."
         },
         "description": "Cambio de contexto activo de navegación a: Clínica Odontológica OdontoSol S.R.L.",
-        "createdAt": "2026-09-29T16:46:13.784Z"
+        "createdAt": "2026-09-29T17:15:18.616Z"
       },
       {
-        "id": "4db31a51-1e15-4b2e-873e-783dd40012d4",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "CREATE",
-        "entity": "ORGANIZATION",
-        "entityId": "064c39f5-5ded-4050-97ee-4a941a506a53",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Multi-Tenant Admin",
-        "oldValues": null,
-        "newValues": {
-          "id": "064c39f5-5ded-4050-97ee-4a941a506a53",
-          "code": "ORG-801234567",
-          "name": "Clínica Dental Asunción Este S.A.",
-          "legalName": "Clínica Dental Asunción Este Sociedad Anónima",
-          "taxId": "80123456-7",
-          "countryCode": "PRY",
-          "defaultCurrency": "PYG",
-          "timezone": "America/Asuncion",
-          "status": "ACTIVE",
-          "phone": "+595 21 654 321",
-          "email": "contacto@asuncioneste.com.py",
-          "address": "Av. Eusebio Ayala 3450, Asunción",
-          "primaryColor": "cyan",
-          "createdAt": "2026-09-29T16:46:13.179Z",
-          "updatedAt": "2026-09-29T16:46:13.179Z"
-        },
-        "description": "Creación de nueva Organización / Cliente: Clínica Dental Asunción Este S.A. (RUC: 80123456-7)",
-        "createdAt": "2026-09-29T16:46:13.179Z"
-      },
-      {
-        "id": "39a653f4-b666-43b4-ac8f-fb475a16ab66",
+        "id": "5ad09453-68e4-426a-ace5-58c263ae2b2c",
         "organizationId": "11111111-1111-4111-8111-111111111111",
         "branchId": null,
         "userId": null,
@@ -1883,517 +1462,7 @@
           "name": "Clínica Odontológica OdontoSol S.R.L."
         },
         "description": "Cambio de contexto activo de navegación a: Clínica Odontológica OdontoSol S.R.L.",
-        "createdAt": "2026-09-29T16:46:13.173Z"
-      },
-      {
-        "id": "1e91d180-cba3-418e-a786-689c537cfbaa",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": null,
-        "action": "SWITCH_CONTEXT_ORGANIZATION",
-        "entity": "ORGANIZATION",
-        "entityId": "11111111-1111-4111-8111-111111111111",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Context Manager",
-        "oldValues": null,
-        "newValues": {
-          "activeOrgId": "11111111-1111-4111-8111-111111111111",
-          "name": "Clínica Odontológica OdontoSol S.R.L."
-        },
-        "description": "Cambio de contexto activo de navegación a: Clínica Odontológica OdontoSol S.R.L.",
-        "createdAt": "2026-09-29T16:45:57.205Z"
-      },
-      {
-        "id": "83cdbb7f-7678-48c8-a93b-06e72a690ee8",
-        "organizationId": "ea191a62-34fd-423a-926f-cb1e02b3d38b",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "SESSION_REVOCATION",
-        "entity": "USER_SESSION",
-        "entityId": "33333333-3333-4333-8333-333333333332",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Security Manager",
-        "oldValues": null,
-        "newValues": {
-          "revokedAt": "2026-09-29T16:45:18.953Z",
-          "userId": "33333333-3333-4333-8333-333333333332"
-        },
-        "description": "Revocación forzosa inmediata de todas las sesiones activas para Dra. Valeria Gómez Benítez (valeria.gomez@odontosol.com.py)",
-        "createdAt": "2026-09-29T16:45:18.953Z"
-      },
-      {
-        "id": "5e8a1b7d-c1be-43b5-9d83-fcff2d99b4a4",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "USER_PERMISSIONS_OVERRIDE",
-        "entity": "USER_SECURITY",
-        "entityId": "33333333-3333-4333-8333-333333333332",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Security Governance",
-        "oldValues": {
-          "customPermissions": [
-            "cash.open_close",
-            "reports.financial"
-          ],
-          "revokedPermissions": [],
-          "assignedRestrictions": [
-            "restrict_financial_to_cashiers"
-          ],
-          "allowedNavTabs": [
-            "agenda",
-            "patients"
-          ]
-        },
-        "newValues": {
-          "customPermissions": [],
-          "revokedPermissions": [],
-          "assignedRestrictions": [],
-          "allowedNavTabs": [
-            "dashboard",
-            "agenda"
-          ],
-          "permissionsVersion": 5
-        },
-        "description": "Ajuste granular de permisos y restricciones para Dra. Valeria Gómez Benítez (valeria.gomez@odontosol.com.py). Grants: 0, Revocaciones: 0, Restricciones: 0.",
-        "createdAt": "2026-09-29T16:45:18.951Z"
-      },
-      {
-        "id": "cb330611-5f09-4af8-aa25-15477d59251e",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "USER_PERMISSIONS_OVERRIDE",
-        "entity": "USER_SECURITY",
-        "entityId": "33333333-3333-4333-8333-333333333332",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Security Governance",
-        "oldValues": {
-          "customPermissions": [
-            "cash.open_close",
-            "reports.financial"
-          ],
-          "revokedPermissions": [],
-          "assignedRestrictions": [
-            "restrict_financial_to_cashiers"
-          ],
-          "allowedNavTabs": []
-        },
-        "newValues": {
-          "customPermissions": [
-            "cash.open_close",
-            "reports.financial"
-          ],
-          "revokedPermissions": [],
-          "assignedRestrictions": [
-            "restrict_financial_to_cashiers"
-          ],
-          "allowedNavTabs": [
-            "agenda",
-            "patients"
-          ],
-          "permissionsVersion": 4
-        },
-        "description": "Ajuste granular de permisos y restricciones para Dra. Valeria Gómez Benítez (valeria.gomez@odontosol.com.py). Grants: 2, Revocaciones: 0, Restricciones: 1.",
-        "createdAt": "2026-09-29T16:45:18.947Z"
-      },
-      {
-        "id": "305929bd-35e1-4011-816e-2fe8d5ef20fc",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "USER_PERMISSIONS_OVERRIDE",
-        "entity": "USER_SECURITY",
-        "entityId": "33333333-3333-4333-8333-333333333332",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Security Governance",
-        "oldValues": {
-          "customPermissions": [
-            "reports.financial"
-          ],
-          "revokedPermissions": [
-            "clinical.view"
-          ],
-          "assignedRestrictions": [],
-          "allowedNavTabs": []
-        },
-        "newValues": {
-          "customPermissions": [
-            "cash.open_close",
-            "reports.financial"
-          ],
-          "revokedPermissions": [],
-          "assignedRestrictions": [
-            "restrict_financial_to_cashiers"
-          ],
-          "allowedNavTabs": [],
-          "permissionsVersion": 3
-        },
-        "description": "Ajuste granular de permisos y restricciones para Dra. Valeria Gómez Benítez (valeria.gomez@odontosol.com.py). Grants: 2, Revocaciones: 0, Restricciones: 1.",
-        "createdAt": "2026-09-29T16:45:18.945Z"
-      },
-      {
-        "id": "c28a322b-6f59-4a44-b347-79e083d051b5",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "USER_PERMISSIONS_OVERRIDE",
-        "entity": "USER_SECURITY",
-        "entityId": "33333333-3333-4333-8333-333333333332",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Security Governance",
-        "oldValues": {
-          "customPermissions": [],
-          "revokedPermissions": [
-            "clinical.view"
-          ],
-          "assignedRestrictions": [],
-          "allowedNavTabs": []
-        },
-        "newValues": {
-          "customPermissions": [
-            "reports.financial"
-          ],
-          "revokedPermissions": [
-            "clinical.view"
-          ],
-          "assignedRestrictions": [],
-          "allowedNavTabs": [],
-          "permissionsVersion": 2
-        },
-        "description": "Ajuste granular de permisos y restricciones para Dra. Valeria Gómez Benítez (valeria.gomez@odontosol.com.py). Grants: 1, Revocaciones: 1, Restricciones: 0.",
-        "createdAt": "2026-09-29T16:45:18.943Z"
-      },
-      {
-        "id": "604566c9-c090-4e78-b9e5-b0e7cbdbbb9a",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "USER_PERMISSIONS_OVERRIDE",
-        "entity": "USER_SECURITY",
-        "entityId": "33333333-3333-4333-8333-333333333332",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Security Governance",
-        "oldValues": {
-          "customPermissions": [],
-          "revokedPermissions": [],
-          "assignedRestrictions": [],
-          "allowedNavTabs": []
-        },
-        "newValues": {
-          "customPermissions": [],
-          "revokedPermissions": [
-            "clinical.view"
-          ],
-          "assignedRestrictions": [],
-          "allowedNavTabs": [],
-          "permissionsVersion": 1
-        },
-        "description": "Ajuste granular de permisos y restricciones para Dra. Valeria Gómez Benítez (valeria.gomez@odontosol.com.py). Grants: 0, Revocaciones: 1, Restricciones: 0.",
-        "createdAt": "2026-09-29T16:45:18.939Z"
-      },
-      {
-        "id": "8c0aa68a-3793-4f0f-a1b6-3e96d14bd867",
-        "organizationId": "ea191a62-34fd-423a-926f-cb1e02b3d38b",
-        "branchId": null,
-        "userId": "b27f7d5f-c75b-45d2-8dd8-2b6a29c9013e",
-        "action": "UPDATE",
-        "entity": "ORGANIZATION",
-        "entityId": "ea191a62-34fd-423a-926f-cb1e02b3d38b",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Web Admin",
-        "oldValues": null,
-        "newValues": {
-          "phone": "+595 21 999 888",
-          "address": "Nueva Dirección Comercial 1234, Asunción"
-        },
-        "description": "Actualización de parámetros institucionales de la clínica (Clínica Dental Asunción Este S.A.)",
-        "createdAt": "2026-09-29T16:43:15.304Z"
-      },
-      {
-        "id": "cc81ee26-a91c-44a5-9017-6e7224dac70f",
-        "organizationId": "ea191a62-34fd-423a-926f-cb1e02b3d38b",
-        "branchId": null,
-        "userId": "b27f7d5f-c75b-45d2-8dd8-2b6a29c9013e",
-        "action": "ACCESS_DENIED_SECURITY",
-        "entity": "ORGANIZATION",
-        "entityId": "11111111-1111-4111-8111-111111111111",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "Node.js/22",
-        "oldValues": null,
-        "newValues": null,
-        "description": "Intento denegado de conmutar a organización ajena (11111111-1111-4111-8111-111111111111) por usuario con rol ADMIN_ORGANIZACION.",
-        "createdAt": "2026-09-29T16:43:15.302Z"
-      },
-      {
-        "id": "a68d0be1-c8fc-4c25-a16e-95df8538e84f",
-        "organizationId": "ea191a62-34fd-423a-926f-cb1e02b3d38b",
-        "branchId": null,
-        "userId": null,
-        "action": "SWITCH_CONTEXT_ORGANIZATION",
-        "entity": "ORGANIZATION",
-        "entityId": "ea191a62-34fd-423a-926f-cb1e02b3d38b",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Context Manager",
-        "oldValues": null,
-        "newValues": {
-          "activeOrgId": "ea191a62-34fd-423a-926f-cb1e02b3d38b",
-          "name": "Clínica Dental Asunción Este S.A."
-        },
-        "description": "Cambio de contexto activo de navegación a: Clínica Dental Asunción Este S.A.",
-        "createdAt": "2026-09-29T16:43:15.299Z"
-      },
-      {
-        "id": "45b7ece5-467a-45bb-be18-a7524914f5ca",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": null,
-        "action": "SWITCH_CONTEXT_ORGANIZATION",
-        "entity": "ORGANIZATION",
-        "entityId": "11111111-1111-4111-8111-111111111111",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Context Manager",
-        "oldValues": null,
-        "newValues": {
-          "activeOrgId": "11111111-1111-4111-8111-111111111111",
-          "name": "Clínica Odontológica OdontoSol S.R.L."
-        },
-        "description": "Cambio de contexto activo de navegación a: Clínica Odontológica OdontoSol S.R.L.",
-        "createdAt": "2026-09-29T16:43:15.282Z"
-      },
-      {
-        "id": "cc4c1c71-752c-41b9-897f-8eae7dde5439",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "CREATE",
-        "entity": "ORGANIZATION",
-        "entityId": "ea191a62-34fd-423a-926f-cb1e02b3d38b",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Multi-Tenant Admin",
-        "oldValues": null,
-        "newValues": {
-          "id": "ea191a62-34fd-423a-926f-cb1e02b3d38b",
-          "code": "ORG-801234567",
-          "name": "Clínica Dental Asunción Este S.A.",
-          "legalName": "Clínica Dental Asunción Este Sociedad Anónima",
-          "taxId": "80123456-7",
-          "countryCode": "PRY",
-          "defaultCurrency": "PYG",
-          "timezone": "America/Asuncion",
-          "status": "ACTIVE",
-          "phone": "+595 21 654 321",
-          "email": "contacto@asuncioneste.com.py",
-          "address": "Av. Eusebio Ayala 3450, Asunción",
-          "primaryColor": "cyan",
-          "createdAt": "2026-09-29T16:43:14.676Z",
-          "updatedAt": "2026-09-29T16:43:14.676Z"
-        },
-        "description": "Creación de nueva Organización / Cliente: Clínica Dental Asunción Este S.A. (RUC: 80123456-7)",
-        "createdAt": "2026-09-29T16:43:14.676Z"
-      },
-      {
-        "id": "f08afa68-56ab-4cdf-ae6c-0c0695ad88e3",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": null,
-        "action": "SWITCH_CONTEXT_ORGANIZATION",
-        "entity": "ORGANIZATION",
-        "entityId": "11111111-1111-4111-8111-111111111111",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Context Manager",
-        "oldValues": null,
-        "newValues": {
-          "activeOrgId": "11111111-1111-4111-8111-111111111111",
-          "name": "Clínica Odontológica OdontoSol S.R.L."
-        },
-        "description": "Cambio de contexto activo de navegación a: Clínica Odontológica OdontoSol S.R.L.",
-        "createdAt": "2026-09-29T16:43:14.670Z"
-      },
-      {
-        "id": "3b393b5b-99b1-4c38-b89a-c0e4cca6fcf8",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": null,
-        "action": "SWITCH_CONTEXT_ORGANIZATION",
-        "entity": "ORGANIZATION",
-        "entityId": "11111111-1111-4111-8111-111111111111",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Context Manager",
-        "oldValues": null,
-        "newValues": {
-          "activeOrgId": "11111111-1111-4111-8111-111111111111",
-          "name": "Clínica Odontológica OdontoSol S.R.L."
-        },
-        "description": "Cambio de contexto activo de navegación a: Clínica Odontológica OdontoSol S.R.L.",
-        "createdAt": "2026-09-29T16:39:06.321Z"
-      },
-      {
-        "id": "9c5ab50a-3910-4f06-91cf-60f27970bbdf",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "CREATE",
-        "entity": "ORGANIZATION",
-        "entityId": "f9811ee7-9120-4be9-a69d-8009c977c22e",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Multi-Tenant Admin",
-        "oldValues": null,
-        "newValues": {
-          "id": "f9811ee7-9120-4be9-a69d-8009c977c22e",
-          "code": "ORG-801234567",
-          "name": "Clínica Dental Asunción Este S.A.",
-          "legalName": "Clínica Dental Asunción Este Sociedad Anónima",
-          "taxId": "80123456-7",
-          "countryCode": "PRY",
-          "defaultCurrency": "PYG",
-          "timezone": "America/Asuncion",
-          "status": "ACTIVE",
-          "phone": "+595 21 654 321",
-          "email": "contacto@asuncioneste.com.py",
-          "address": "Av. Eusebio Ayala 3450, Asunción",
-          "primaryColor": "cyan",
-          "createdAt": "2026-09-29T16:39:05.716Z",
-          "updatedAt": "2026-09-29T16:39:05.716Z"
-        },
-        "description": "Creación de nueva Organización / Cliente: Clínica Dental Asunción Este S.A. (RUC: 80123456-7)",
-        "createdAt": "2026-09-29T16:39:05.716Z"
-      },
-      {
-        "id": "b024a750-6fd3-4b45-a9e4-2b1ef4f65e05",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": null,
-        "action": "SWITCH_CONTEXT_ORGANIZATION",
-        "entity": "ORGANIZATION",
-        "entityId": "11111111-1111-4111-8111-111111111111",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Context Manager",
-        "oldValues": null,
-        "newValues": {
-          "activeOrgId": "11111111-1111-4111-8111-111111111111",
-          "name": "Clínica Odontológica OdontoSol S.R.L."
-        },
-        "description": "Cambio de contexto activo de navegación a: Clínica Odontológica OdontoSol S.R.L.",
-        "createdAt": "2026-09-29T16:39:05.711Z"
-      },
-      {
-        "id": "2c1ed7aa-ec15-4460-ad06-1bb5c429a3c7",
-        "organizationId": "fb1b7c58-a1f5-4573-a2f1-5ab925ff7809",
-        "branchId": null,
-        "userId": "b27f7d5f-c75b-45d2-8dd8-2b6a29c9013e",
-        "action": "UPDATE",
-        "entity": "ORGANIZATION",
-        "entityId": "fb1b7c58-a1f5-4573-a2f1-5ab925ff7809",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Web Admin",
-        "oldValues": null,
-        "newValues": {
-          "phone": "+595 21 999 888",
-          "address": "Nueva Dirección Comercial 1234, Asunción"
-        },
-        "description": "Actualización de parámetros institucionales de la clínica (Clínica Dental Asunción Este S.A.)",
-        "createdAt": "2026-09-29T13:00:53.279Z"
-      },
-      {
-        "id": "41e2a623-6372-4f9a-9661-8fbccd18037d",
-        "organizationId": "fb1b7c58-a1f5-4573-a2f1-5ab925ff7809",
-        "branchId": null,
-        "userId": "b27f7d5f-c75b-45d2-8dd8-2b6a29c9013e",
-        "action": "ACCESS_DENIED_SECURITY",
-        "entity": "ORGANIZATION",
-        "entityId": "11111111-1111-4111-8111-111111111111",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "Node.js/22",
-        "oldValues": null,
-        "newValues": null,
-        "description": "Intento denegado de conmutar a organización ajena (11111111-1111-4111-8111-111111111111) por usuario con rol ADMIN_ORGANIZACION.",
-        "createdAt": "2026-09-29T13:00:53.277Z"
-      },
-      {
-        "id": "8f21437d-86d8-442c-960e-07d2ada2fe04",
-        "organizationId": "fb1b7c58-a1f5-4573-a2f1-5ab925ff7809",
-        "branchId": null,
-        "userId": null,
-        "action": "SWITCH_CONTEXT_ORGANIZATION",
-        "entity": "ORGANIZATION",
-        "entityId": "fb1b7c58-a1f5-4573-a2f1-5ab925ff7809",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Context Manager",
-        "oldValues": null,
-        "newValues": {
-          "activeOrgId": "fb1b7c58-a1f5-4573-a2f1-5ab925ff7809",
-          "name": "Clínica Dental Asunción Este S.A."
-        },
-        "description": "Cambio de contexto activo de navegación a: Clínica Dental Asunción Este S.A.",
-        "createdAt": "2026-09-29T13:00:53.274Z"
-      },
-      {
-        "id": "092ecd9b-415f-41aa-9d16-8d360346d476",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": null,
-        "action": "SWITCH_CONTEXT_ORGANIZATION",
-        "entity": "ORGANIZATION",
-        "entityId": "11111111-1111-4111-8111-111111111111",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Context Manager",
-        "oldValues": null,
-        "newValues": {
-          "activeOrgId": "11111111-1111-4111-8111-111111111111",
-          "name": "Clínica Odontológica OdontoSol S.R.L."
-        },
-        "description": "Cambio de contexto activo de navegación a: Clínica Odontológica OdontoSol S.R.L.",
-        "createdAt": "2026-09-29T13:00:53.257Z"
-      },
-      {
-        "id": "f1ab94eb-0de9-485f-bf73-0ece3ca8e6bf",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "action": "CREATE",
-        "entity": "ORGANIZATION",
-        "entityId": "fb1b7c58-a1f5-4573-a2f1-5ab925ff7809",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Multi-Tenant Admin",
-        "oldValues": null,
-        "newValues": {
-          "id": "fb1b7c58-a1f5-4573-a2f1-5ab925ff7809",
-          "code": "ORG-801234567",
-          "name": "Clínica Dental Asunción Este S.A.",
-          "legalName": "Clínica Dental Asunción Este Sociedad Anónima",
-          "taxId": "80123456-7",
-          "countryCode": "PRY",
-          "defaultCurrency": "PYG",
-          "timezone": "America/Asuncion",
-          "status": "ACTIVE",
-          "phone": "+595 21 654 321",
-          "email": "contacto@asuncioneste.com.py",
-          "address": "Av. Eusebio Ayala 3450, Asunción",
-          "primaryColor": "cyan",
-          "createdAt": "2026-09-29T13:00:52.654Z",
-          "updatedAt": "2026-09-29T13:00:52.654Z"
-        },
-        "description": "Creación de nueva Organización / Cliente: Clínica Dental Asunción Este S.A. (RUC: 80123456-7)",
-        "createdAt": "2026-09-29T13:00:52.654Z"
-      },
-      {
-        "id": "45c5c6ce-f85a-4ffb-a37c-ee32af4df2d4",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "branchId": null,
-        "userId": null,
-        "action": "SWITCH_CONTEXT_ORGANIZATION",
-        "entity": "ORGANIZATION",
-        "entityId": "11111111-1111-4111-8111-111111111111",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Context Manager",
-        "oldValues": null,
-        "newValues": {
-          "activeOrgId": "11111111-1111-4111-8111-111111111111",
-          "name": "Clínica Odontológica OdontoSol S.R.L."
-        },
-        "description": "Cambio de contexto activo de navegación a: Clínica Odontológica OdontoSol S.R.L.",
-        "createdAt": "2026-09-29T13:00:52.648Z"
+        "createdAt": "2026-09-29T17:15:18.531Z"
       },
       {
         "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
@@ -2535,6 +1604,14 @@
         "description": "Inicio de sesión exitoso con credenciales de Super Administrador",
         "createdAt": "2026-09-21T07:15:00.000Z"
       }
+    ],
+    "regulatoryRestrictions": [
+      "rest.mspbs.require_license_clinical",
+      "rest.mspbs.lock_clinical_after_sign",
+      "rest.mspbs.prohibit_hard_deletion_clinical",
+      "rest.mspbs.anonymize_sensitive_export",
+      "rest.mspbs.restrict_financial_to_cashiers",
+      "rest.mspbs.block_unassigned_branch_access"
     ]
   },
   "organizationsList": [
@@ -2550,74 +1627,6 @@
       "status": "ACTIVE",
       "createdAt": "2026-01-10T08:00:00.000Z",
       "updatedAt": "2026-01-10T08:00:00.000Z"
-    },
-    {
-      "id": "fb1b7c58-a1f5-4573-a2f1-5ab925ff7809",
-      "code": "ORG-801234567",
-      "name": "Clínica Dental Asunción Este S.A.",
-      "legalName": "Clínica Dental Asunción Este Sociedad Anónima",
-      "taxId": "80123456-7",
-      "countryCode": "PRY",
-      "defaultCurrency": "PYG",
-      "timezone": "America/Asuncion",
-      "status": "ACTIVE",
-      "phone": "+595 21 999 888",
-      "email": "contacto@asuncioneste.com.py",
-      "address": "Nueva Dirección Comercial 1234, Asunción",
-      "primaryColor": "cyan",
-      "createdAt": "2026-09-29T13:00:52.654Z",
-      "updatedAt": "2026-09-29T13:00:53.279Z"
-    },
-    {
-      "id": "f9811ee7-9120-4be9-a69d-8009c977c22e",
-      "code": "ORG-801234567",
-      "name": "Clínica Dental Asunción Este S.A.",
-      "legalName": "Clínica Dental Asunción Este Sociedad Anónima",
-      "taxId": "80123456-7",
-      "countryCode": "PRY",
-      "defaultCurrency": "PYG",
-      "timezone": "America/Asuncion",
-      "status": "ACTIVE",
-      "phone": "+595 21 654 321",
-      "email": "contacto@asuncioneste.com.py",
-      "address": "Av. Eusebio Ayala 3450, Asunción",
-      "primaryColor": "cyan",
-      "createdAt": "2026-09-29T16:39:05.716Z",
-      "updatedAt": "2026-09-29T16:39:05.716Z"
-    },
-    {
-      "id": "ea191a62-34fd-423a-926f-cb1e02b3d38b",
-      "code": "ORG-801234567",
-      "name": "Clínica Dental Asunción Este S.A.",
-      "legalName": "Clínica Dental Asunción Este Sociedad Anónima",
-      "taxId": "80123456-7",
-      "countryCode": "PRY",
-      "defaultCurrency": "PYG",
-      "timezone": "America/Asuncion",
-      "status": "ACTIVE",
-      "phone": "+595 21 999 888",
-      "email": "contacto@asuncioneste.com.py",
-      "address": "Nueva Dirección Comercial 1234, Asunción",
-      "primaryColor": "cyan",
-      "createdAt": "2026-09-29T16:43:14.676Z",
-      "updatedAt": "2026-09-29T16:43:15.304Z"
-    },
-    {
-      "id": "064c39f5-5ded-4050-97ee-4a941a506a53",
-      "code": "ORG-801234567",
-      "name": "Clínica Dental Asunción Este S.A.",
-      "legalName": "Clínica Dental Asunción Este Sociedad Anónima",
-      "taxId": "80123456-7",
-      "countryCode": "PRY",
-      "defaultCurrency": "PYG",
-      "timezone": "America/Asuncion",
-      "status": "ACTIVE",
-      "phone": "+595 21 999 888",
-      "email": "contacto@asuncioneste.com.py",
-      "address": "Nueva Dirección Comercial 1234, Asunción",
-      "primaryColor": "cyan",
-      "createdAt": "2026-09-29T16:46:13.179Z",
-      "updatedAt": "2026-09-29T16:46:13.813Z"
     }
   ]
 }

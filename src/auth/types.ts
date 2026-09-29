@@ -44,7 +44,8 @@ export interface UserSession {
 }
 
 export interface AuthCredentials {
-  email: string;
+  email: string; // Correo electrónico o Nombre de usuario
+  username?: string;
   password?: string;
   branchId?: string;
   rememberMe?: boolean;

@@ -54,6 +54,8 @@ function MainApplication() {
     let isAllowed = false;
     if (session.role === 'SUPER_ADMIN') {
       isAllowed = true;
+    } else if (session.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0) {
+      isAllowed = session.allowedNavTabs.includes(activeTab);
     } else if (roleObj?.allowedNavTabs) {
       isAllowed = roleObj.allowedNavTabs.includes(activeTab);
     } else if (currentNavItem) {
@@ -61,8 +63,10 @@ function MainApplication() {
     }
 
     if (!isAllowed) {
-      // Buscar la primera pestaña permitida para su rol
-      if (roleObj?.allowedNavTabs && roleObj.allowedNavTabs.length > 0) {
+      // Buscar la primera pestaña permitida para su usuario o rol
+      if (session.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0) {
+        setActiveTab(session.allowedNavTabs[0] as TabType);
+      } else if (roleObj?.allowedNavTabs && roleObj.allowedNavTabs.length > 0) {
         setActiveTab(roleObj.allowedNavTabs[0] as TabType);
       } else {
         const firstAllowed = ALL_NAV_ITEMS.find((item) => item.allowedRoles.includes(session.role));
@@ -71,7 +75,7 @@ function MainApplication() {
         }
       }
     }
-  }, [session?.role]);
+  }, [session?.role, session?.permissionsVersion, session?.allowedNavTabs]);
 
   if (!isAuthenticated) {
     return <LoginScreen />;
