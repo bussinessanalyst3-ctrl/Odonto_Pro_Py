@@ -464,15 +464,15 @@
         "professionalLicense": null,
         "specialty": "Dirección General & Auditoría Global",
         "status": "ACTIVE",
-        "lastLoginAt": "2026-09-30T12:16:32.725Z",
+        "lastLoginAt": "2026-09-30T12:28:47.651Z",
         "createdAt": "2026-01-08T08:00:00.000Z",
         "updatedAt": "2026-01-08T08:00:00.000Z",
         "customPermissions": [],
         "revokedPermissions": [],
         "assignedRestrictions": [],
         "permissionsVersion": 1,
-        "passwordHash": "cff443a9ff9e703b0965c3bd6b7250781659fa213d237a39254f8a2927570691",
-        "passwordSalt": "dc7b5474eb79d83062d731f1e0932f26",
+        "passwordHash": "57a0077729ac1cf0d45e9bf7ba66558e20875a3a236a5e9679608dcb7bdc3536",
+        "passwordSalt": "7e0adba6a51a19527fb04d07f8ab68bd",
         "passwordIterations": 100000
       }
     ],
@@ -1278,6 +1278,23 @@
       }
     ],
     "auditLogs": [
+      {
+        "id": "efa353f2-669e-4235-97cd-4e4025dcf14c",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "branchId": null,
+        "userId": "33333333-3333-4333-8333-333333333330",
+        "action": "LOGIN_FAILED",
+        "entity": "AUTH",
+        "entityId": "33333333-3333-4333-8333-333333333330",
+        "ipAddress": "127.0.0.1",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+        "oldValues": null,
+        "newValues": {
+          "attempts": 1
+        },
+        "description": "Intento de acceso fallido para cuenta protegida",
+        "createdAt": "2026-09-30T12:25:08.087Z"
+      },
       {
         "id": "audit-controlled-cleanup-1790770565927",
         "organizationId": "11111111-1111-4111-8111-111111111111",
