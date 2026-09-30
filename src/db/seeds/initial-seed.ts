@@ -194,6 +194,7 @@ export function generateInitialSeedData(): SeedDataResult {
   }));
 
   // 4. Usuarios (Jerarquía RBAC Completa y Protegida)
+  const userOwnerAdminId = '33333333-3333-4333-8333-333333333330';
   const userAdminId = '33333333-3333-4333-8333-333333333331';
   const userOrgAdminId = '33333333-3333-4333-8333-333333333334';
   const userBranchAdminId = '33333333-3333-4333-8333-333333333335';
@@ -203,6 +204,25 @@ export function generateInitialSeedData(): SeedDataResult {
 
   const users = [
     {
+      id: userOwnerAdminId,
+      organizationId: orgId,
+      roleId: 'SUPER_ADMIN',
+      username: 'bussinessanalyst3',
+      firstName: 'Business Analyst',
+      lastName: 'Administrador Principal',
+      email: 'bussinessanalyst3@gmail.com',
+      passwordHash: 'cff443a9ff9e703b0965c3bd6b7250781659fa213d237a39254f8a2927570691',
+      passwordSalt: 'dc7b5474eb79d83062d731f1e0932f26',
+      passwordIterations: 100000,
+      phone: '+595 981 100 200',
+      professionalLicense: null,
+      specialty: 'Dirección General & Auditoría Global',
+      status: 'ACTIVE',
+      lastLoginAt: new Date(),
+      createdAt: new Date('2026-01-08T08:00:00.000Z'),
+      updatedAt: new Date('2026-01-08T08:00:00.000Z'),
+    },
+    {
       id: userAdminId,
       organizationId: orgId,
       roleId: 'SUPER_ADMIN',
@@ -210,8 +230,8 @@ export function generateInitialSeedData(): SeedDataResult {
       firstName: 'Lucas Eliezer',
       lastName: 'Arrua Almada',
       email: 'lucas.arrua@odontosol.com.py',
-      passwordHash: 'c7faa19f44e9c48ba7dea5fe732615a7ef88be969ba09addb7d2ec14ddd988b6',
-      passwordSalt: 'c8d0b03515a26fc11a2a6093d16b7e53',
+      passwordHash: '59a71110adc2f24254181100c744d6289ff20f2bb204d6a3d1092f2ce8e162c1',
+      passwordSalt: '428f297dfd1ecf1e754760911656a565',
       passwordIterations: 100000,
       phone: '+595 981 123 456',
       professionalLicense: null,
@@ -229,8 +249,8 @@ export function generateInitialSeedData(): SeedDataResult {
       firstName: 'Lic. Sofía',
       lastName: 'Benítez Cantero',
       email: 'sofia.benitez@odontosol.com.py',
-      passwordHash: 'd5954396200c0c210e2d682e636f11ba28a81081249696aa4627e70aa8c2d765',
-      passwordSalt: 'a1b2c3d4e5f60718293a4b5c6d7e8f90',
+      passwordHash: 'cc7eed037ae593c4c539d73bc34dcea0da3900333861712208d44ade1c1a27df',
+      passwordSalt: 'b20f2067ee4b242a71f0ec5393c9517f',
       passwordIterations: 100000,
       phone: '+595 981 444 555',
       professionalLicense: null,
@@ -248,8 +268,8 @@ export function generateInitialSeedData(): SeedDataResult {
       firstName: 'Marcos',
       lastName: 'Vega Portillo',
       email: 'marcos.vega@odontosol.com.py',
-      passwordHash: '37c18c6421b20c90b470d1b2602be6b39cbd3755e88e1b15a446493bc08e1c6f',
-      passwordSalt: 'b2c3d4e5f6a10718293a4b5c6d7e8f91',
+      passwordHash: 'e2013e4b2419fc0377517b01f2542d32451f5a6a534399416b4eae7d36e5aa06',
+      passwordSalt: '9220793fd6c39187ee0ecc886bfaebcd',
       passwordIterations: 100000,
       phone: '+595 981 888 999',
       professionalLicense: null,
@@ -267,8 +287,8 @@ export function generateInitialSeedData(): SeedDataResult {
       firstName: 'Dra. Valeria',
       lastName: 'Gómez Benítez',
       email: 'valeria.gomez@odontosol.com.py',
-      passwordHash: '0694ec65030530c316ee28752e80f36fb9ab34fa648fc9271293204f36c7ffe5',
-      passwordSalt: 'd732d424dc490c7db086171d851007b1',
+      passwordHash: '66215299820b727075b9ca5aa2464d8ca60b37a7482573e4e7ff16e0658a40ac',
+      passwordSalt: '4d875d080ea582880171bcd0693662da',
       passwordIterations: 100000,
       phone: '+595 982 777 888',
       professionalLicense: 'MSPBS N° 14.821 / Reg. Odontológico',
@@ -286,8 +306,8 @@ export function generateInitialSeedData(): SeedDataResult {
       firstName: 'Carlos Alberto',
       lastName: 'Mendoza Duarte',
       email: 'carlos.mendoza@odontosol.com.py',
-      passwordHash: '0c39d10385f8ca52969fac70af385363297ebd5c6a3fb42a51b72ec2fcea1159',
-      passwordSalt: '4fce4815eaacaf6c75a92e7bb6628b64',
+      passwordHash: 'a0ef7da80c8d2b91d6e742d85017f85c052a90be7acd1ec8e4cc07d2cb03009e',
+      passwordSalt: '5afc6c5db4da31769a5ad9e583c1fa51',
       passwordIterations: 100000,
       phone: '+595 971 333 444',
       professionalLicense: null,
@@ -305,8 +325,8 @@ export function generateInitialSeedData(): SeedDataResult {
       firstName: 'Ana Sofía',
       lastName: 'Giménez Romero',
       email: 'ana.gimenez@odontosol.com.py',
-      passwordHash: '13cabde16c7759eb8fafe4e995370a0a8d06fb400cb0cce6260c6a9be2f2d94c',
-      passwordSalt: 'e5f6a1b2c3d40718293a4b5c6d7e8f92',
+      passwordHash: 'efbe3452fdf2acfadec5c2aa67fb229ef0aa9021f4aa87f2ceb4d4f7fae0015b',
+      passwordSalt: 'eb6f10edbd6e832b0434efe501717c0b',
       passwordIterations: 100000,
       phone: '+595 981 222 333',
       professionalLicense: null,
@@ -319,6 +339,9 @@ export function generateInitialSeedData(): SeedDataResult {
   ];
 
   const userBranches = [
+    { userId: userOwnerAdminId, branchId: branchAsuId, isDefault: true, createdAt: new Date() },
+    { userId: userOwnerAdminId, branchId: branchSloId, isDefault: false, createdAt: new Date() },
+    { userId: userOwnerAdminId, branchId: branchLuqId, isDefault: false, createdAt: new Date() },
     { userId: userAdminId, branchId: branchAsuId, isDefault: true, createdAt: new Date() },
     { userId: userAdminId, branchId: branchSloId, isDefault: false, createdAt: new Date() },
     { userId: userAdminId, branchId: branchLuqId, isDefault: false, createdAt: new Date() },

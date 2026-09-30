@@ -735,42 +735,18 @@ class DatabaseStore {
     });
     if (matchPrefix) return matchPrefix;
 
-    // 4. Soporte para alias directos de administración y roles institucionales
+    // 4. Soporte para cuenta principal de administración
     if (
-      safe === 'admin@odontosol.com.py' ||
-      safe === 'superadmin@odontosol.com.py' ||
-      safe === 'admin@odontopro.com.py' ||
-      safe === 'admin' ||
-      safe === 'superadmin' ||
-      safe === 'lucas' ||
-      safe === 'lucas.arrua'
+      safe === 'bussinessanalyst3@gmail.com' ||
+      safe === 'bussinessanalyst3' ||
+      safe === 'businessanalyst3@gmail.com' ||
+      safe === 'businessanalyst3'
     ) {
-      return this.data.users.find((u) => u.roleId === 'SUPER_ADMIN') || this.data.users[0] || null;
+      return this.data.users.find((u) => u.username === 'bussinessanalyst3' || u.email === 'bussinessanalyst3@gmail.com') || null;
     }
 
-    if (
-      safe === 'sofia' ||
-      safe === 'sofia.benitez' ||
-      safe === 'adminorg' ||
-      safe === 'orgadmin@odontosol.com.py'
-    ) {
-      return this.data.users.find((u) => u.roleId === 'ADMIN_ORGANIZACION') || null;
-    }
-
-    if (safe === 'marcos' || safe === 'marcos.vega' || safe === 'adminsucursal') {
-      return this.data.users.find((u) => u.roleId === 'ADMIN_SUCURSAL') || null;
-    }
-
-    if (safe === 'valeria' || safe === 'valeria.gomez' || safe === 'odontologo' || safe === 'dentista') {
-      return this.data.users.find((u) => u.roleId === 'ODONTOLOGO') || null;
-    }
-
-    if (safe === 'ana' || safe === 'ana.gimenez' || safe === 'recepcion') {
-      return this.data.users.find((u) => u.roleId === 'RECEPCION') || null;
-    }
-
-    if (safe === 'carlos' || safe === 'carlos.mendoza' || safe === 'caja' || safe === 'cajero') {
-      return this.data.users.find((u) => u.roleId === 'CAJA') || null;
+    if (safe === 'admin' || safe === 'superadmin') {
+      return this.data.users.find((u) => u.roleId === 'SUPER_ADMIN') || null;
     }
 
     return null;
@@ -2154,24 +2130,15 @@ class DatabaseStore {
       throw new Error(`403 Prohibido: No tiene jerarquía para modificar credenciales de este usuario (${user.roleId}).`);
     }
 
-    // Almacenar en el usuario
+    // Almacenar en el usuario de forma segura en memoria
     (user as any).passwordHash = record.hash;
     (user as any).passwordSalt = record.salt;
     (user as any).passwordIterations = record.iterations;
     (user as any).updatedAt = new Date();
 
-    // Guardar también en localStorage para persistencia segura en el navegador
+    // Limpiar claves obsoletas de localStorage si existían de versiones previas
     try {
-      const key = `odontopro_user_pwd_hash_${user.email.toLowerCase()}`;
-      localStorage.setItem(
-        key,
-        JSON.stringify({
-          hash: record.hash,
-          salt: record.salt,
-          iterations: record.iterations,
-          updatedAt: new Date().toISOString(),
-        })
-      );
+      localStorage.removeItem(`odontopro_user_pwd_hash_${user.email.toLowerCase()}`);
     } catch (e) {}
 
     this.data.auditLogs.unshift({
@@ -2194,6 +2161,7 @@ class DatabaseStore {
       createdAt: new Date(),
     });
 
+    this.saveToStorage();
     this.notify();
     return true;
   }
@@ -2209,18 +2177,7 @@ class DatabaseStore {
       }
     }
 
-    const safeEmail = user.email.toLowerCase().trim();
-
-    // 1. Revisar en localStorage si hay hash actualizado
-    try {
-      const key = `odontopro_user_pwd_hash_${safeEmail}`;
-      const item = localStorage.getItem(key);
-      if (item) {
-        return JSON.parse(item);
-      }
-    } catch (e) {}
-
-    // 2. Revisar en memoria
+    // Revisar en memoria
     if ((user as any).passwordSalt && (user as any).passwordHash) {
       return {
         hash: (user as any).passwordHash,

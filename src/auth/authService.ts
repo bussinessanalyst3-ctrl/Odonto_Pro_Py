@@ -51,203 +51,74 @@ class AuthService {
   }
 
   /**
-   * Autenticación Segura PBKDF2 + Anti-Timing Attacks + Protección de Fuerza Bruta
+   * Autenticación Segura PBKDF2 delegada al backend con protección contra Timing Attacks, Enumeración y Fuerza Bruta
    */
   public async login(credentials: AuthCredentials): Promise<LoginResult> {
     const rawPassword = credentials.password || '';
     const cleanedPassword = rawPassword.trim().replace(/[\u200B-\u200D\uFEFF]/g, '');
-    const identifier = (credentials.email || credentials.username || '').trim().toLowerCase().replace(/[\u200B-\u200D\uFEFF]/g, '');
+    const identifier = (credentials.email || credentials.username || '').trim().replace(/[\u200B-\u200D\uFEFF]/g, '');
 
     if (!identifier || !cleanedPassword) {
       return {
         success: false,
-        error: 'Debe ingresar correo electrónico o nombre de usuario y su contraseña.',
+        error: 'Las credenciales ingresadas no son válidas.',
       };
     }
 
-    const isMasterDemoPassword =
-      cleanedPassword === 'OdontoSol2026!' ||
-      cleanedPassword === 'OdontoPro2026!' ||
-      cleanedPassword === 'Admin2026!';
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier,
+          password: cleanedPassword,
+          rememberMe: !!credentials.rememberMe,
+        }),
+      });
 
-    const user = dbStore.findUserByEmailOrUsername(identifier);
-    const trackingKey = user ? user.email.toLowerCase() : identifier;
+      const data = await response.json();
 
-    // 1. Verificar bloqueo por fuerza bruta (la contraseña maestra institucional siempre desbloquea)
-    if (isMasterDemoPassword) {
-      this.resetFailedAttempts(trackingKey);
-      this.resetFailedAttempts(identifier);
-    } else {
-      const lockCheck = this.isLockedOut(trackingKey) || this.isLockedOut(identifier);
-      if (lockCheck.locked) {
+      if (!response.ok || !data.success) {
         return {
           success: false,
-          error: `Acceso temporalmente bloqueado por motivos de seguridad médica tras múltiples intentos fallidos. Intente nuevamente en ${lockCheck.remainingMinutes} minuto(s) o use la contraseña institucional.`,
-          blockedUntilMinutes: lockCheck.remainingMinutes,
-          attemptsLeft: 0,
-        };
-      }
-    }
-
-    // 2. Mitigación de Enumeración de Usuarios (Timing Equalization)
-    // Si el usuario no existe, calculamos un hash ficticio para mantener el tiempo de respuesta idéntico
-    if (!user) {
-      this.recordFailedAttempt(identifier);
-      const remaining = this.getRemainingAttempts(identifier);
-      // Simular verificación criptográfica para equiparar tiempos
-      await verifyPassword(cleanedPassword, '0000000000000000000000000000000000000000000000000000000000000000', '00000000000000000000000000000000');
-      this.logAudit('LOGIN_FAILED', null, null, `Intento de acceso fallido para usuario o correo inexistente: ${identifier}`);
-
-      return {
-        success: false,
-        error: 'Credenciales de acceso incorrectas. Verifique su correo o nombre de usuario y contraseña.',
-        attemptsLeft: remaining,
-      };
-    }
-
-    // Cambiar contexto activo a la organización del usuario
-    const userOrg = dbStore.getOrganizations().find((o) => o.id === user.organizationId) || dbStore.getActiveOrganization();
-    dbStore.switchOrganization(userOrg.id);
-    const snapshot = dbStore.getSnapshot();
-    const org = userOrg;
-
-    // 3. Verificar estado del usuario
-    if (user.status === 'INACTIVE') {
-      return {
-        success: false,
-        error: 'Esta cuenta de usuario se encuentra inactiva. Comuníquese con la Dirección o Administración para su reactivación.',
-      };
-    }
-
-    // 4. Obtener registro de contraseña criptográfica
-    const targetHashRecord = dbStore.getUserPasswordRecord(user.email);
-
-    // 5. Verificación Criptográfica PBKDF2 (100,000 iteraciones + Salt) o Clave Maestra Institucional
-    let passwordMatch = isMasterDemoPassword;
-    if (!passwordMatch && targetHashRecord) {
-      passwordMatch = await verifyPassword(
-        cleanedPassword,
-        targetHashRecord.hash,
-        targetHashRecord.salt,
-        targetHashRecord.iterations
-      );
-    }
-
-    if (!passwordMatch) {
-      this.recordFailedAttempt(trackingKey);
-      this.recordFailedAttempt(identifier);
-      const remaining = this.getRemainingAttempts(trackingKey);
-      this.logAudit('LOGIN_FAILED', org.id, user.id, `Contraseña incorrecta ingresada para ${user.email} (${identifier})`);
-
-      if (remaining === 0) {
-        return {
-          success: false,
-          error: `Ha superado el límite de ${this.maxAttempts} intentos fallidos. Su cuenta ha sido bloqueada temporalmente por ${LOCKOUT_DURATION_MINUTES} minutos como medida de seguridad.`,
-          attemptsLeft: 0,
-          blockedUntilMinutes: LOCKOUT_DURATION_MINUTES,
+          error: data.error || 'Las credenciales ingresadas no son válidas.',
+          locked: data.locked,
+          blockedUntilMinutes: data.remainingMinutes,
         };
       }
 
+      // Sincronizar contexto local del usuario
+      if (data.session) {
+        dbStore.switchOrganization(data.session.organizationId);
+      }
+
+      return {
+        success: true,
+        session: data.session,
+      };
+    } catch (netErr) {
       return {
         success: false,
-        error: `Contraseña incorrecta. Le quedan ${remaining} intento(s) antes del bloqueo preventivo.`,
-        attemptsLeft: remaining,
+        error: 'No se pudo conectar con el servidor de autenticación. Verifique su conexión de red.',
       };
     }
-
-    // 6. Login Exitoso: Limpiar contador de intentos fallidos
-    this.failedAttempts.delete(trackingKey);
-    this.failedAttempts.delete(user.email);
-    this.failedAttempts.delete(identifier);
-
-    // 7. Determinar sucursales autorizadas
-    const userBranchLinks = snapshot.userBranches.filter((ub) => ub.userId === user.id);
-    let allowedBranchIds = userBranchLinks.map((ub) => ub.branchId);
-
-    // Si es Super Administrador, tiene acceso a todas las sucursales del sistema
-    if (user.roleId === 'SUPER_ADMIN') {
-      allowedBranchIds = snapshot.branches.map((b) => b.id);
-    }
-
-    // Si no tiene sucursal asignada explícitamente, asociar la primera sucursal activa
-    if (allowedBranchIds.length === 0 && snapshot.branches.length > 0) {
-      allowedBranchIds = [snapshot.branches[0].id];
-    }
-
-    // Sucursal activa seleccionada o predeterminada
-    let safeBranchId: string;
-    if (credentials.branchId && allowedBranchIds.includes(credentials.branchId)) {
-      safeBranchId = credentials.branchId;
-    } else {
-      const defaultUb = userBranchLinks.find((ub) => ub.isDefault);
-      safeBranchId = defaultUb?.branchId || allowedBranchIds[0] || snapshot.branches[0]?.id || 'branch-default';
-    }
-
-    // 8. Generar token de sesión criptográfico con caducidad configurada (30 días con recordar activo, u 8 horas estándar)
-    const sessionToken = `sess_${crypto.randomUUID().replace(/-/g, '')}`;
-    const now = new Date();
-    const issuedAt = now.toISOString();
-    const effectiveSessionHours = credentials.rememberMe ? 30 * 24 : SESSION_EXPIRATION_HOURS;
-    const expirationMs = effectiveSessionHours * 3600 * 1000;
-    const expiresAt = new Date(now.getTime() + expirationMs).toISOString();
-
-    const roleObj = snapshot.roles.find((r) => r.id === user.roleId);
-    const userEffective = dbStore.getUserEffectivePermissions(user.id);
-
-    const session: UserSession = {
-      userId: user.id,
-      organizationId: org.id,
-      organizationName: org.name,
-      organizationTaxId: org.taxId,
-      role: user.roleId as UserRole,
-      roleName: roleObj ? roleObj.name : user.roleId,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      phone: user.phone,
-      professionalLicense: user.professionalLicense,
-      specialty: user.specialty,
-      allowedBranchIds,
-      currentBranchId: safeBranchId,
-      sessionToken,
-      effectivePermissions: userEffective.effectivePermissions,
-      customPermissions: userEffective.customPermissions,
-      revokedPermissions: userEffective.revokedPermissions,
-      assignedRestrictions: userEffective.activeRestrictions,
-      allowedNavTabs: userEffective.allowedNavTabs,
-      permissionsVersion: (user as any).permissionsVersion || 1,
-      issuedAt,
-      expiresAt,
-      cookieConfig: {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: true,
-        maxAgeSeconds: effectiveSessionHours * 3600,
-      },
-    };
-
-    // Actualizar último login del usuario
-    user.lastLoginAt = new Date();
-
-    // 9. Registrar en auditoría
-    const currentBranch = snapshot.branches.find((b) => b.id === safeBranchId);
-    this.logAudit(
-      'LOGIN_SUCCESS',
-      org.id,
-      user.id,
-      `Inicio de sesión exitoso: ${user.firstName} ${user.lastName} (${session.roleName}) en ${currentBranch?.name || 'Sede Principal'}`
-    );
-
-    return {
-      success: true,
-      session,
-    };
   }
 
   /**
-   * Cierre de sesión seguro y auditoría
+   * Cierre de sesión seguro invalidando token en el servidor y registrando auditoría
    */
   public logout(session: UserSession | null): void {
+    if (session?.sessionToken) {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.sessionToken}`,
+        },
+        body: JSON.stringify({ token: session.sessionToken }),
+      }).catch(() => {});
+    }
+
     if (session) {
       this.logAudit(
         'LOGOUT',
@@ -337,28 +208,65 @@ class AuthService {
   }
 
   /**
-   * Solicitud de restablecimiento de contraseña (procedimiento seguro)
+   * Solicitud de restablecimiento de contraseña (procedimiento seguro contra enumeración de usuarios)
    */
   public async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
     const cleanEmail = email.trim().toLowerCase();
-    const snapshot = dbStore.getSnapshot();
-    const user = snapshot.users.find((u) => u.email.toLowerCase() === cleanEmail);
-
-    if (user) {
-      this.logAudit(
-        'PASSWORD_RESET_REQUESTED',
-        snapshot.organization.id,
-        user.id,
-        `Solicitud de restablecimiento de acceso registrada para ${cleanEmail}`
-      );
+    try {
+      const response = await fetch('/api/auth/recover-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail }),
+      });
+      const data = await response.json();
+      return {
+        success: true,
+        message:
+          data.message ||
+          'Si el correo electrónico ingresado coincide con una cuenta activa, recibirá las instrucciones para restablecer su acceso institucional.',
+      };
+    } catch (e) {
+      return {
+        success: true,
+        message:
+          'Si el correo electrónico ingresado coincide con una cuenta activa, recibirá las instrucciones para restablecer su acceso institucional.',
+      };
     }
+  }
 
-    // Mensaje neutro para evitar enumeración de correos
-    return {
-      success: true,
-      message:
-        'Si el correo electrónico está registrado en el sistema clínico, su solicitud ha sido procesada. Por seguridad institucional, contacte a la Dirección Médica o Administrador General para autorizar su nueva clave temporal.',
-    };
+  /**
+   * Restablecimiento de contraseña con token temporal de un solo uso
+   */
+  public async resetPasswordWithToken(
+    resetToken: string,
+    newPassword: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resetToken: resetToken.trim(),
+          newPassword: newPassword.trim(),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        return {
+          success: false,
+          error: data.error || 'El enlace o token de recuperación es inválido o ha expirado.',
+        };
+      }
+      return {
+        success: true,
+        message: data.message || 'Su contraseña ha sido actualizada con éxito.',
+      };
+    } catch (e: any) {
+      return {
+        success: false,
+        error: e.message || 'Error de comunicación con el servidor al restablecer contraseña.',
+      };
+    }
   }
 
   /**

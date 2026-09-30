@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   User,
   LogOut,
@@ -19,6 +19,23 @@ export const UserSessionMenu: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [isOpen]);
 
   if (!session) return null;
 
@@ -30,10 +47,11 @@ export const UserSessionMenu: React.FC = () => {
       : branches.filter((b) => session.allowedBranchIds.includes(b.id));
 
   return (
-    <div className="relative">
+    <div className="relative" ref={menuRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors shadow-xs text-left"
+        className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors shadow-xs text-left min-h-[44px] min-w-[44px] cursor-pointer"
+        aria-label="Menú de usuario"
       >
         <div className="h-8 w-8 rounded-lg bg-teal-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
           {session.firstName.charAt(0)}
@@ -55,8 +73,7 @@ export const UserSessionMenu: React.FC = () => {
 
       {isOpen && (
         <div
-          className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-slate-200 shadow-xl z-50 p-3 space-y-3"
-          onMouseLeave={() => setIsOpen(false)}
+          className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-24px)] rounded-2xl bg-white border border-slate-200 shadow-2xl z-50 p-3 space-y-3 animate-in fade-in zoom-in-95 duration-100"
         >
           {/* User Details */}
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">

@@ -22,6 +22,7 @@ import { dbStore } from '../db/inMemoryStore.ts';
 import { useAuth } from '../auth/authContext.tsx';
 import { TabType } from './Header.tsx';
 import { formatPYG } from '../db/seeds/paraguay-catalogs.ts';
+import { UserSessionMenu } from './auth/UserSessionMenu.tsx';
 
 interface AppHeaderProps {
   selectedBranchId: string;
@@ -368,10 +369,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             <button
               onClick={handleResetData}
               title="Restaurar datos iniciales de prueba de Paraguay"
-              className="p-2 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors shadow-2xs min-h-[38px] min-w-[38px] flex items-center justify-center shrink-0"
+              className="p-2 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors shadow-2xs min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0 cursor-pointer"
             >
               <RefreshCw className="h-4 w-4" />
             </button>
+
+            {/* Menú de Usuario con perfil y cambio de contraseña */}
+            <UserSessionMenu />
           </div>
         </>
       )}

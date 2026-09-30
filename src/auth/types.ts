@@ -57,6 +57,7 @@ export interface LoginResult {
   error?: string;
   attemptsLeft?: number;
   blockedUntilMinutes?: number;
+  locked?: boolean;
 }
 
 export interface PasswordChangeResult {

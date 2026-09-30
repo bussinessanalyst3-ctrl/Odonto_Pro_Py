@@ -15,6 +15,7 @@ interface AuthContextType {
   quickLoginAs: (role: UserRole) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<PasswordChangeResult>;
   requestPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
+  resetPasswordWithToken: (resetToken: string, newPassword: string) => Promise<{ success: boolean; message?: string; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -183,6 +184,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return authService.requestPasswordReset(email);
   };
 
+  const resetPasswordWithToken = async (resetToken: string, newPassword: string) => {
+    return authService.resetPasswordWithToken(resetToken, newPassword);
+  };
+
   const quickLoginAs = async (role: UserRole) => {
     const snapshot = dbStore.getSnapshot();
     const userWithRole = snapshot.users.find((u) => u.roleId === role);
@@ -247,6 +252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         quickLoginAs,
         changePassword,
         requestPasswordReset,
+        resetPasswordWithToken,
       }}
     >
       {children}

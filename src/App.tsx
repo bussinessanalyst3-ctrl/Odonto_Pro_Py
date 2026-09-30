@@ -27,7 +27,17 @@ import { SecurityHardeningView } from './components/security/SecurityHardeningVi
 import { AutomatedTestingView } from './components/testing/AutomatedTestingView.tsx';
 import { ProductionDeploymentView } from './components/production/ProductionDeploymentView.tsx';
 import { dbStore } from './db/inMemoryStore.ts';
-import { ShieldAlert, ArrowRight } from 'lucide-react';
+import {
+  ShieldAlert,
+  ArrowRight,
+  LayoutDashboard,
+  Calendar,
+  Users,
+  UserCheck,
+  Menu,
+  WalletCards,
+  Stethoscope
+} from 'lucide-react';
 
 function MainApplication() {
   const { isAuthenticated, session } = useAuth();
@@ -129,7 +139,7 @@ function MainApplication() {
         />
 
         {/* Área de Contenido de los Módulos */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-24 lg:pb-8">
           {!isAuthorized ? (
             <div className="max-w-lg mx-auto my-12 p-8 bg-white border border-amber-200 rounded-2xl shadow-sm text-center">
               <div className="h-12 w-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-4">
@@ -200,6 +210,99 @@ function MainApplication() {
           )}
         </main>
       </div>
+
+      {/* Barra de Navegación Inferior Nativa para Móviles (Thumb Navigation) */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-xl px-2 py-1 flex items-center justify-around">
+        <button
+          type="button"
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[56px] cursor-pointer ${
+            activeTab === 'dashboard'
+              ? 'text-teal-700 font-bold bg-teal-50/70'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <LayoutDashboard className={`h-5 w-5 mb-0.5 ${activeTab === 'dashboard' ? 'text-teal-600' : 'text-slate-400'}`} />
+          <span>Inicio</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('agenda')}
+          className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[56px] cursor-pointer ${
+            activeTab === 'agenda'
+              ? 'text-teal-700 font-bold bg-teal-50/70'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Calendar className={`h-5 w-5 mb-0.5 ${activeTab === 'agenda' ? 'text-teal-600' : 'text-slate-400'}`} />
+          <span>Agenda</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('patients')}
+          className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[56px] cursor-pointer ${
+            activeTab === 'patients'
+              ? 'text-teal-700 font-bold bg-teal-50/70'
+              : 'text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Users className={`h-5 w-5 mb-0.5 ${activeTab === 'patients' ? 'text-teal-600' : 'text-slate-400'}`} />
+          <span>Pacientes</span>
+        </button>
+
+        {/* Módulo dinámico según rol: Usuarios para Administradores, Tratamientos para Odontólogos, Caja para otros */}
+        {session?.role === 'SUPER_ADMIN' || session?.role === 'ADMIN_ORGANIZACION' || session?.role === 'ADMIN_SUCURSAL' ? (
+          <button
+            type="button"
+            onClick={() => setActiveTab('users')}
+            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[56px] cursor-pointer ${
+              activeTab === 'users'
+                ? 'text-teal-700 font-bold bg-teal-50/70'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <UserCheck className={`h-5 w-5 mb-0.5 ${activeTab === 'users' ? 'text-teal-600' : 'text-slate-400'}`} />
+            <span>Usuarios</span>
+          </button>
+        ) : session?.role === 'ODONTOLOGO' || session?.role === 'ASISTENTE' ? (
+          <button
+            type="button"
+            onClick={() => setActiveTab('treatments')}
+            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[56px] cursor-pointer ${
+              activeTab === 'treatments'
+                ? 'text-teal-700 font-bold bg-teal-50/70'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Stethoscope className={`h-5 w-5 mb-0.5 ${activeTab === 'treatments' ? 'text-teal-600' : 'text-slate-400'}`} />
+            <span>Clínica</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setActiveTab('cash')}
+            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[56px] cursor-pointer ${
+              activeTab === 'cash'
+                ? 'text-teal-700 font-bold bg-teal-50/70'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <WalletCards className={`h-5 w-5 mb-0.5 ${activeTab === 'cash' ? 'text-teal-600' : 'text-slate-400'}`} />
+            <span>Caja</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setIsMobileSidebarOpen(true)}
+          className="flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold text-slate-500 hover:text-slate-800 transition-all min-h-[44px] min-w-[56px] cursor-pointer"
+        >
+          <Menu className="h-5 w-5 mb-0.5 text-slate-500" />
+          <span>Más</span>
+        </button>
+      </nav>
     </div>
   );
 }
