@@ -318,7 +318,7 @@ export const LoginScreen: React.FC = () => {
             </div>
 
             {/* Fila de Controles: Recordarme & Recuperación */}
-            <div className="flex items-center justify-between pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <label className="flex items-center gap-2 cursor-pointer select-none py-1">
                 <input
                   type="checkbox"
@@ -364,8 +364,8 @@ export const LoginScreen: React.FC = () => {
 
       {/* Modal Seguro para Recuperación de Acceso */}
       {isForgotModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full shadow-2xl p-6 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full shadow-2xl p-4 sm:p-6 relative max-h-[92vh] overflow-y-auto flex flex-col">
             {/* Botón de cierre */}
             <button
               type="button"
@@ -467,18 +467,18 @@ export const LoginScreen: React.FC = () => {
                   Por medidas de seguridad médica y protección contra enumeración, si la cuenta existe y está activa, se procesará el restablecimiento institucional.
                 </p>
 
-                <div className="flex items-center justify-end gap-2 pt-2">
+                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => setIsForgotModalOpen(false)}
-                    className="px-4 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold transition-colors min-h-[44px]"
+                    className="w-full sm:w-auto px-4 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold transition-colors min-h-[44px] cursor-pointer"
                   >
                     Cerrar
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmittingRecovery}
-                    className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 min-h-[44px]"
+                    className="w-full sm:w-auto px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 min-h-[44px] cursor-pointer"
                   >
                     {isSubmittingRecovery ? 'Procesando...' : 'Enviar Solicitud'}
                   </button>
@@ -531,18 +531,18 @@ export const LoginScreen: React.FC = () => {
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2">
+                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => setIsForgotModalOpen(false)}
-                    className="px-4 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold transition-colors min-h-[44px]"
+                    className="w-full sm:w-auto px-4 py-2.5 border border-slate-200 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold transition-colors min-h-[44px] cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmittingRecovery}
-                    className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 min-h-[44px]"
+                    className="w-full sm:w-auto px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 min-h-[44px] cursor-pointer"
                   >
                     {isSubmittingRecovery ? 'Actualizando...' : 'Restablecer Contraseña'}
                   </button>

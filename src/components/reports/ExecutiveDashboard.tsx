@@ -172,10 +172,10 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
           <button
             onClick={() => onNavigateTab('patients')}
-            className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 backdrop-blur-xs"
+            className="flex-1 sm:flex-none justify-center px-3.5 py-2.5 min-h-[42px] bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 backdrop-blur-xs cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>Nuevo Paciente</span>
@@ -183,7 +183,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
           <button
             onClick={() => onNavigateTab('agenda')}
-            className="px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 backdrop-blur-xs"
+            className="flex-1 sm:flex-none justify-center px-3.5 py-2.5 min-h-[42px] bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 backdrop-blur-xs cursor-pointer"
           >
             <Calendar className="h-3.5 w-3.5" />
             <span>Agendar Cita</span>
@@ -191,7 +191,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
 
           <button
             onClick={() => onNavigateTab('quotes')}
-            className="px-3.5 py-2 bg-white text-teal-900 hover:bg-teal-50 rounded-xl text-xs font-black transition-colors flex items-center gap-1.5 shadow-xs"
+            className="w-full sm:w-auto justify-center px-3.5 py-2.5 min-h-[42px] bg-white text-teal-900 hover:bg-teal-50 rounded-xl text-xs font-black transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
             <Calculator className="h-3.5 w-3.5 text-teal-700" />
             <span>Crear Presupuesto</span>

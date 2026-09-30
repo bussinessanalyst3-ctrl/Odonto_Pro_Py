@@ -139,7 +139,7 @@ function MainApplication() {
         />
 
         {/* Área de Contenido de los Módulos */}
-        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-24 lg:pb-8">
+        <main className="flex-1 p-3 sm:p-5 lg:p-7 max-w-7xl w-full mx-auto pb-28 lg:pb-8 transition-all">
           {!isAuthorized ? (
             <div className="max-w-lg mx-auto my-12 p-8 bg-white border border-amber-200 rounded-2xl shadow-sm text-center">
               <div className="h-12 w-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-4">
@@ -211,14 +211,14 @@ function MainApplication() {
         </main>
       </div>
 
-      {/* Barra de Navegación Inferior Nativa para Móviles (Thumb Navigation) */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-xl px-2 py-1 flex items-center justify-around">
+      {/* Barra de Navegación Inferior Nativa para Móviles (Thumb Navigation con Safe Area) */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-xl px-2 pt-1 pb-[calc(0.35rem+env(safe-area-inset-bottom,0px))] flex items-center justify-around select-none">
         <button
           type="button"
           onClick={() => setActiveTab('dashboard')}
-          className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[56px] cursor-pointer ${
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[52px] cursor-pointer touch-manipulation ${
             activeTab === 'dashboard'
-              ? 'text-teal-700 font-bold bg-teal-50/70'
+              ? 'text-teal-700 font-bold bg-teal-50/80'
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -229,9 +229,9 @@ function MainApplication() {
         <button
           type="button"
           onClick={() => setActiveTab('agenda')}
-          className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[56px] cursor-pointer ${
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[52px] cursor-pointer touch-manipulation ${
             activeTab === 'agenda'
-              ? 'text-teal-700 font-bold bg-teal-50/70'
+              ? 'text-teal-700 font-bold bg-teal-50/80'
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -242,9 +242,9 @@ function MainApplication() {
         <button
           type="button"
           onClick={() => setActiveTab('patients')}
-          className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[56px] cursor-pointer ${
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[52px] cursor-pointer touch-manipulation ${
             activeTab === 'patients'
-              ? 'text-teal-700 font-bold bg-teal-50/70'
+              ? 'text-teal-700 font-bold bg-teal-50/80'
               : 'text-slate-500 hover:text-slate-800'
           }`}
         >
@@ -257,9 +257,9 @@ function MainApplication() {
           <button
             type="button"
             onClick={() => setActiveTab('users')}
-            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[56px] cursor-pointer ${
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[52px] cursor-pointer touch-manipulation ${
               activeTab === 'users'
-                ? 'text-teal-700 font-bold bg-teal-50/70'
+                ? 'text-teal-700 font-bold bg-teal-50/80'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -270,9 +270,9 @@ function MainApplication() {
           <button
             type="button"
             onClick={() => setActiveTab('treatments')}
-            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[56px] cursor-pointer ${
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[52px] cursor-pointer touch-manipulation ${
               activeTab === 'treatments'
-                ? 'text-teal-700 font-bold bg-teal-50/70'
+                ? 'text-teal-700 font-bold bg-teal-50/80'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -283,9 +283,9 @@ function MainApplication() {
           <button
             type="button"
             onClick={() => setActiveTab('cash')}
-            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[56px] cursor-pointer ${
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[52px] cursor-pointer touch-manipulation ${
               activeTab === 'cash'
-                ? 'text-teal-700 font-bold bg-teal-50/70'
+                ? 'text-teal-700 font-bold bg-teal-50/80'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
@@ -297,7 +297,7 @@ function MainApplication() {
         <button
           type="button"
           onClick={() => setIsMobileSidebarOpen(true)}
-          className="flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-semibold text-slate-500 hover:text-slate-800 transition-all min-h-[44px] min-w-[56px] cursor-pointer"
+          className="flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-semibold text-slate-500 hover:text-slate-800 transition-all min-h-[44px] min-w-[52px] cursor-pointer touch-manipulation"
         >
           <Menu className="h-5 w-5 mb-0.5 text-slate-500" />
           <span>Más</span>

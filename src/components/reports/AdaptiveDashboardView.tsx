@@ -51,15 +51,15 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Banner & Perspective Switcher */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-5">
+      <div className="bg-white rounded-3xl p-4 sm:p-6 border border-slate-200 shadow-xs space-y-4 sm:space-y-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center font-bold shadow-sm shadow-teal-700/20">
-              <BarChart3 className="h-6 w-6" />
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center font-bold shadow-sm shadow-teal-700/20 shrink-0">
+              <BarChart3 className="h-5 sm:h-6 w-5 sm:w-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-slate-900 tracking-tight">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
                   Dashboard Dinámico & Reportes de Gestión
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
@@ -73,10 +73,10 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
           </div>
 
           {/* Perspective Switcher Tabs */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 overflow-x-auto">
+          <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 overflow-x-auto w-full lg:w-auto shrink-0 scrollbar-none">
             <button
               onClick={() => setActivePerspective('EXECUTIVE')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+              className={`flex-1 lg:flex-none px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
                 activePerspective === 'EXECUTIVE'
                   ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
                   : 'text-slate-600 hover:text-slate-900'

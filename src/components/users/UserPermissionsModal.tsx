@@ -276,15 +276,15 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 sm:p-4 backdrop-blur-xs">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-5xl h-[92vh] max-h-[850px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="px-6 py-4.5 bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-300">
-              <Sliders className="h-5 w-5" />
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4.5 bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-300 shrink-0">
+              <Sliders className="h-4 sm:h-5 w-4 sm:w-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-white">
-                  Gobernanza de Permisos & Restricciones
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <h2 className="text-sm sm:text-base font-bold text-white truncate">
+                  Gobernanza de Permisos
                 </h2>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-teal-500/30 text-teal-200 border border-teal-400/30 font-bold">
                   v{freshUser.permissionsVersion || 1}
@@ -295,28 +295,27 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-300 flex items-center gap-2 mt-0.5">
-                <span className="font-semibold text-white">
+              <p className="text-[11px] sm:text-xs text-slate-300 flex items-center gap-1.5 sm:gap-2 mt-0.5 truncate">
+                <span className="font-semibold text-white truncate">
                   {freshUser.firstName} {freshUser.lastName}
                 </span>
                 <span>•</span>
-                <span>{freshUser.email}</span>
-                <span>•</span>
-                <span className="text-teal-300 font-medium">Rol: {roleObj?.name || freshUser.roleId}</span>
+                <span className="text-teal-300 font-medium truncate">Rol: {roleObj?.name || freshUser.roleId}</span>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-2">
             {hasChanges && (
-              <span className="text-xs font-bold text-amber-300 bg-amber-950/80 px-2.5 py-1 rounded-xl border border-amber-500/50 flex items-center gap-1.5 animate-pulse">
+              <span className="text-[11px] sm:text-xs font-bold text-amber-300 bg-amber-950/80 px-2 sm:px-2.5 py-1 rounded-xl border border-amber-500/50 hidden xs:flex items-center gap-1.5 animate-pulse">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                <span>Cambios sin guardar</span>
+                <span className="hidden sm:inline">Cambios sin guardar</span>
               </span>
             )}
             <button
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+              aria-label="Cerrar modal"
             >
               <X className="h-5 w-5" />
             </button>
@@ -867,26 +866,26 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
         </div>
 
         {/* Footer con Acciones */}
-        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
           <div className="text-xs text-slate-500">
             {hasChanges ? (
               <span className="font-semibold text-amber-700 flex items-center gap-1.5">
-                <AlertTriangle className="h-4 w-4" />
-                <span>Tiene modificaciones pendientes de persistir.</span>
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>Modificaciones pendientes de persistir.</span>
               </span>
             ) : (
               <span className="text-slate-400 flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                <span>Las directivas de seguridad se encuentran sincronizadas.</span>
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>Directivas de seguridad sincronizadas.</span>
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors shadow-2xs"
+              className="flex-1 sm:flex-none px-4 py-2.5 min-h-[42px] sm:min-h-[44px] text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors shadow-2xs flex items-center justify-center cursor-pointer"
             >
               Cerrar
             </button>
@@ -896,14 +895,14 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
                 type="button"
                 onClick={handleSave}
                 disabled={!hasChanges}
-                className={`px-5 py-2 text-xs font-bold rounded-xl flex items-center gap-2 transition-all shadow-xs ${
+                className={`flex-1 sm:flex-none px-5 py-2.5 min-h-[42px] sm:min-h-[44px] text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-xs ${
                   hasChanges
                     ? 'bg-teal-600 hover:bg-teal-700 text-white cursor-pointer hover:shadow-md'
                     : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                 }`}
               >
-                <Save className="h-4 w-4" />
-                <span>Guardar & Aplicar Inmediatamente</span>
+                <Save className="h-4 w-4 shrink-0" />
+                <span>Guardar Cambios</span>
               </button>
             )}
           </div>

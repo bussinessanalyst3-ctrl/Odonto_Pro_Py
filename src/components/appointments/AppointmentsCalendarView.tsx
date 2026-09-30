@@ -139,18 +139,18 @@ export const AppointmentsCalendarView: React.FC = () => {
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 border border-teal-200">
                 Fase 7: Agenda & Citas Concurrente
               </span>
               <span className="text-xs text-slate-500 font-mono">
-                Zona: America/Asuncion (UTC-4 / UTC-3)
+                Zona: America/Asuncion (UTC-4)
               </span>
             </div>
-            <h1 className="text-2xl font-bold text-slate-900 mt-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
               Agenda Odontológica & Control de Sillones
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
               Programación de consultas clínicas, prevención activa de doble reserva y seguimiento de estados de atención.
             </p>
           </div>
@@ -158,7 +158,7 @@ export const AppointmentsCalendarView: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-2xl font-semibold text-sm shadow-md shadow-teal-700/20 flex items-center gap-2 transition-all"
+              className="w-full sm:w-auto px-4 py-2.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-2xl font-bold text-xs sm:text-sm shadow-md shadow-teal-700/20 flex items-center justify-center gap-2 transition-all min-h-[44px] cursor-pointer"
             >
               <Plus className="h-4 w-4" />
               <span>Agendar Turno</span>
@@ -440,7 +440,7 @@ export const AppointmentsCalendarView: React.FC = () => {
                     href={waUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors border border-emerald-200"
+                    className="p-2.5 min-h-[42px] min-w-[42px] flex items-center justify-center text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors border border-emerald-200"
                     title="Enviar WhatsApp de confirmación"
                   >
                     <MessageCircle className="h-4 w-4" />
@@ -448,7 +448,7 @@ export const AppointmentsCalendarView: React.FC = () => {
 
                   <button
                     onClick={() => setSelectedAppointmentForStatus(app)}
-                    className="flex-1 py-1.5 px-3 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors text-center"
+                    className="flex-1 py-2 px-3 min-h-[42px] text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors text-center flex items-center justify-center cursor-pointer"
                   >
                     Gestionar Estado
                   </button>

@@ -243,8 +243,8 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
               </button>
             </div>
 
-            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-              <table className="w-full text-left text-xs">
+            <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-xs">
+              <table className="w-full text-left text-xs min-w-[580px]">
                 <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-semibold">
                   <tr>
                     <th className="py-2.5 px-3">Servicio / Procedimiento</th>
@@ -426,20 +426,20 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
           </div>
 
           {/* Action buttons */}
-          <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
+          <div className="pt-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors"
+              className="w-full sm:w-auto px-4 py-2.5 min-h-[44px] text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors flex items-center justify-center cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl transition-all shadow-md shadow-teal-700/20 cursor-pointer"
             >
               <CheckCircle2 className="h-4 w-4" />
-              Emitir Presupuesto Oficial
+              <span>Emitir Presupuesto Oficial</span>
             </button>
           </div>
         </form>

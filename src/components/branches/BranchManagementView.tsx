@@ -115,15 +115,15 @@ export const BranchManagementView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
+      <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center shadow-md shadow-teal-700/20 shrink-0">
-              <Landmark className="h-6 w-6" />
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center shadow-md shadow-teal-700/20 shrink-0">
+              <Landmark className="h-5 sm:h-6 w-5 sm:w-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-slate-900">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900">
                   Organización & Red de Sucursales
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 border border-teal-200">
@@ -137,11 +137,11 @@ export const BranchManagementView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {canEditOrg && (
               <button
                 onClick={() => setIsEditingOrg(!isEditingOrg)}
-                className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1.5"
+                className="flex-1 sm:flex-none px-3.5 py-2.5 min-h-[42px] sm:min-h-[44px] text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Edit2 className="h-3.5 w-3.5 text-slate-500" />
                 <span>{isEditingOrg ? 'Cancelar Edición' : 'Editar Datos Fiscales'}</span>
@@ -151,7 +151,7 @@ export const BranchManagementView: React.FC = () => {
             {canCreateBranch && (
               <button
                 onClick={handleOpenAddBranch}
-                className="px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
+                className="w-full sm:w-auto px-4 py-2.5 min-h-[42px] sm:min-h-[44px] text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl transition-all shadow-md shadow-teal-700/20 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
                 <span>Nueva Sucursal</span>
@@ -381,19 +381,19 @@ export const BranchManagementView: React.FC = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+              <div className="mt-5 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                 {canToggleStatus ? (
                   <button
                     type="button"
                     onClick={() => handleToggleStatus(b.id)}
                     title={b.status === 'ACTIVE' ? 'Desactivar sucursal' : 'Activar sucursal'}
-                    className={`p-2 rounded-xl border transition-colors ${
+                    className={`p-2.5 min-h-[40px] min-w-[40px] rounded-xl border transition-colors flex items-center justify-center cursor-pointer ${
                       b.status === 'ACTIVE'
                         ? 'border-slate-200 text-slate-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200'
                         : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
                     }`}
                   >
-                    <Power className="h-3.5 w-3.5" />
+                    <Power className="h-4 w-4" />
                   </button>
                 ) : (
                   <span className="text-[10px] text-slate-400 font-semibold px-2 py-1 rounded bg-slate-50 border border-slate-100">
@@ -401,13 +401,13 @@ export const BranchManagementView: React.FC = () => {
                   </span>
                 )}
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 ml-auto">
                   {canManageThisBranch ? (
                     <>
                       <button
                         type="button"
                         onClick={() => handleOpenSettings(b)}
-                        className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1"
+                        className="px-3 py-2 min-h-[40px] text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center justify-center gap-1 cursor-pointer"
                       >
                         <Settings className="h-3.5 w-3.5 text-slate-500" />
                         <span>Sillones & Reglas</span>
@@ -416,7 +416,7 @@ export const BranchManagementView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleOpenEditBranch(b)}
-                        className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-xs flex items-center gap-1"
+                        className="px-3.5 py-2 min-h-[40px] text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl transition-colors shadow-xs flex items-center justify-center gap-1 cursor-pointer"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
                         <span>Editar</span>

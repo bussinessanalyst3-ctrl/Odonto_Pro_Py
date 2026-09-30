@@ -447,21 +447,21 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
       {/* Main FDI Chart Canvas */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs relative">
         {/* Orientation Labels */}
-        <div className="flex items-center justify-between text-xs font-bold text-slate-400 mb-4 px-2">
-          <span>DERECHA DEL PACIENTE (Cuadrantes 1 & 4 / 5 & 8)</span>
-          <span className="text-teal-700 font-extrabold tracking-widest uppercase">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-1 sm:gap-2 text-[10px] sm:text-xs font-bold text-slate-400 mb-4 px-1 sm:px-2 text-center">
+          <span className="truncate">DERECHA DEL PACIENTE (Cuad. 1 & 4)</span>
+          <span className="text-teal-700 font-extrabold tracking-wider uppercase bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
             {dentitionType === 'ADULTO' ? 'ARCADA PERMANENTE' : 'ARCADA TEMPORAL'}
           </span>
-          <span>IZQUIERDA DEL PACIENTE (Cuadrantes 2 & 3 / 6 & 7)</span>
+          <span className="truncate">IZQUIERDA DEL PACIENTE (Cuad. 2 & 3)</span>
         </div>
 
         {/* UPPER ARCH (Maxilar Superior) */}
-        <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200/60 mb-6">
-          <div className="text-center text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3">
+        <div className="p-3 sm:p-4 bg-slate-50/70 rounded-2xl border border-slate-200/60 mb-6 overflow-x-auto">
+          <div className="text-center text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3">
             ▲ Arcada Superior (Vestibular Arriba / Palatina Abajo)
           </div>
 
-          <div className="flex items-center justify-center gap-1 sm:gap-2 overflow-x-auto py-2">
+          <div className="flex items-center justify-start md:justify-center gap-1 sm:gap-2 min-w-max py-2 px-1">
             {/* Upper Right Quadrant (1 or 5) */}
             <div className="flex items-center gap-1 sm:gap-1.5">
               {upperRightTeeth.map((num) => (
@@ -479,7 +479,7 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
             </div>
 
             {/* Midline Divider */}
-            <div className="h-16 w-0.5 bg-teal-500/50 mx-1 sm:mx-2 rounded-full flex flex-col justify-between items-center py-1">
+            <div className="h-16 w-0.5 bg-teal-500/50 mx-1 sm:mx-2 rounded-full flex flex-col justify-between items-center py-1 shrink-0">
               <span className="text-[9px] font-black text-teal-700 bg-teal-50 px-1 rounded-sm">V</span>
               <span className="text-[9px] font-black text-teal-700 bg-teal-50 px-1 rounded-sm">P</span>
             </div>
@@ -508,15 +508,19 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
             <div className="w-full border-t border-dashed border-slate-300" />
           </div>
           <div className="relative flex justify-center">
-            <span className="bg-white px-4 text-xs font-semibold text-slate-400">
+            <span className="bg-white px-3 sm:px-4 text-[11px] sm:text-xs font-semibold text-slate-400">
               Plano de Oclusión Dental
             </span>
           </div>
         </div>
 
         {/* LOWER ARCH (Mandíbula Inferior) */}
-        <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200/60 mt-4">
-          <div className="flex items-center justify-center gap-1 sm:gap-2 overflow-x-auto py-2">
+        <div className="p-3 sm:p-4 bg-slate-50/70 rounded-2xl border border-slate-200/60 mt-4 overflow-x-auto">
+          <div className="text-center text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3">
+            ▼ Arcada Inferior (Lingual Arriba / Vestibular Abajo)
+          </div>
+
+          <div className="flex items-center justify-start md:justify-center gap-1 sm:gap-2 min-w-max py-2 px-1">
             {/* Lower Right Quadrant (4 or 8) */}
             <div className="flex items-center gap-1 sm:gap-1.5">
               {lowerRightTeeth.map((num) => (

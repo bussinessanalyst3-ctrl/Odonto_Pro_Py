@@ -314,7 +314,7 @@ export const AuditLogsView: React.FC = () => {
 
       {/* Audit Logs Table */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+        <div className="p-4 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h4 className="text-sm font-bold text-slate-900">
               Libro Cronológico de Auditoría
@@ -323,7 +323,7 @@ export const AuditLogsView: React.FC = () => {
               Mostrando {filteredLogs.length} de {logs.length} registros
             </p>
           </div>
-          <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-semibold">
+          <span className="self-start sm:self-auto px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-semibold">
             {selectedAction === 'ALL' ? 'Todos los tipos' : selectedAction}
           </span>
         </div>

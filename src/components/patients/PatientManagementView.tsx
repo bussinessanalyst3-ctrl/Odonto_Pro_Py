@@ -181,7 +181,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
+      <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
         <div className="relative flex-1">
           <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -189,15 +189,15 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
             placeholder="Buscar por C.I., Nombre, Teléfono o Ciudad..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full text-xs pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+            className="w-full text-xs sm:text-sm pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium text-slate-900"
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <select
             value={branchFilter}
             onChange={(e) => setBranchFilter(e.target.value)}
-            className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-700"
+            className="flex-1 sm:flex-none text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-700 min-h-[40px] cursor-pointer"
           >
             <option value="ALL">Todas las Sucursales</option>
             {branches.map((b) => (
@@ -210,15 +210,15 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
           <select
             value={alertFilter}
             onChange={(e) => setAlertFilter(e.target.value)}
-            className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-700 min-h-[40px]"
+            className="flex-1 sm:flex-none text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-700 min-h-[40px] cursor-pointer"
           >
             <option value="ALL">Todas las Fichas</option>
-            <option value="ALLERGIES">⚠️ Con Alergias Registradas</option>
-            <option value="CONDITIONS">🩺 Con Patologías Sistémicas</option>
+            <option value="ALLERGIES">⚠️ Con Alergias</option>
+            <option value="CONDITIONS">🩺 Con Patologías</option>
           </select>
 
           {/* Toggle Tarjetas / Tabla */}
-          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 shrink-0">
+          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 shrink-0 ml-auto sm:ml-0">
             <button
               type="button"
               onClick={() => setViewMode('cards')}
@@ -314,22 +314,22 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                   <a
                     href={waUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors min-h-[44px]"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors min-h-[42px] sm:min-h-[44px]"
                   >
                     <MessageCircle className="h-4 w-4 text-emerald-600" />
                     <span>WhatsApp</span>
                   </a>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 ml-auto">
                     <button
                       type="button"
                       onClick={() => setSelectedPatientId(p.id)}
-                      className="px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold transition-colors flex items-center justify-center gap-1 min-h-[44px]"
+                      className="px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold transition-colors flex items-center justify-center gap-1 min-h-[42px] sm:min-h-[44px] cursor-pointer"
                     >
                       <Eye className="h-3.5 w-3.5" />
                       <span>Ficha</span>
@@ -338,7 +338,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                     <button
                       type="button"
                       onClick={() => handleOpenEdit(p)}
-                      className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+                      className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center cursor-pointer"
                       title="Editar Ficha"
                     >
                       <Edit2 className="h-4 w-4" />
@@ -347,7 +347,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                     <button
                       type="button"
                       onClick={() => handleToggleStatus(p.id)}
-                      className={`p-2.5 rounded-xl border transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer ${
+                      className={`p-2.5 rounded-xl border transition-colors min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center cursor-pointer ${
                         p.status === 'ACTIVE'
                           ? 'border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50'
                           : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'

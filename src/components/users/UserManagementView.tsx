@@ -842,15 +842,15 @@ export const UserManagementView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Action buttons (Touch-friendly 44px+ for mobile and tablet) */}
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5">
-                  <div className="flex items-center gap-1.5">
+                {/* Action buttons (Touch-friendly 44px+ for mobile and tablet, responsive wrapping) */}
+                <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {canToggleUser && (
                       <button
                         type="button"
                         onClick={() => handleToggleStatus(u.id)}
                         title={u.status === 'ACTIVE' ? 'Desactivar usuario' : 'Activar usuario'}
-                        className={`p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border transition-colors cursor-pointer ${
+                        className={`p-2.5 min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center rounded-xl border transition-colors cursor-pointer ${
                           u.status === 'ACTIVE'
                             ? 'border-slate-200 text-slate-500 hover:text-rose-600 hover:bg-rose-50'
                             : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 bg-emerald-50/50'
@@ -865,7 +865,7 @@ export const UserManagementView: React.FC = () => {
                         type="button"
                         onClick={() => handleOpenResetPassword(u)}
                         title="Restablecer o cambiar contraseña institucional"
-                        className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer"
+                        className="p-2.5 min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer"
                       >
                         <KeyRound className="h-4 w-4" />
                       </button>
@@ -876,7 +876,7 @@ export const UserManagementView: React.FC = () => {
                         type="button"
                         onClick={() => handleRevokeSessions(u)}
                         title="Revocar inmediatamente todas las sesiones activas"
-                        className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 transition-colors cursor-pointer"
+                        className="p-2.5 min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:text-indigo-700 hover:bg-indigo-50 transition-colors cursor-pointer"
                       >
                         <LogOut className="h-4 w-4" />
                       </button>
@@ -887,7 +887,7 @@ export const UserManagementView: React.FC = () => {
                         type="button"
                         onClick={() => handleOpenUserPermissions(u)}
                         title="Gobernanza de permisos dinámicos y restricciones sanitarias MSPBS"
-                        className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-teal-200 text-teal-700 bg-teal-50 hover:bg-teal-100 transition-colors cursor-pointer"
+                        className="p-2.5 min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center rounded-xl border border-teal-200 text-teal-700 bg-teal-50 hover:bg-teal-100 transition-colors cursor-pointer"
                       >
                         <Sliders className="h-4 w-4" />
                       </button>
@@ -898,34 +898,36 @@ export const UserManagementView: React.FC = () => {
                         type="button"
                         onClick={() => handleUnlockUser(u)}
                         title="Desbloquear cuenta bloqueada por intentos fallidos"
-                        className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer animate-pulse"
+                        className="p-2.5 min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors cursor-pointer animate-pulse"
                       >
                         <Unlock className="h-4 w-4" />
                       </button>
                     )}
                   </div>
 
-                  {canEditUser && (
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditUser(u)}
-                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 min-h-[44px] text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors shadow-2xs cursor-pointer"
-                    >
-                      <Edit2 className="h-3.5 w-3.5 text-teal-700" />
-                      <span>Editar</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    {canEditUser && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditUser(u)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 min-h-[42px] sm:min-h-[44px] text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors shadow-2xs cursor-pointer"
+                      >
+                        <Edit2 className="h-3.5 w-3.5 text-teal-700" />
+                        <span>Editar</span>
+                      </button>
+                    )}
 
-                  {isSuperAdmin && u.id !== session?.userId && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteUser(u)}
-                      title="Eliminar usuario del sistema (preservando datos históricos)"
-                      className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
+                    {isSuperAdmin && u.id !== session?.userId && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUser(u)}
+                        title="Eliminar usuario del sistema (preservando datos históricos)"
+                        className="p-2 min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );

@@ -364,18 +364,18 @@ export const OrganizationManagementView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Banner Header */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
+      <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
+          <div className="flex items-start sm:items-center gap-3.5">
             <div
-              className="h-12 w-12 rounded-2xl flex items-center justify-center text-white shadow-md shrink-0 transition-colors"
+              className="h-11 w-11 sm:h-12 sm:w-12 rounded-2xl flex items-center justify-center text-white shadow-md shrink-0 transition-colors"
               style={{ backgroundColor: activeColorHex }}
             >
-              <Palette className="h-6 w-6" />
+              <Palette className="h-5 sm:h-6 w-5 sm:w-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
                   Estudio de Marca, Multiempresa & Identidad Visual
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 border border-teal-200">
@@ -388,11 +388,11 @@ export const OrganizationManagementView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setIsNewOrgModalOpen(true)}
-              className="px-4 py-2 text-xs font-bold text-white rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer hover:opacity-95"
+              className="w-full sm:w-auto px-4 py-2.5 min-h-[42px] sm:min-h-[44px] text-xs font-bold text-white rounded-xl transition-all shadow-md shadow-teal-700/20 flex items-center justify-center gap-1.5 cursor-pointer hover:opacity-95"
               style={{ backgroundColor: activeColorHex }}
             >
               <Plus className="h-4 w-4" />
@@ -589,10 +589,10 @@ export const OrganizationManagementView: React.FC = () => {
           </div>
 
           {/* Section 2: Logo Manager (3 Versatile Modes) */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4 sm:space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
-                <ImageIcon className="h-5 w-5 text-teal-600" />
+                <ImageIcon className="h-5 w-5 text-teal-600 shrink-0" />
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
                     Logotipo & Emblema Institucional
@@ -604,11 +604,11 @@ export const OrganizationManagementView: React.FC = () => {
               </div>
 
               {/* Mode Selector Tabs */}
-              <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-xs font-semibold">
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold overflow-x-auto w-full sm:w-auto shrink-0">
                 <button
                   type="button"
                   onClick={() => setLogoMode('icon')}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                  className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg transition-all text-center min-h-[36px] flex items-center justify-center cursor-pointer ${
                     logoMode === 'icon'
                       ? 'bg-white text-slate-900 shadow-2xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
@@ -619,7 +619,7 @@ export const OrganizationManagementView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setLogoMode('upload')}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                  className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg transition-all text-center min-h-[36px] flex items-center justify-center cursor-pointer ${
                     logoMode === 'upload'
                       ? 'bg-white text-slate-900 shadow-2xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
@@ -630,7 +630,7 @@ export const OrganizationManagementView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setLogoMode('url')}
-                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                  className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg transition-all text-center min-h-[36px] flex items-center justify-center cursor-pointer ${
                     logoMode === 'url'
                       ? 'bg-white text-slate-900 shadow-2xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'

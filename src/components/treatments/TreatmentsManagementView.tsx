@@ -263,7 +263,7 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
           </div>
 
           {/* Filters Bar */}
-          <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
             <div className="relative w-full md:w-72">
               <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2.5" />
               <input
@@ -271,15 +271,15 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar por paciente, cédula o tratamiento..."
-                className="w-full text-xs pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                className="w-full text-xs pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden min-h-[40px]"
               />
             </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto">
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
               <select
                 value={treatmentStatusFilter}
                 onChange={(e) => setTreatmentStatusFilter(e.target.value)}
-                className="text-xs font-semibold p-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                className="flex-1 sm:flex-none text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden min-h-[40px] cursor-pointer"
               >
                 <option value="TODOS">Todos los Estados</option>
                 <option value="PLANIFICADO">Planificados</option>
@@ -291,7 +291,7 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
               <select
                 value={selectedBranchFilter}
                 onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                className="text-xs font-semibold p-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                className="flex-1 sm:flex-none text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden min-h-[40px] cursor-pointer"
               >
                 <option value="TODAS">Todas las Sucursales</option>
                 {snapshot.branches.map((b) => (

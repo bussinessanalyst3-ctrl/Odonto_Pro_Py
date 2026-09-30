@@ -169,10 +169,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
+    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-2.5 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-1.5 sm:gap-4 transition-all">
       {/* Barra de búsqueda móvil expandida */}
       {isMobileSearchOpen ? (
-        <div className="flex items-center gap-2 w-full sm:hidden animate-in fade-in duration-150">
+        <div className="flex items-center gap-2 w-full sm:hidden animate-in fade-in duration-150 py-1">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
@@ -181,7 +181,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar paciente, C.I., presupuesto..."
-              className="w-full pl-9 pr-8 py-2 bg-slate-100 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="w-full pl-9 pr-8 py-2 bg-slate-100 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 min-h-[40px]"
             />
             {searchTerm && (
               <button
@@ -189,7 +189,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                   setSearchTerm('');
                   setResults([]);
                 }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full min-h-[32px] min-w-[32px] flex items-center justify-center"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -201,7 +201,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               setSearchTerm('');
               setResults([]);
             }}
-            className="p-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 shrink-0"
+            className="p-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 shrink-0 min-h-[40px] flex items-center justify-center cursor-pointer"
           >
             Cerrar
           </button>
@@ -248,22 +248,22 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       ) : (
         <>
           {/* Botón para abrir sidebar en móvil + Título en móvil + Botón Buscar */}
-          <div className="flex items-center gap-2 lg:hidden">
+          <div className="flex items-center gap-1 sm:gap-2 lg:hidden shrink-0">
             <button
               onClick={onOpenMobileSidebar}
-              className="p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-              aria-label="Abrir menú"
+              className="p-1.5 sm:p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center cursor-pointer"
+              aria-label="Abrir menú de navegación"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <span className="font-extrabold text-slate-900 text-sm tracking-tight flex items-center gap-1">
+            <span className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight flex items-center gap-0.5">
               <span>OdontoPro</span>
-              <span className="text-teal-600 font-semibold text-xs">Suite</span>
+              <span className="text-teal-600 font-semibold text-[10px] sm:text-xs hidden min-[360px]:inline">Suite</span>
             </span>
             <button
               onClick={() => setIsMobileSearchOpen(true)}
-              className="p-2 text-slate-600 hover:text-teal-700 rounded-xl hover:bg-slate-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center sm:hidden"
-              aria-label="Buscar"
+              className="p-1.5 sm:p-2 text-slate-600 hover:text-teal-700 rounded-xl hover:bg-slate-100 transition-colors min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center sm:hidden cursor-pointer"
+              aria-label="Buscar pacientes y citas"
               title="Buscar pacientes y citas"
             >
               <Search className="h-4 w-4" />
@@ -309,7 +309,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                     <button
                       key={`${r.type}-${r.id}`}
                       onClick={() => handleSelectResult(r)}
-                      className="w-full p-3 text-left hover:bg-teal-50/50 transition-colors flex items-center justify-between group"
+                      className="w-full p-3 text-left hover:bg-teal-50/50 transition-colors flex items-center justify-between group cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-slate-100 text-slate-600 group-hover:bg-teal-100 group-hover:text-teal-700 transition-colors">
@@ -337,10 +337,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </div>
 
           {/* Controles de la derecha: Selector de Sede + Badge Multi-tenant + Seed */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
             {/* Selector de Sucursal Profesional */}
-            <div className="flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100/80 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200 text-xs transition-colors max-w-[140px] xs:max-w-[200px] sm:max-w-none">
-              <MapPin className="h-3.5 w-3.5 text-teal-600 shrink-0" />
+            <div className="flex items-center gap-1 bg-slate-50 hover:bg-slate-100/80 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border border-slate-200 text-xs transition-colors max-w-[95px] min-[360px]:max-w-[125px] sm:max-w-none">
+              <MapPin className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-teal-600 shrink-0" />
               <div className="flex flex-col sm:flex-row sm:items-center sm:gap-1 text-left min-w-0">
                 <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold hidden sm:inline shrink-0">
                   Sede:
@@ -348,9 +348,9 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                 <select
                   value={selectedBranchId}
                   onChange={(e) => onSelectBranch(e.target.value)}
-                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer pr-1 truncate text-xs"
+                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer pr-1 truncate text-[10px] sm:text-xs"
                 >
-                  <option value="">Todas las Sedes ({branches.length})</option>
+                  <option value="">Todas ({branches.length})</option>
                   {branches.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name} ({b.city})
@@ -365,11 +365,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               <span>₲ PYG</span>
             </div>
 
-            {/* Botón de Restaurar Seed inicial de prueba */}
+            {/* Botón de Restaurar Seed inicial de prueba (visible en desktop/tablet) */}
             <button
               onClick={handleResetData}
               title="Restaurar datos iniciales de prueba de Paraguay"
-              className="p-2 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors shadow-2xs min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0 cursor-pointer"
+              className="hidden sm:flex p-2 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors shadow-2xs min-h-[40px] min-w-[40px] items-center justify-center shrink-0 cursor-pointer"
             >
               <RefreshCw className="h-4 w-4" />
             </button>
