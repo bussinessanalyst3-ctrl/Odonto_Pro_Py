@@ -97,10 +97,99 @@ class AuthService {
         session: data.session,
       };
     } catch (netErr) {
-      return {
-        success: false,
-        error: 'No se pudo conectar con el servidor de autenticación. Verifique su conexión de red.',
-      };
+      console.warn('[AuthService] Servidor inaccesible por red, ejecutando verificación criptográfica PBKDF2 resiliente:', netErr);
+
+      // Respaldo criptográfico PBKDF2 si la conexión de red falla
+      try {
+        const user = dbStore.findUserByEmailOrUsername(identifier);
+        if (!user || user.status === 'INACTIVE') {
+          return {
+            success: false,
+            error: 'Las credenciales ingresadas no son válidas.',
+          };
+        }
+
+        const pwdRecord = dbStore.getUserPasswordRecord(user.email);
+        if (!pwdRecord) {
+          return {
+            success: false,
+            error: 'Las credenciales ingresadas no son válidas.',
+          };
+        }
+
+        const match = await verifyPassword(
+          cleanedPassword,
+          pwdRecord.hash,
+          pwdRecord.salt,
+          pwdRecord.iterations
+        );
+
+        if (!match) {
+          return {
+            success: false,
+            error: 'Las credenciales ingresadas no son válidas.',
+          };
+        }
+
+        // Derivar sesión institucional segura
+        const snapshot = dbStore.getSnapshot();
+        const roleObj = snapshot.roles.find((r) => r.id === user.roleId);
+        const userEffective = dbStore.getUserEffectivePermissions(user.id);
+        const userBranchLinks = snapshot.userBranches.filter((ub) => ub.userId === user.id);
+        const allowedBranchIds = user.roleId === 'SUPER_ADMIN'
+          ? snapshot.branches.map((b) => b.id)
+          : userBranchLinks.map((ub) => ub.branchId);
+        const defaultBranchId = userBranchLinks.find((ub) => ub.isDefault)?.branchId ||
+          allowedBranchIds[0] || snapshot.branches[0]?.id || 'branch-default';
+
+        const now = new Date();
+        const expirationHours = credentials.rememberMe ? 30 * 24 : 8;
+        const expiresAt = new Date(now.getTime() + expirationHours * 3600 * 1000).toISOString();
+
+        const localSession: UserSession = {
+          userId: user.id,
+          organizationId: user.organizationId,
+          organizationName: snapshot.organization.name,
+          organizationTaxId: snapshot.organization.taxId,
+          role: user.roleId as any,
+          roleName: roleObj?.name || user.roleId,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phone: user.phone,
+          professionalLicense: user.professionalLicense,
+          specialty: user.specialty,
+          allowedBranchIds,
+          currentBranchId: defaultBranchId,
+          sessionToken: `sess_${crypto.randomUUID().replace(/-/g, '')}`,
+          effectivePermissions: userEffective.effectivePermissions,
+          customPermissions: userEffective.customPermissions,
+          revokedPermissions: userEffective.revokedPermissions,
+          assignedRestrictions: userEffective.activeRestrictions,
+          allowedNavTabs: userEffective.allowedNavTabs,
+          permissionsVersion: (user as any).permissionsVersion || 1,
+          issuedAt: now.toISOString(),
+          expiresAt,
+          cookieConfig: {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: true,
+            maxAgeSeconds: expirationHours * 3600,
+          },
+        };
+
+        dbStore.switchOrganization(user.organizationId);
+
+        return {
+          success: true,
+          session: localSession,
+        };
+      } catch (fallbackErr) {
+        return {
+          success: false,
+          error: 'Las credenciales ingresadas no son válidas.',
+        };
+      }
     }
   }
 

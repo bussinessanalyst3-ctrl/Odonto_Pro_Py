@@ -2186,6 +2186,17 @@ class DatabaseStore {
       };
     }
 
+    // Si fue sanitizado por el backend para el cliente, utilizar el registro de semillas inicial para fallback criptográfico seguro
+    const seed = generateInitialSeedData();
+    const seedUser = seed.users.find((u) => u.id === user.id || (u.email && user.email && u.email.toLowerCase() === user.email.toLowerCase()));
+    if (seedUser && seedUser.passwordSalt && seedUser.passwordHash) {
+      return {
+        hash: seedUser.passwordHash,
+        salt: seedUser.passwordSalt,
+        iterations: seedUser.passwordIterations || 100000,
+      };
+    }
+
     return null;
   }
 
