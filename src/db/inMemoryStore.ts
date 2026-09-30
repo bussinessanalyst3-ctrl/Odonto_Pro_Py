@@ -1627,6 +1627,119 @@ class DatabaseStore {
     return user;
   }
 
+  public deleteUser(userId: string, actor?: BackendActorContext) {
+    const effectiveActor = this.getEffectiveActor(actor);
+    const targetUser = this.data.users.find((u) => u.id === userId);
+    if (!targetUser) {
+      throw new Error('Usuario no encontrado en el sistema.');
+    }
+
+    // REGLA DE SEGURIDAD N° 1: Solo SUPER_ADMIN puede eliminar cuentas
+    if (!effectiveActor || effectiveActor.role !== 'SUPER_ADMIN') {
+      this.addAuditLog({
+        action: 'ACCESS_DENIED_SECURITY',
+        entity: 'USER',
+        entityId: targetUser.id,
+        userId: effectiveActor?.userId || null,
+        description: `Intento no autorizado de eliminar usuario (${targetUser.email}) por rol ${effectiveActor?.role || 'DESCONOCIDO'}.`,
+      });
+      throw new Error('403 Prohibido: Solo el Super Administrador tiene autorización para eliminar cuentas de usuario.');
+    }
+
+    // REGLA DE SEGURIDAD N° 2: Protección del último SUPER_ADMIN
+    if (isSuperAdminRole(targetUser.roleId)) {
+      const activeSuperAdmins = this.data.users.filter((u) => isSuperAdminRole(u.roleId));
+      if (activeSuperAdmins.length <= 1) {
+        throw new Error('403 Prohibido: No se puede eliminar el único Super Administrador del sistema.');
+      }
+    }
+
+    // Conservar referencias históricas en datos clínicos y financieros
+    const doctorHistoricalName = `Dr(a). ${targetUser.firstName} ${targetUser.lastName} (Registro Histórico)`;
+    const staffHistoricalName = `${targetUser.firstName} ${targetUser.lastName} (Histórico)`;
+
+    // 1. Citas
+    (this.data.appointments || []).forEach((a: any) => {
+      if (a.odontologistId === userId && !a.historicalDoctorName) {
+        a.historicalDoctorName = doctorHistoricalName;
+      }
+      if (a.createdBy === userId && !a.historicalCreatedByName) {
+        a.historicalCreatedByName = staffHistoricalName;
+      }
+    });
+
+    // 2. Fichas clínicas
+    (this.data.clinicalRecords || []).forEach((c: any) => {
+      if (c.odontologistId === userId && !c.historicalDoctorName) {
+        c.historicalDoctorName = doctorHistoricalName;
+      }
+    });
+
+    // 3. Odontogramas
+    (this.data.odontograms || []).forEach((o: any) => {
+      if (o.odontologistId === userId && !o.historicalDoctorName) {
+        o.historicalDoctorName = doctorHistoricalName;
+      }
+    });
+
+    // 4. Presupuestos
+    (this.data.quotes || []).forEach((q: any) => {
+      if (q.odontologistId === userId && !q.historicalDoctorName) {
+        q.historicalDoctorName = doctorHistoricalName;
+      }
+    });
+
+    // 5. Cajas y Movimientos
+    (this.data.cashRegisters || []).forEach((cr: any) => {
+      if (cr.openedBy === userId && !cr.historicalOpenedByName) cr.historicalOpenedByName = staffHistoricalName;
+      if (cr.closedBy === userId && !cr.historicalClosedByName) cr.historicalClosedByName = staffHistoricalName;
+    });
+
+    (this.data.cashMovements || []).forEach((cm: any) => {
+      if (cm.performedBy === userId && !cm.historicalPerformedByName) cm.historicalPerformedByName = staffHistoricalName;
+    });
+
+    (this.data.payments || []).forEach((p: any) => {
+      if (p.receivedBy === userId && !p.historicalReceivedByName) p.historicalReceivedByName = staffHistoricalName;
+    });
+
+    // 6. Eliminar asignaciones de sucursales
+    this.data.userBranches = (this.data.userBranches || []).filter((ub) => ub.userId !== userId);
+
+    // 7. Revocar sesiones activas del usuario eliminado
+    this.revokeUserSessions(userId, effectiveActor.userId);
+
+    // 8. Eliminar de la lista de usuarios
+    this.data.users = this.data.users.filter((u) => u.id !== userId);
+
+    // 9. Registrar auditoría de seguridad
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: null,
+      userId: effectiveActor.userId,
+      action: 'DELETE',
+      entity: 'USER',
+      entityId: userId,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Web Admin',
+      oldValues: {
+        id: targetUser.id,
+        email: targetUser.email,
+        username: targetUser.username,
+        roleId: targetUser.roleId,
+        name: `${targetUser.firstName} ${targetUser.lastName}`,
+      },
+      newValues: null,
+      description: `Eliminación controlada de cuenta de usuario ${targetUser.firstName} ${targetUser.lastName} (${targetUser.email}, Rol: ${targetUser.roleId}). Datos clínicos e históricos conservados.`,
+      createdAt: new Date(),
+    });
+
+    this.saveToStorage();
+    this.notify();
+    return true;
+  }
+
   public getRoles() {
     return this.data.roles;
   }

@@ -15,7 +15,7 @@ import { useAuth } from '../../auth/authContext.tsx';
 import { dbStore } from '../../db/inMemoryStore.ts';
 
 export const SessionInspector: React.FC = () => {
-  const { session, logout, quickLoginAs } = useAuth();
+  const { session, logout } = useAuth();
   const [copied, setCopied] = useState(false);
 
   const snapshot = dbStore.getSnapshot();
@@ -170,32 +170,6 @@ export const SessionInspector: React.FC = () => {
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Role Switcher for instant testing */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
-            <div className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2">
-              Cambiar Rol de Prueba Inmediato
-            </div>
-            <p className="text-xs text-slate-500 mb-3">
-              Permite validar la experiencia del usuario y permisos según el perfil clínico:
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {dbStore.getRoles().map((role) => (
-                <button
-                  key={role.id}
-                  onClick={() => quickLoginAs(role.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-                    session.role === role.id
-                      ? 'bg-teal-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  <UserCheck className="h-3.5 w-3.5" />
-                  <span>{role.name}</span>
-                </button>
-              ))}
             </div>
           </div>
         </div>

@@ -194,13 +194,9 @@ export function generateInitialSeedData(): SeedDataResult {
   }));
 
   // 4. Usuarios (Jerarquía RBAC Completa y Protegida)
+  // ÚNICO Super Administrador Inicial del Sistema
   const userOwnerAdminId = '33333333-3333-4333-8333-333333333330';
-  const userAdminId = '33333333-3333-4333-8333-333333333331';
-  const userOrgAdminId = '33333333-3333-4333-8333-333333333334';
-  const userBranchAdminId = '33333333-3333-4333-8333-333333333335';
-  const userDentistId = '33333333-3333-4333-8333-333333333332';
-  const userCashierId = '33333333-3333-4333-8333-333333333333';
-  const userReceptionId = '33333333-3333-4333-8333-333333333336';
+  const userAdminId = userOwnerAdminId;
 
   const users = [
     {
@@ -222,138 +218,12 @@ export function generateInitialSeedData(): SeedDataResult {
       createdAt: new Date('2026-01-08T08:00:00.000Z'),
       updatedAt: new Date('2026-01-08T08:00:00.000Z'),
     },
-    {
-      id: userAdminId,
-      organizationId: orgId,
-      roleId: 'SUPER_ADMIN',
-      username: 'lucas.arrua',
-      firstName: 'Lucas Eliezer',
-      lastName: 'Arrua Almada',
-      email: 'lucas.arrua@odontosol.com.py',
-      passwordHash: '59a71110adc2f24254181100c744d6289ff20f2bb204d6a3d1092f2ce8e162c1',
-      passwordSalt: '428f297dfd1ecf1e754760911656a565',
-      passwordIterations: 100000,
-      phone: '+595 981 123 456',
-      professionalLicense: null,
-      specialty: 'Dirección General & Auditoría Global',
-      status: 'ACTIVE',
-      lastLoginAt: new Date(),
-      createdAt: new Date('2026-01-10T08:00:00.000Z'),
-      updatedAt: new Date('2026-01-10T08:00:00.000Z'),
-    },
-    {
-      id: userOrgAdminId,
-      organizationId: orgId,
-      roleId: 'ADMIN_ORGANIZACION',
-      username: 'sofia.benitez',
-      firstName: 'Lic. Sofía',
-      lastName: 'Benítez Cantero',
-      email: 'sofia.benitez@odontosol.com.py',
-      passwordHash: 'cc7eed037ae593c4c539d73bc34dcea0da3900333861712208d44ade1c1a27df',
-      passwordSalt: 'b20f2067ee4b242a71f0ec5393c9517f',
-      passwordIterations: 100000,
-      phone: '+595 981 444 555',
-      professionalLicense: null,
-      specialty: 'Gerencia Administrativa y Finanzas',
-      status: 'ACTIVE',
-      lastLoginAt: new Date(),
-      createdAt: new Date('2026-01-12T08:00:00.000Z'),
-      updatedAt: new Date('2026-01-12T08:00:00.000Z'),
-    },
-    {
-      id: userBranchAdminId,
-      organizationId: orgId,
-      roleId: 'ADMIN_SUCURSAL',
-      username: 'marcos.vega',
-      firstName: 'Marcos',
-      lastName: 'Vega Portillo',
-      email: 'marcos.vega@odontosol.com.py',
-      passwordHash: 'e2013e4b2419fc0377517b01f2542d32451f5a6a534399416b4eae7d36e5aa06',
-      passwordSalt: '9220793fd6c39187ee0ecc886bfaebcd',
-      passwordIterations: 100000,
-      phone: '+595 981 888 999',
-      professionalLicense: null,
-      specialty: 'Administración de Sede San Lorenzo',
-      status: 'ACTIVE',
-      lastLoginAt: new Date(),
-      createdAt: new Date('2026-01-14T08:00:00.000Z'),
-      updatedAt: new Date('2026-01-14T08:00:00.000Z'),
-    },
-    {
-      id: userDentistId,
-      organizationId: orgId,
-      roleId: 'ODONTOLOGO',
-      username: 'valeria.gomez',
-      firstName: 'Dra. Valeria',
-      lastName: 'Gómez Benítez',
-      email: 'valeria.gomez@odontosol.com.py',
-      passwordHash: '66215299820b727075b9ca5aa2464d8ca60b37a7482573e4e7ff16e0658a40ac',
-      passwordSalt: '4d875d080ea582880171bcd0693662da',
-      passwordIterations: 100000,
-      phone: '+595 982 777 888',
-      professionalLicense: 'MSPBS N° 14.821 / Reg. Odontológico',
-      specialty: 'Ortodoncia & Rehabilitación Oral',
-      status: 'ACTIVE',
-      lastLoginAt: new Date(),
-      createdAt: new Date('2026-01-15T08:00:00.000Z'),
-      updatedAt: new Date('2026-01-15T08:00:00.000Z'),
-    },
-    {
-      id: userCashierId,
-      organizationId: orgId,
-      roleId: 'CAJA',
-      username: 'carlos.mendoza',
-      firstName: 'Carlos Alberto',
-      lastName: 'Mendoza Duarte',
-      email: 'carlos.mendoza@odontosol.com.py',
-      passwordHash: 'a0ef7da80c8d2b91d6e742d85017f85c052a90be7acd1ec8e4cc07d2cb03009e',
-      passwordSalt: '5afc6c5db4da31769a5ad9e583c1fa51',
-      passwordIterations: 100000,
-      phone: '+595 971 333 444',
-      professionalLicense: null,
-      specialty: 'Operaciones de Recaudación & Tesorería',
-      status: 'ACTIVE',
-      lastLoginAt: new Date(),
-      createdAt: new Date('2026-01-18T08:00:00.000Z'),
-      updatedAt: new Date('2026-01-18T08:00:00.000Z'),
-    },
-    {
-      id: userReceptionId,
-      organizationId: orgId,
-      roleId: 'RECEPCION',
-      username: 'ana.gimenez',
-      firstName: 'Ana Sofía',
-      lastName: 'Giménez Romero',
-      email: 'ana.gimenez@odontosol.com.py',
-      passwordHash: 'efbe3452fdf2acfadec5c2aa67fb229ef0aa9021f4aa87f2ceb4d4f7fae0015b',
-      passwordSalt: 'eb6f10edbd6e832b0434efe501717c0b',
-      passwordIterations: 100000,
-      phone: '+595 981 222 333',
-      professionalLicense: null,
-      specialty: 'Recepción y Atención al Paciente',
-      status: 'ACTIVE',
-      lastLoginAt: new Date(),
-      createdAt: new Date('2026-01-20T08:00:00.000Z'),
-      updatedAt: new Date('2026-01-20T08:00:00.000Z'),
-    }
   ];
 
   const userBranches = [
     { userId: userOwnerAdminId, branchId: branchAsuId, isDefault: true, createdAt: new Date() },
     { userId: userOwnerAdminId, branchId: branchSloId, isDefault: false, createdAt: new Date() },
     { userId: userOwnerAdminId, branchId: branchLuqId, isDefault: false, createdAt: new Date() },
-    { userId: userAdminId, branchId: branchAsuId, isDefault: true, createdAt: new Date() },
-    { userId: userAdminId, branchId: branchSloId, isDefault: false, createdAt: new Date() },
-    { userId: userAdminId, branchId: branchLuqId, isDefault: false, createdAt: new Date() },
-    { userId: userOrgAdminId, branchId: branchAsuId, isDefault: true, createdAt: new Date() },
-    { userId: userOrgAdminId, branchId: branchSloId, isDefault: false, createdAt: new Date() },
-    { userId: userOrgAdminId, branchId: branchLuqId, isDefault: false, createdAt: new Date() },
-    // ADMIN_SUCURSAL asignado EXCLUSIVAMENTE a San Lorenzo
-    { userId: userBranchAdminId, branchId: branchSloId, isDefault: true, createdAt: new Date() },
-    { userId: userDentistId, branchId: branchAsuId, isDefault: true, createdAt: new Date() },
-    { userId: userDentistId, branchId: branchSloId, isDefault: false, createdAt: new Date() },
-    { userId: userCashierId, branchId: branchAsuId, isDefault: true, createdAt: new Date() },
-    { userId: userReceptionId, branchId: branchAsuId, isDefault: true, createdAt: new Date() },
   ];
 
   // 5. Servicios Catálogo

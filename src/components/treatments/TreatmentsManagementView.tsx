@@ -352,7 +352,7 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
                           <span>•</span>
                           <span>{branch?.name}</span>
                           <span>•</span>
-                          <span>Dr(a). {doc?.lastName || 'Asignado'}</span>
+                          <span>Dr(a). {doc?.lastName || (t as any).historicalDoctorName || 'Asignado'}</span>
                         </div>
                       </div>
 

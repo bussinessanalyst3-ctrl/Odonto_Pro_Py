@@ -12,7 +12,6 @@ interface AuthContextType {
   switchBranch: (branchId: string) => void;
   switchOrganization: (orgId: string) => void;
   hasRole: (requiredRoles: UserRole | UserRole[]) => boolean;
-  quickLoginAs: (role: UserRole) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<PasswordChangeResult>;
   requestPasswordReset: (email: string) => Promise<{ success: boolean; message: string }>;
   resetPasswordWithToken: (resetToken: string, newPassword: string) => Promise<{ success: boolean; message?: string; error?: string }>;
@@ -188,56 +187,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return authService.resetPasswordWithToken(resetToken, newPassword);
   };
 
-  const quickLoginAs = async (role: UserRole) => {
-    const snapshot = dbStore.getSnapshot();
-    const userWithRole = snapshot.users.find((u) => u.roleId === role);
-    const roleObj = dbStore.getRoles().find((r) => r.id === role);
-
-    const targetUser = userWithRole || snapshot.users[0];
-    const org = snapshot.organization;
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-
-    const userEffective = dbStore.getUserEffectivePermissions(targetUser.id);
-
-    const customSession: UserSession = {
-      userId: targetUser.id,
-      organizationId: org.id,
-      organizationName: org.name,
-      organizationTaxId: org.taxId,
-      role: (targetUser.roleId || role) as any,
-      roleName: roleObj ? roleObj.name : role,
-      firstName: userWithRole ? userWithRole.firstName : targetUser.firstName,
-      lastName: userWithRole ? userWithRole.lastName : targetUser.lastName,
-      email: userWithRole ? userWithRole.email : targetUser.email,
-      phone: targetUser.phone,
-      professionalLicense: role === 'ODONTOLOGO' ? targetUser.professionalLicense : null,
-      specialty: roleObj ? roleObj.name : 'Personal Asignado',
-      allowedBranchIds: snapshot.branches.map((b) => b.id),
-      currentBranchId: snapshot.branches[0]?.id || '',
-      sessionToken: `sess_${crypto.randomUUID().replace(/-/g, '')}`,
-      effectivePermissions: userEffective.effectivePermissions,
-      customPermissions: userEffective.customPermissions,
-      revokedPermissions: userEffective.revokedPermissions,
-      assignedRestrictions: userEffective.activeRestrictions,
-      allowedNavTabs: userEffective.allowedNavTabs,
-      permissionsVersion: (targetUser as any).permissionsVersion || 1,
-      issuedAt: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      cookieConfig: {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: true,
-        maxAgeSeconds: 8 * 3600,
-      },
-    };
-
-    setSession(customSession);
-    try {
-      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(customSession));
-    } catch (e) {}
-  };
-
   return (
     <AuthContext.Provider
       value={{
@@ -249,7 +198,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         switchBranch,
         switchOrganization,
         hasRole,
-        quickLoginAs,
         changePassword,
         requestPasswordReset,
         resetPasswordWithToken,

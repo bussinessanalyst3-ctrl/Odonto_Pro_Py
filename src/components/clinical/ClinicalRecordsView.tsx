@@ -296,7 +296,7 @@ export const ClinicalRecordsView: React.FC = () => {
                     <div className="text-right">
                       <div className="text-xs font-bold text-slate-900 flex items-center justify-end gap-1.5">
                         <Stethoscope className="h-3.5 w-3.5 text-teal-600" />
-                        <span>Dr(a). {dentist ? `${dentist.firstName} ${dentist.lastName}` : 'Odontólogo Tratante'}</span>
+                        <span>Dr(a). {dentist ? `${dentist.firstName} ${dentist.lastName}` : ((rec as any).historicalDoctorName || 'Odontólogo Tratante')}</span>
                       </div>
                       <div className="text-[11px] text-teal-700 font-semibold">
                         Reg. Profesional: {dentist?.professionalLicense || 'MSPBS N° 9.155'}

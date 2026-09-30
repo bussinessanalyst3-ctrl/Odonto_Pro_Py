@@ -460,158 +460,20 @@
         "firstName": "Business Analyst",
         "lastName": "Administrador Principal",
         "email": "bussinessanalyst3@gmail.com",
-        "passwordHash": "cff443a9ff9e703b0965c3bd6b7250781659fa213d237a39254f8a2927570691",
-        "passwordSalt": "dc7b5474eb79d83062d731f1e0932f26",
-        "passwordIterations": 100000,
         "phone": "+595 981 100 200",
         "professionalLicense": null,
         "specialty": "Dirección General & Auditoría Global",
         "status": "ACTIVE",
-        "lastLoginAt": "2026-09-30T11:53:37.122Z",
+        "lastLoginAt": "2026-09-30T12:16:32.725Z",
         "createdAt": "2026-01-08T08:00:00.000Z",
         "updatedAt": "2026-01-08T08:00:00.000Z",
         "customPermissions": [],
         "revokedPermissions": [],
         "assignedRestrictions": [],
-        "permissionsVersion": 1
-      },
-      {
-        "id": "33333333-3333-4333-8333-333333333331",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "roleId": "SUPER_ADMIN",
-        "username": "lucas.arrua",
-        "firstName": "Lucas Eliezer",
-        "lastName": "Arrua Almada",
-        "email": "lucas.arrua@odontosol.com.py",
-        "passwordHash": "59a71110adc2f24254181100c744d6289ff20f2bb204d6a3d1092f2ce8e162c1",
-        "passwordSalt": "428f297dfd1ecf1e754760911656a565",
-        "passwordIterations": 100000,
-        "phone": "+595 981 123 456",
-        "professionalLicense": null,
-        "specialty": "Dirección General & Auditoría Global",
-        "status": "ACTIVE",
-        "lastLoginAt": "2026-09-29T17:15:18.602Z",
-        "createdAt": "2026-01-10T08:00:00.000Z",
-        "updatedAt": "2026-01-10T08:00:00.000Z",
-        "customPermissions": [],
-        "revokedPermissions": [],
-        "assignedRestrictions": [],
-        "permissionsVersion": 1
-      },
-      {
-        "id": "33333333-3333-4333-8333-333333333334",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "roleId": "ADMIN_ORGANIZACION",
-        "username": "sofia.benitez",
-        "firstName": "Lic. Sofía",
-        "lastName": "Benítez Cantero",
-        "email": "sofia.benitez@odontosol.com.py",
-        "passwordHash": "cc7eed037ae593c4c539d73bc34dcea0da3900333861712208d44ade1c1a27df",
-        "passwordSalt": "b20f2067ee4b242a71f0ec5393c9517f",
-        "passwordIterations": 100000,
-        "phone": "+595 981 444 555",
-        "professionalLicense": null,
-        "specialty": "Gerencia Administrativa y Finanzas",
-        "status": "ACTIVE",
-        "lastLoginAt": "2026-09-29T17:15:18.527Z",
-        "createdAt": "2026-01-12T08:00:00.000Z",
-        "updatedAt": "2026-01-12T08:00:00.000Z",
-        "customPermissions": [],
-        "revokedPermissions": [],
-        "assignedRestrictions": [],
-        "permissionsVersion": 1
-      },
-      {
-        "id": "33333333-3333-4333-8333-333333333335",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "roleId": "ADMIN_SUCURSAL",
-        "username": "marcos.vega",
-        "firstName": "Marcos",
-        "lastName": "Vega Portillo",
-        "email": "marcos.vega@odontosol.com.py",
-        "passwordHash": "e2013e4b2419fc0377517b01f2542d32451f5a6a534399416b4eae7d36e5aa06",
-        "passwordSalt": "9220793fd6c39187ee0ecc886bfaebcd",
-        "passwordIterations": 100000,
-        "phone": "+595 981 888 999",
-        "professionalLicense": null,
-        "specialty": "Administración de Sede San Lorenzo",
-        "status": "ACTIVE",
-        "lastLoginAt": "2026-09-29T17:15:18.527Z",
-        "createdAt": "2026-01-14T08:00:00.000Z",
-        "updatedAt": "2026-01-14T08:00:00.000Z",
-        "customPermissions": [],
-        "revokedPermissions": [],
-        "assignedRestrictions": [],
-        "permissionsVersion": 1
-      },
-      {
-        "id": "33333333-3333-4333-8333-333333333332",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "roleId": "ODONTOLOGO",
-        "username": "valeria.gomez",
-        "firstName": "Dra. Valeria",
-        "lastName": "Gómez Benítez",
-        "email": "valeria.gomez@odontosol.com.py",
-        "passwordHash": "66215299820b727075b9ca5aa2464d8ca60b37a7482573e4e7ff16e0658a40ac",
-        "passwordSalt": "4d875d080ea582880171bcd0693662da",
-        "passwordIterations": 100000,
-        "phone": "+595 982 777 888",
-        "professionalLicense": "MSPBS N° 14.821 / Reg. Odontológico",
-        "specialty": "Ortodoncia & Rehabilitación Oral",
-        "status": "ACTIVE",
-        "lastLoginAt": "2026-09-29T17:15:18.527Z",
-        "createdAt": "2026-01-15T08:00:00.000Z",
-        "updatedAt": "2026-01-15T08:00:00.000Z",
-        "customPermissions": [],
-        "revokedPermissions": [],
-        "assignedRestrictions": [],
-        "permissionsVersion": 1
-      },
-      {
-        "id": "33333333-3333-4333-8333-333333333333",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "roleId": "CAJA",
-        "username": "carlos.mendoza",
-        "firstName": "Carlos Alberto",
-        "lastName": "Mendoza Duarte",
-        "email": "carlos.mendoza@odontosol.com.py",
-        "passwordHash": "a0ef7da80c8d2b91d6e742d85017f85c052a90be7acd1ec8e4cc07d2cb03009e",
-        "passwordSalt": "5afc6c5db4da31769a5ad9e583c1fa51",
-        "passwordIterations": 100000,
-        "phone": "+595 971 333 444",
-        "professionalLicense": null,
-        "specialty": "Operaciones de Recaudación & Tesorería",
-        "status": "ACTIVE",
-        "lastLoginAt": "2026-09-29T17:15:18.527Z",
-        "createdAt": "2026-01-18T08:00:00.000Z",
-        "updatedAt": "2026-01-18T08:00:00.000Z",
-        "customPermissions": [],
-        "revokedPermissions": [],
-        "assignedRestrictions": [],
-        "permissionsVersion": 1
-      },
-      {
-        "id": "33333333-3333-4333-8333-333333333336",
-        "organizationId": "11111111-1111-4111-8111-111111111111",
-        "roleId": "RECEPCION",
-        "username": "ana.gimenez",
-        "firstName": "Ana Sofía",
-        "lastName": "Giménez Romero",
-        "email": "ana.gimenez@odontosol.com.py",
-        "passwordHash": "efbe3452fdf2acfadec5c2aa67fb229ef0aa9021f4aa87f2ceb4d4f7fae0015b",
-        "passwordSalt": "eb6f10edbd6e832b0434efe501717c0b",
-        "passwordIterations": 100000,
-        "phone": "+595 981 222 333",
-        "professionalLicense": null,
-        "specialty": "Recepción y Atención al Paciente",
-        "status": "ACTIVE",
-        "lastLoginAt": "2026-09-29T17:15:18.527Z",
-        "createdAt": "2026-01-20T08:00:00.000Z",
-        "updatedAt": "2026-01-20T08:00:00.000Z",
-        "customPermissions": [],
-        "revokedPermissions": [],
-        "assignedRestrictions": [],
-        "permissionsVersion": 1
+        "permissionsVersion": 1,
+        "passwordHash": "cff443a9ff9e703b0965c3bd6b7250781659fa213d237a39254f8a2927570691",
+        "passwordSalt": "dc7b5474eb79d83062d731f1e0932f26",
+        "passwordIterations": 100000
       }
     ],
     "userBranches": [
@@ -632,72 +494,6 @@
         "branchId": "22222222-2222-4222-8222-222222222223",
         "isDefault": false,
         "createdAt": "2026-01-08T08:00:00.000Z"
-      },
-      {
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "branchId": "22222222-2222-4222-8222-222222222221",
-        "isDefault": true,
-        "createdAt": "2026-09-29T17:15:18.527Z"
-      },
-      {
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "branchId": "22222222-2222-4222-8222-222222222222",
-        "isDefault": false,
-        "createdAt": "2026-09-29T17:15:18.527Z"
-      },
-      {
-        "userId": "33333333-3333-4333-8333-333333333331",
-        "branchId": "22222222-2222-4222-8222-222222222223",
-        "isDefault": false,
-        "createdAt": "2026-09-29T17:15:18.527Z"
-      },
-      {
-        "userId": "33333333-3333-4333-8333-333333333334",
-        "branchId": "22222222-2222-4222-8222-222222222221",
-        "isDefault": true,
-        "createdAt": "2026-09-29T17:15:18.527Z"
-      },
-      {
-        "userId": "33333333-3333-4333-8333-333333333334",
-        "branchId": "22222222-2222-4222-8222-222222222222",
-        "isDefault": false,
-        "createdAt": "2026-09-29T17:15:18.527Z"
-      },
-      {
-        "userId": "33333333-3333-4333-8333-333333333334",
-        "branchId": "22222222-2222-4222-8222-222222222223",
-        "isDefault": false,
-        "createdAt": "2026-09-29T17:15:18.527Z"
-      },
-      {
-        "userId": "33333333-3333-4333-8333-333333333335",
-        "branchId": "22222222-2222-4222-8222-222222222222",
-        "isDefault": true,
-        "createdAt": "2026-09-29T17:15:18.527Z"
-      },
-      {
-        "userId": "33333333-3333-4333-8333-333333333332",
-        "branchId": "22222222-2222-4222-8222-222222222221",
-        "isDefault": true,
-        "createdAt": "2026-09-29T17:15:18.527Z"
-      },
-      {
-        "userId": "33333333-3333-4333-8333-333333333332",
-        "branchId": "22222222-2222-4222-8222-222222222222",
-        "isDefault": false,
-        "createdAt": "2026-09-29T17:15:18.527Z"
-      },
-      {
-        "userId": "33333333-3333-4333-8333-333333333333",
-        "branchId": "22222222-2222-4222-8222-222222222221",
-        "isDefault": true,
-        "createdAt": "2026-09-29T17:15:18.527Z"
-      },
-      {
-        "userId": "33333333-3333-4333-8333-333333333336",
-        "branchId": "22222222-2222-4222-8222-222222222221",
-        "isDefault": true,
-        "createdAt": "2026-09-29T17:15:18.527Z"
       }
     ],
     "services": [
@@ -1230,7 +1026,9 @@
         "notes": "Paciente acudió puntual. Sin quejas de dolor.",
         "createdBy": "33333333-3333-4333-8333-333333333331",
         "createdAt": "2026-09-15T10:00:00.000Z",
-        "updatedAt": "2026-09-21T09:05:00.000Z"
+        "updatedAt": "2026-09-21T09:05:00.000Z",
+        "historicalDoctorName": "Dr(a). Lucas Eliezer Arrua Almada (Histórico)",
+        "historicalCreatedByName": "Lucas Eliezer Arrua Almada (Histórico)"
       },
       {
         "id": "66666666-6666-4666-8666-666666666662",
@@ -1249,7 +1047,9 @@
         "notes": "Confirmado por WhatsApp a las 07:30",
         "createdBy": "33333333-3333-4333-8333-333333333331",
         "createdAt": "2026-09-16T11:00:00.000Z",
-        "updatedAt": "2026-09-21T09:50:00.000Z"
+        "updatedAt": "2026-09-21T09:50:00.000Z",
+        "historicalDoctorName": "Dr(a). Lucas Eliezer Arrua Almada (Histórico)",
+        "historicalCreatedByName": "Lucas Eliezer Arrua Almada (Histórico)"
       },
       {
         "id": "66666666-6666-4666-8666-666666666663",
@@ -1268,7 +1068,9 @@
         "notes": "Alergia a aspirina recordada en ficha",
         "createdBy": "33333333-3333-4333-8333-333333333331",
         "createdAt": "2026-09-18T14:20:00.000Z",
-        "updatedAt": "2026-09-20T17:00:00.000Z"
+        "updatedAt": "2026-09-20T17:00:00.000Z",
+        "historicalDoctorName": "Dr(a). Lucas Eliezer Arrua Almada (Histórico)",
+        "historicalCreatedByName": "Lucas Eliezer Arrua Almada (Histórico)"
       }
     ],
     "clinicalRecords": [
@@ -1287,7 +1089,8 @@
         "internalNotes": "Excelente higiene bucal, sin caries activas detectadas.",
         "attachments": [],
         "createdAt": "2026-09-21T09:20:00.000Z",
-        "updatedAt": "2026-09-21T09:20:00.000Z"
+        "updatedAt": "2026-09-21T09:20:00.000Z",
+        "historicalDoctorName": "Dr(a). Lucas Eliezer Arrua Almada (Histórico)"
       }
     ],
     "odontograms": [
@@ -1301,7 +1104,8 @@
         "odontogramType": "ADULTO",
         "generalObservations": "Arco dental completo. Apiñamiento anteroinferior resuelto al 80%.",
         "createdAt": "2026-02-10T09:30:00.000Z",
-        "updatedAt": "2026-09-21T09:25:00.000Z"
+        "updatedAt": "2026-09-21T09:25:00.000Z",
+        "historicalDoctorName": "Dr(a). Lucas Eliezer Arrua Almada (Histórico)"
       }
     ],
     "odontogramItems": [
@@ -1365,7 +1169,8 @@
         "validUntil": "2026-10-31",
         "notes": "Plan integral ortodóncico con cuotas mensuales fijas en Guaraníes.",
         "createdAt": "2026-02-10T10:00:00.000Z",
-        "updatedAt": "2026-02-10T10:30:00.000Z"
+        "updatedAt": "2026-02-10T10:30:00.000Z",
+        "historicalDoctorName": "Dr(a). Lucas Eliezer Arrua Almada (Histórico)"
       }
     ],
     "quoteItems": [
@@ -1422,7 +1227,8 @@
         "status": "ABIERTA",
         "openedAt": "2026-09-21T07:30:00.000Z",
         "closedAt": null,
-        "observations": "Caja mañana abierta con fondo de cambio en billetes de 20mil y 50mil."
+        "observations": "Caja mañana abierta con fondo de cambio en billetes de 20mil y 50mil.",
+        "historicalOpenedByName": "Lucas Eliezer Arrua Almada (Histórico)"
       }
     ],
     "cashMovements": [
@@ -1435,7 +1241,8 @@
         "concept": "Pago Control Ortodoncia - Gustavo Caballero",
         "referenceNumber": "SIPAP-ITAU-9483021",
         "performedBy": "33333333-3333-4333-8333-333333333331",
-        "createdAt": "2026-09-21T09:30:00.000Z"
+        "createdAt": "2026-09-21T09:30:00.000Z",
+        "historicalPerformedByName": "Lucas Eliezer Arrua Almada (Histórico)"
       },
       {
         "id": "cccccccc-cccc-4ccc-8ccc-ccccccccccc2",
@@ -1446,7 +1253,8 @@
         "concept": "Pago Tratamiento Endodóntico - Lourdes Vera",
         "referenceNumber": "BANCARD-QR-558291",
         "performedBy": "33333333-3333-4333-8333-333333333331",
-        "createdAt": "2026-09-21T09:45:00.000Z"
+        "createdAt": "2026-09-21T09:45:00.000Z",
+        "historicalPerformedByName": "Lucas Eliezer Arrua Almada (Histórico)"
       }
     ],
     "payments": [
@@ -1465,10 +1273,31 @@
         "status": "COMPLETADO",
         "notes": "Transferencia verificada en cuenta Banco Itaú Paraguay",
         "receivedBy": "33333333-3333-4333-8333-333333333331",
-        "createdAt": "2026-09-21T09:30:00.000Z"
+        "createdAt": "2026-09-21T09:30:00.000Z",
+        "historicalReceivedByName": "Lucas Eliezer Arrua Almada (Histórico)"
       }
     ],
     "auditLogs": [
+      {
+        "id": "audit-controlled-cleanup-1790770565927",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "branchId": null,
+        "userId": "33333333-3333-4333-8333-333333333330",
+        "action": "SYSTEM_AUDIT_USER_CLEANUP",
+        "entity": "USER_SYSTEM",
+        "entityId": "33333333-3333-4333-8333-333333333330",
+        "ipAddress": "127.0.0.1",
+        "userAgent": "System Audit Protocol",
+        "oldValues": {
+          "deletedUsersCount": 6
+        },
+        "newValues": {
+          "remainingUsersCount": 1,
+          "remainingUser": "bussinessanalyst3"
+        },
+        "description": "Limpieza controlada ejecutada. Se eliminaron 6 cuentas de usuario y se conservaron intactos todos los registros clínicos, turnos, movimientos de caja y configuraciones institucionales.",
+        "createdAt": "2026-09-30T12:16:05.927Z"
+      },
       {
         "id": "95d8f0fe-7d3f-4901-9215-5e6f6d7c21e0",
         "organizationId": "11111111-1111-4111-8111-111111111111",

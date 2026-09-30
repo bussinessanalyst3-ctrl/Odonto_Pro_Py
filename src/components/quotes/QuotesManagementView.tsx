@@ -329,7 +329,7 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
                       <td className="py-3 px-3">
                         <div className="text-slate-800 font-medium">{branch?.name}</div>
                         <div className="text-[11px] text-teal-700">
-                          Dr(a). {odontologist?.lastName || 'General'}
+                          Dr(a). {odontologist?.lastName || (q as any).historicalDoctorName || 'General'}
                         </div>
                       </td>
 

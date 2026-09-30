@@ -25,7 +25,8 @@ import {
   List,
   X,
   Lock,
-  RotateCcw
+  RotateCcw,
+  Trash2
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { BASE_ROLES } from '../../db/seeds/paraguay-catalogs.ts';
@@ -160,6 +161,31 @@ export const UserManagementView: React.FC = () => {
   const handleOpenResetPassword = (user: any) => {
     setUserToResetPassword(user);
     setIsResetPasswordModalOpen(true);
+  };
+
+  const handleDeleteUser = (user: any) => {
+    if (isSuperAdminRole(user.roleId)) {
+      const superAdmins = users.filter((u) => isSuperAdminRole(u.roleId));
+      if (superAdmins.length <= 1) {
+        setErrorMessage('403 Prohibido: No se puede eliminar el único Super Administrador del sistema.');
+        setTimeout(() => setErrorMessage(null), 5000);
+        return;
+      }
+    }
+
+    const confirm = window.confirm(
+      `¿Está seguro de eliminar la cuenta del usuario ${user.firstName} ${user.lastName} (@${user.username || user.email})?\n\nLos tratamientos, citas e historias clínicas asociados se mantendrán intactos como referencias históricas.`
+    );
+    if (!confirm) return;
+
+    try {
+      dbStore.deleteUser(user.id, actor);
+      setNotification(`Usuario ${user.firstName} ${user.lastName} eliminado correctamente. Datos históricos conservados.`);
+      setTimeout(() => setNotification(null), 5000);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Error al eliminar usuario.');
+      setTimeout(() => setErrorMessage(null), 5000);
+    }
   };
 
   const handleOpenUserPermissions = (user: any) => {
@@ -659,6 +685,17 @@ export const UserManagementView: React.FC = () => {
                               <LogOut className="h-4 w-4" />
                             </button>
                           )}
+
+                          {isSuperAdmin && u.id !== session?.userId && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUser(u)}
+                              title="Eliminar usuario del sistema (preservando datos históricos)"
+                              className="p-2 min-h-[38px] min-w-[38px] flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -876,6 +913,17 @@ export const UserManagementView: React.FC = () => {
                     >
                       <Edit2 className="h-3.5 w-3.5 text-teal-700" />
                       <span>Editar</span>
+                    </button>
+                  )}
+
+                  {isSuperAdmin && u.id !== session?.userId && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteUser(u)}
+                      title="Eliminar usuario del sistema (preservando datos históricos)"
+                      className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   )}
                 </div>

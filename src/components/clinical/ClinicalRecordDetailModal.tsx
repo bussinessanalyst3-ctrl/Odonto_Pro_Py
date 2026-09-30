@@ -160,7 +160,7 @@ export const ClinicalRecordDetailModal: React.FC<ClinicalRecordDetailModalProps>
               </div>
               <div>
                 <div className="font-bold text-slate-900">
-                  Dr(a). {dentist?.firstName} {dentist?.lastName}
+                  Dr(a). {dentist ? `${dentist.firstName} ${dentist.lastName}` : ((record as any).historicalDoctorName || 'Odontólogo Tratante')}
                 </div>
                 <div className="text-teal-700 font-semibold">
                   Registro Profesional MSPBS: {dentist?.professionalLicense || 'N° 9.155'}

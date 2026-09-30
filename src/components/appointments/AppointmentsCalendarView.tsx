@@ -415,7 +415,7 @@ export const AppointmentsCalendarView: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <Stethoscope className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                       <span className="truncate">
-                        Dr(a). <strong>{dentist ? `${dentist.firstName} ${dentist.lastName}` : 'Por Asignar'}</strong>
+                        Dr(a). <strong>{dentist ? `${dentist.firstName} ${dentist.lastName}` : ((app as any).historicalDoctorName || 'Por Asignar')}</strong>
                         {dentist?.professionalLicense && ` (${dentist.professionalLicense})`}
                       </span>
                     </div>

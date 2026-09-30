@@ -379,7 +379,7 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
                     });
                     return (
                       <option key={o.id} value={o.id}>
-                        Versión {o.version} • {d} (Dr. {doc?.lastName || 'Tratante'})
+                        Versión {o.version} • {d} (Dr. {doc?.lastName || (o as any).historicalDoctorName || 'Tratante'})
                       </option>
                     );
                   })
@@ -567,7 +567,7 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
             <div>
               <span className="font-semibold text-slate-700">Responsable Clínico: </span>
               <span className="text-teal-800 font-bold">
-                Dr(a). {currentOdontologist?.firstName} {currentOdontologist?.lastName}
+                Dr(a). {currentOdontologist ? `${currentOdontologist.firstName} ${currentOdontologist.lastName}` : ((activeOdontogram as any).historicalDoctorName || 'Tratante')}
               </span>
               <span className="text-slate-400 ml-1">
                 (Reg. MSPBS: {currentOdontologist?.professionalLicense || 'N/A'})

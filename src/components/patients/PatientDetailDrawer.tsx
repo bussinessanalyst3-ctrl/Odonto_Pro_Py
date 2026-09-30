@@ -331,7 +331,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                           </div>
                           <div className="text-right">
                             <div className="font-semibold text-teal-800">
-                              Dr(a). {doc?.firstName} {doc?.lastName}
+                              Dr(a). {doc ? `${doc.firstName} ${doc.lastName}` : ((ev as any).historicalDoctorName || 'Tratante')}
                             </div>
                             <div className="text-[10px] text-slate-400">
                               MSPBS: {doc?.professionalLicense || 'N/A'}
@@ -394,7 +394,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
 
                         <div className="text-xs text-slate-600 flex items-center gap-1.5">
                           <User className="h-3 w-3 text-slate-400" />
-                          <span>Dr. {odontologist?.firstName} {odontologist?.lastName}</span>
+                          <span>Dr. {odontologist ? `${odontologist.firstName} ${odontologist.lastName}` : ((app as any).historicalDoctorName || 'Tratante Asignado')}</span>
                         </div>
 
                         <div className="text-xs text-slate-700 bg-white p-2 rounded-xl border border-slate-100 mt-1">

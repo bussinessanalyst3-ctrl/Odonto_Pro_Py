@@ -125,7 +125,7 @@ export const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
           {/* Quick info */}
           <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1 text-slate-600">
             <div>
-              <strong>Profesional:</strong> Dr(a). {dentist?.firstName} {dentist?.lastName}
+              <strong>Profesional:</strong> Dr(a). {dentist ? `${dentist.firstName} ${dentist.lastName}` : ((appointment as any).historicalDoctorName || 'Por Asignar')}
             </div>
             <div>
               <strong>Sucursal:</strong> {branch?.name} ({chair?.name || 'Sillón General'})
