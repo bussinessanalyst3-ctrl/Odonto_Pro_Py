@@ -4,6 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import pg from 'pg';
 import { generateInitialSeedData } from './src/db/seeds/initial-seed.ts';
 import { canManageRole, isSuperAdminRole } from './src/security/rbacHierarchy.ts';
 
@@ -16,6 +17,27 @@ const DB_FILE = path.join(DATA_DIR, 'db_store.json');
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+// PostgreSQL Connection Pool (Supabase, Neon, Cloud SQL)
+let pgPool: pg.Pool | null = null;
+if (process.env.DATABASE_URL) {
+  try {
+    const isLocalhost = process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1');
+    pgPool = new pg.Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: isLocalhost ? false : { rejectUnauthorized: false },
+      max: 10,
+      connectionTimeoutMillis: 10000,
+    });
+    pgPool.on('error', (err: any) => {
+      console.error('[PostgreSQL] Unexpected client error:', err.message);
+    });
+    console.log('[PostgreSQL] Initialized PostgreSQL connection pool from DATABASE_URL.');
+  } catch (err) {
+    console.error('[PostgreSQL] Failed to initialize pool:', err);
+    pgPool = null;
+  }
 }
 
 // In-memory server-side state initialized from persistent file or seed
@@ -84,7 +106,46 @@ function sanitizeUsersForClient(users: any[]): any[] {
   });
 }
 
-function loadDatabaseState() {
+async function loadDatabaseState() {
+  if (pgPool) {
+    try {
+      console.log('[PostgreSQL] Initializing table system_state...');
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS system_state (
+          key VARCHAR(50) PRIMARY KEY,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+      `);
+
+      const res = await pgPool.query('SELECT data FROM system_state WHERE key = $1', ['app_state']);
+      if (res.rows.length > 0 && res.rows[0].data) {
+        serverDbState = res.rows[0].data;
+        console.log(`[PostgreSQL] Loaded persistent state with ${serverDbState.organizationsList?.length || 1} organization(s) from remote database.`);
+        saveDatabaseStateToDisk();
+        return;
+      } else {
+        console.log('[PostgreSQL] No existing app_state found. Seeding remote database...');
+        const initial = generateInitialSeedData();
+        serverDbState = {
+          data: initial,
+          organizationsList: [initial.organization],
+        };
+        await pgPool.query(`
+          INSERT INTO system_state (key, data, updated_at)
+          VALUES ('app_state', $1, NOW())
+          ON CONFLICT (key) DO UPDATE
+          SET data = EXCLUDED.data, updated_at = NOW();
+        `, [JSON.stringify(serverDbState)]);
+        saveDatabaseStateToDisk();
+        console.log('[PostgreSQL] Successfully seeded remote database.');
+        return;
+      }
+    } catch (err: any) {
+      console.error('[PostgreSQL] Error connecting to PostgreSQL, falling back to local disk:', err.message);
+    }
+  }
+
   try {
     if (fs.existsSync(DB_FILE)) {
       const raw = fs.readFileSync(DB_FILE, 'utf-8');
@@ -109,7 +170,7 @@ function loadDatabaseState() {
   console.log('[Backend Database] Initialized fresh database state from seed.');
 }
 
-function saveDatabaseState() {
+function saveDatabaseStateToDisk() {
   try {
     const tmpFile = `${DB_FILE}.tmp`;
     fs.writeFileSync(tmpFile, JSON.stringify(serverDbState, null, 2), 'utf-8');
@@ -119,10 +180,25 @@ function saveDatabaseState() {
   }
 }
 
-// Initialize database on boot
-loadDatabaseState();
+function saveDatabaseState() {
+  saveDatabaseStateToDisk();
+
+  if (pgPool) {
+    pgPool.query(`
+      INSERT INTO system_state (key, data, updated_at)
+      VALUES ('app_state', $1, NOW())
+      ON CONFLICT (key) DO UPDATE
+      SET data = EXCLUDED.data, updated_at = NOW();
+    `, [JSON.stringify(serverDbState)]).catch((err: any) => {
+      console.error('[PostgreSQL] Error saving state to database:', err.message);
+    });
+  }
+}
 
 async function startServer() {
+  // Initialize database on boot
+  await loadDatabaseState();
+
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
