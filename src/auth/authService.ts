@@ -1,6 +1,7 @@
 import { UserRole, UserSession, AuthCredentials, LoginResult, PasswordChangeResult } from './types.ts';
 import { dbStore } from '../db/inMemoryStore.ts';
 import { verifyPassword, hashPassword, generateSalt } from './cryptoUtils.ts';
+import { getApiBaseUrl } from '../config/apiConfig.ts';
 
 // Configuración de sesiones y seguridad desde variables de entorno
 const SESSION_EXPIRATION_HOURS =
@@ -66,7 +67,8 @@ class AuthService {
     }
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -213,7 +215,8 @@ class AuthService {
    */
   public logout(session: UserSession | null): void {
     if (session?.sessionToken) {
-      fetch('/api/auth/logout', {
+      const baseUrl = getApiBaseUrl();
+      fetch(`${baseUrl}/api/auth/logout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -317,7 +320,8 @@ class AuthService {
   public async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
     const cleanEmail = email.trim().toLowerCase();
     try {
-      const response = await fetch('/api/auth/recover-password', {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/auth/recover-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail }),
@@ -346,7 +350,8 @@ class AuthService {
     newPassword: string
   ): Promise<{ success: boolean; message?: string; error?: string }> {
     try {
-      const response = await fetch('/api/auth/reset-password', {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

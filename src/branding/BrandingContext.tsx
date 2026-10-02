@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { OrganizationBranding, DEFAULT_BRANDING } from './brandingTypes.ts';
 import { dbStore } from '../db/inMemoryStore.ts';
+import { getApiBaseUrl } from '../config/apiConfig.ts';
 
 interface BrandingContextType {
   branding: OrganizationBranding;
@@ -129,7 +130,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Persistir directamente contra el Backend (REST) para que esté disponible inmediatamente para móvil
     if (typeof fetch !== 'undefined') {
       try {
-        const baseUrl = typeof window !== 'undefined' ? '' : (process?.env?.API_BASE_URL || 'http://localhost:3000');
+        const baseUrl = getApiBaseUrl();
         await fetch(`${baseUrl}/api/organizations/${activeOrg.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },

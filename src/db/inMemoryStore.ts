@@ -1,5 +1,6 @@
 import { generateInitialSeedData, SeedDataResult } from './seeds/initial-seed.ts';
 import { PARAGUAY_DEPARTMENTS, BASE_ROLES, STANDARD_SERVICES, formatPYG } from './seeds/paraguay-catalogs.ts';
+import { getApiBaseUrl } from '../config/apiConfig.ts';
 import {
   hasPermission,
   canManageRole,
@@ -113,7 +114,7 @@ class DatabaseStore {
   public async syncFromServer(): Promise<boolean> {
     try {
       if (typeof fetch === 'undefined') return false;
-      const baseUrl = typeof window !== 'undefined' ? '' : (process?.env?.API_BASE_URL || 'http://localhost:3000');
+      const baseUrl = getApiBaseUrl();
       const res = await fetch(`${baseUrl}/api/db/state`);
       if (res.ok) {
         const payload = await res.json();
@@ -243,7 +244,7 @@ class DatabaseStore {
     // Sincronización asíncrona permanente hacia el servidor backend (Browser)
     if (typeof fetch !== 'undefined') {
       try {
-        const baseUrl = typeof window !== 'undefined' ? '' : (process?.env?.API_BASE_URL || 'http://localhost:3000');
+        const baseUrl = getApiBaseUrl();
         fetch(`${baseUrl}/api/db/sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
