@@ -11,6 +11,7 @@ import {
   ArrowRight,
   ShieldCheck,
   RotateCcw,
+  RefreshCw,
   Landmark,
   Image as ImageIcon,
   DollarSign,
@@ -117,6 +118,8 @@ export const OrganizationManagementView: React.FC = () => {
 
   // Notificaciones
   const [notification, setNotification] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Multi-organización
   const organizations = dbStore.getOrganizations();
@@ -250,34 +253,70 @@ export const OrganizationManagementView: React.FC = () => {
     }
   };
 
-  // Guardar configuración completa
-  const handleSave = (e: React.FormEvent) => {
+  // Guardar configuración completa y persistir al servidor central para móvil y PC
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
 
     const finalLogoUrl = logoMode === 'icon' ? '' : (logoUrl.trim() || '');
 
-    updateBranding({
-      tradeName: tradeName.trim(),
-      legalName: legalName.trim(),
-      companyType,
-      taxId: taxId.trim(),
-      timbradoNumber: timbradoNumber.trim(),
-      timbradoVencimiento: timbradoVencimiento.trim(),
-      logoUrl: finalLogoUrl,
-      logoIcon: selectedIcon,
-      primaryColor,
-      customHexColor: activeColorHex,
-      currency,
-      currencySymbol,
-      phone: phone.trim(),
-      whatsapp: whatsapp.trim(),
-      email: email.trim(),
-      address: address.trim(),
-      website: website.trim() || undefined,
-    });
+    try {
+      await updateBranding({
+        tradeName: tradeName.trim(),
+        legalName: legalName.trim(),
+        companyType,
+        taxId: taxId.trim(),
+        timbradoNumber: timbradoNumber.trim(),
+        timbradoVencimiento: timbradoVencimiento.trim(),
+        logoUrl: finalLogoUrl,
+        logoIcon: selectedIcon,
+        primaryColor,
+        customHexColor: activeColorHex,
+        currency,
+        currencySymbol,
+        phone: phone.trim(),
+        whatsapp: whatsapp.trim(),
+        email: email.trim(),
+        address: address.trim(),
+        website: website.trim() || undefined,
+      });
 
-    setNotification('¡Identidad visual, logotipo, razón social y paleta cromática aplicadas con éxito!');
-    setTimeout(() => setNotification(null), 5000);
+      setNotification('¡Configuración guardada y sincronizada exitosamente con el servidor central para todos los dispositivos (móvil y PC)!');
+      setTimeout(() => setNotification(null), 6000);
+    } catch (err) {
+      console.error('Error guardando configuración:', err);
+      setNotification('Se guardaron los cambios localmente.');
+      setTimeout(() => setNotification(null), 5000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Forzar sincronización bidireccional inmediata con el servidor
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      const ok = await dbStore.syncFromServer();
+      if (ok) {
+        const currentOrg = dbStore.getActiveOrganization();
+        if (currentOrg) {
+          setTradeName(currentOrg.name || currentOrg.tradeName || '');
+          setLegalName(currentOrg.legalName || currentOrg.name || '');
+          setTaxId(currentOrg.taxId || '');
+          setPhone(currentOrg.phone || '');
+          setEmail(currentOrg.email || '');
+          setAddress(currentOrg.address || '');
+        }
+        setNotification('¡Sincronización con el servidor completada! Los cambios están al día en este dispositivo.');
+      } else {
+        setNotification('Conexión con el servidor verificada. Datos locales listos.');
+      }
+    } catch (e) {
+      setNotification('No se pudo completar la sincronización en este momento.');
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setNotification(null), 5000);
+    }
   };
 
   // Crear nueva empresa/organización con sede inicial automática
@@ -389,6 +428,16 @@ export const OrganizationManagementView: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              className="w-full sm:w-auto px-3.5 py-2.5 min-h-[42px] sm:min-h-[44px] text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Sincronizar datos con el servidor central para ver cambios de móvil o PC"
+            >
+              <RefreshCw className={`h-4 w-4 text-teal-600 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar Servidor'}</span>
+            </button>
             <button
               type="button"
               onClick={() => setIsNewOrgModalOpen(true)}

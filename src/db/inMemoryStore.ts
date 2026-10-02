@@ -94,6 +94,15 @@ class DatabaseStore {
       window.addEventListener('focus', () => {
         this.syncFromServer();
       });
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          this.syncFromServer();
+        }
+      });
+      // Sincronización periódica cada 15 segundos entre dispositivos (móvil y PC)
+      setInterval(() => {
+        this.syncFromServer();
+      }, 15000);
     }
   }
 

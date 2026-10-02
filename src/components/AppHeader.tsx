@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { dbStore } from '../db/inMemoryStore.ts';
 import { useAuth } from '../auth/authContext.tsx';
+import { useBranding } from '../branding/BrandingContext.tsx';
 import { TabType } from './Header.tsx';
 import { formatPYG } from '../db/seeds/paraguay-catalogs.ts';
 import { UserSessionMenu } from './auth/UserSessionMenu.tsx';
@@ -48,6 +49,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onOpenMobileSidebar,
 }) => {
   const { session } = useAuth();
+  const { branding } = useBranding();
   const branches = dbStore.getBranches();
   const org = dbStore.getActiveOrganization();
 
@@ -256,9 +258,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             >
               <Menu className="h-5 w-5" />
             </button>
-            <span className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight flex items-center gap-0.5">
-              <span>OdontoPro</span>
-              <span className="text-teal-600 font-semibold text-[10px] sm:text-xs hidden min-[360px]:inline">Suite</span>
+            <span className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight flex items-center gap-0.5 truncate max-w-[120px] min-[360px]:max-w-[170px]" title={branding.tradeName}>
+              <span className="truncate">{branding.tradeName || 'OdontoPro'}</span>
             </span>
             <button
               onClick={() => setIsMobileSearchOpen(true)}

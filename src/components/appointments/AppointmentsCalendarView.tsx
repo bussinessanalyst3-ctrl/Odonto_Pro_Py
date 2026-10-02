@@ -22,11 +22,13 @@ import {
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { useBranding } from '../../branding/BrandingContext.tsx';
 import { CreateAppointmentModal } from './CreateAppointmentModal.tsx';
 import { AppointmentStatusModal } from './AppointmentStatusModal.tsx';
 
 export const AppointmentsCalendarView: React.FC = () => {
   const { session } = useAuth();
+  const { branding } = useBranding();
   const snapshot = dbStore.getSnapshot();
 
   // Filters state
@@ -359,7 +361,7 @@ export const AppointmentsCalendarView: React.FC = () => {
             const cleanPhone = phone.replace(/\D/g, '');
             const waNumber = cleanPhone.startsWith('595') ? cleanPhone : `595${cleanPhone.replace(/^0/, '')}`;
             const waGreeting = encodeURIComponent(
-              `Hola ${patient?.firstName || ''}, le recordamos su turno odontológico para hoy a las ${app.startTime.slice(0, 5)} en ${branch?.name || 'OdontoSol'}.`
+              `Hola ${patient?.firstName || ''}, le recordamos su turno odontológico para hoy a las ${app.startTime.slice(0, 5)} en ${branch?.name || branding.tradeName || branding.legalName || 'nuestra clínica'}.`
             );
             const waUrl = `https://wa.me/${waNumber}?text=${waGreeting}`;
 

@@ -22,6 +22,7 @@ import {
   MapPin
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
+import { useBranding } from '../../branding/BrandingContext.tsx';
 import { PatientModal } from './PatientModal.tsx';
 import { ComprehensivePatientModal } from './ComprehensivePatientModal.tsx';
 
@@ -33,6 +34,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   onNavigateToTab,
 }) => {
   const [, setTick] = useState(0);
+  const { branding } = useBranding();
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('ALL');
   const [alertFilter, setAlertFilter] = useState('ALL');
@@ -263,7 +265,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
             const waUrl = `https://wa.me/${
               cleanPhone.startsWith('595') ? cleanPhone : '595' + cleanPhone.replace(/^0/, '')
             }?text=${encodeURIComponent(
-              `Hola ${p.firstName}, le saludamos desde OdontoSol S.R.L. Paraguay.`
+              `Hola ${p.firstName}, le saludamos desde ${branding.legalName || branding.tradeName || 'la clínica odontológica'}.`
             )}`;
 
             return (
@@ -390,7 +392,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                 const waUrl = `https://wa.me/${
                   cleanPhone.startsWith('595') ? cleanPhone : '595' + cleanPhone.replace(/^0/, '')
                 }?text=${encodeURIComponent(
-                  `Hola ${p.firstName}, le saludamos desde OdontoSol S.R.L. Paraguay.`
+                  `Hola ${p.firstName}, le saludamos desde ${branding.legalName || branding.tradeName || 'la clínica odontológica'}.`
                 )}`;
 
                 return (

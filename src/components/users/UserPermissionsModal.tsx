@@ -837,7 +837,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
                   </div>
                   <div>
                     <span className="text-slate-500">Empresa / Inquilino:</span>{' '}
-                    <span className="text-teal-300">{session?.organizationName || 'OdontoSol'}</span> (ID: {freshUser.organizationId})
+                    <span className="text-teal-300">{session?.organizationName || 'Clínica Principal'}</span> (ID: {freshUser.organizationId})
                   </div>
                   <div>
                     <span className="text-slate-500">Versión de Políticas:</span>{' '}

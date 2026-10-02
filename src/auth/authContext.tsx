@@ -71,8 +71,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const dbPermVersion = (userInDb as any).permissionsVersion || 1;
       const sessionPermVersion = session.permissionsVersion || 1;
       const roleChanged = userInDb.roleId !== session.role;
+      const activeOrg = dbStore.getActiveOrganization();
+      const orgNameChanged = activeOrg && (session.organizationName !== activeOrg.name || session.organizationTaxId !== activeOrg.taxId);
 
-      if (dbPermVersion !== sessionPermVersion || roleChanged) {
+      if (dbPermVersion !== sessionPermVersion || roleChanged || orgNameChanged) {
         const effective = dbStore.getUserEffectivePermissions(userInDb.id);
         const roleObj = dbStore.getRoles().find((r) => r.id === userInDb.roleId);
 
@@ -80,6 +82,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...session,
           role: userInDb.roleId as any,
           roleName: roleObj?.name || userInDb.roleId,
+          organizationName: activeOrg?.name || session.organizationName,
+          organizationTaxId: activeOrg?.taxId || session.organizationTaxId,
           effectivePermissions: effective.effectivePermissions,
           customPermissions: effective.customPermissions,
           revokedPermissions: effective.revokedPermissions,

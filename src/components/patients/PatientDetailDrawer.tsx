@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
+import { useBranding } from '../../branding/BrandingContext.tsx';
 
 interface PatientDetailDrawerProps {
   patientId: string | null;
@@ -32,6 +33,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
   onEdit,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'clinical' | 'evolutions' | 'appointments' | 'branches' | 'payments'>('clinical');
+  const { branding } = useBranding();
 
   if (!patientId) return null;
 
@@ -55,7 +57,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
   const cleanPhone = (patient.whatsapp || patient.phone || '').replace(/\D/g, '');
   const waNumber = cleanPhone.startsWith('595') ? cleanPhone : `595${cleanPhone.replace(/^0/, '')}`;
   const greeting = encodeURIComponent(
-    `Hola ${patient.firstName}, le saludamos desde OdontoSol S.R.L. clínica odontológica.`
+    `Hola ${patient.firstName}, le saludamos desde ${branding.legalName || branding.tradeName || 'la clínica odontológica'}.`
   );
   const waUrl = `https://wa.me/${waNumber}?text=${greeting}`;
 
@@ -295,7 +297,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                   <Award className="h-4 w-4 text-teal-600 shrink-0 mt-0.5" />
                   <span>
                     Ficha clínica unificada vinculada a la Ley N° 1682/01 de Protección de Datos Médicos.
-                    Válida en cualquiera de las sucursales de la red OdontoSol.
+                    Válida en cualquiera de las sucursales habilitadas de {branding.tradeName || branding.legalName || 'nuestra red odontológica'}.
                   </span>
                 </div>
               </div>
