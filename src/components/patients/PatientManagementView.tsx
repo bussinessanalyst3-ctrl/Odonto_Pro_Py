@@ -38,6 +38,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('ALL');
   const [alertFilter, setAlertFilter] = useState('ALL');
+  const [modalityFilter, setModalityFilter] = useState<'ALL' | 'PARTICULAR' | 'PLAN_SEGURO'>('ALL');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -54,6 +55,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   const snapshot = dbStore.getSnapshot();
   const patients = snapshot.patients;
   const branches = snapshot.branches;
+  const insurancePlans = snapshot.insurancePlans || [];
 
   const handleOpenAdd = () => {
     setPatientToEdit(null);
@@ -95,9 +97,16 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
           p.medicalConditions.toLowerCase() !== 'ninguna conocida';
       }
 
-      return matchesSearch && matchesBranch && matchesAlert;
+      let matchesModality = true;
+      if (modalityFilter === 'PARTICULAR') {
+        matchesModality = p.modality === 'PARTICULAR' || !p.modality;
+      } else if (modalityFilter === 'PLAN_SEGURO') {
+        matchesModality = p.modality === 'PLAN_SEGURO';
+      }
+
+      return matchesSearch && matchesBranch && matchesAlert && matchesModality;
     });
-  }, [patients, searchTerm, branchFilter, alertFilter]);
+  }, [patients, searchTerm, branchFilter, alertFilter, modalityFilter]);
 
   const totalPages = Math.ceil(filteredPatients.length / pageSize) || 1;
   const paginatedPatients = useMemo(() => {
@@ -108,9 +117,10 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   // Reset page when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, branchFilter, alertFilter]);
+  }, [searchTerm, branchFilter, alertFilter, modalityFilter]);
 
   const totalPatients = patients.length;
+  const insuredPatientsCount = patients.filter((p) => p.modality === 'PLAN_SEGURO').length;
   const patientsWithAllergies = patients.filter(
     (p) =>
       p.allergies &&
@@ -162,16 +172,16 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
             <div className="text-[11px] text-teal-700 font-semibold">100% C.I. Validada</div>
           </div>
 
+          <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100">
+            <div className="text-[11px] font-medium text-indigo-600 uppercase">Planes & Seguros</div>
+            <div className="text-lg font-bold text-indigo-900 mt-0.5">{insuredPatientsCount} Pacientes</div>
+            <div className="text-[11px] text-indigo-700 font-semibold">Con Cobertura Activa</div>
+          </div>
+
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
             <div className="text-[11px] font-medium text-slate-500 uppercase">Alertas de Alergias</div>
             <div className="text-lg font-bold text-rose-700 mt-0.5">{patientsWithAllergies} Pacientes</div>
             <div className="text-[11px] text-rose-600">Alerta Penicilina / Látex</div>
-          </div>
-
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <div className="text-[11px] font-medium text-slate-500 uppercase">Multi-Sucursal</div>
-            <div className="text-lg font-bold text-slate-900 mt-0.5">Ficha Compartida</div>
-            <div className="text-[11px] text-slate-500">Historial Médico Unificado</div>
           </div>
 
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -196,6 +206,16 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={modalityFilter}
+            onChange={(e) => setModalityFilter(e.target.value as any)}
+            className="flex-1 sm:flex-none text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-700 min-h-[40px] cursor-pointer"
+          >
+            <option value="ALL">Todas las Modalidades</option>
+            <option value="PARTICULAR">👤 Particular (Lista)</option>
+            <option value="PLAN_SEGURO">🛡️ Con Seguro / Plan</option>
+          </select>
+
           <select
             value={branchFilter}
             onChange={(e) => setBranchFilter(e.target.value)}
@@ -274,7 +294,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                 className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all"
               >
                 <div>
-                  <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2.5">
                       <div className="h-10 w-10 rounded-2xl bg-teal-100 text-teal-800 font-bold text-sm flex items-center justify-center shrink-0">
                         {p.firstName.charAt(0)}{p.lastName.charAt(0)}
@@ -291,6 +311,25 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
                       {p.bloodType || 'O+'}
                     </span>
+                  </div>
+
+                  {/* Modalidad Comercial Badge */}
+                  <div className="mb-2.5">
+                    {p.modality === 'PLAN_SEGURO' ? (
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-[11px] font-bold max-w-full">
+                        <ShieldCheck className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                        <span className="truncate">{insurancePlans.find((ip) => ip.id === p.insurancePlanId)?.name || 'Seguro Dental'}</span>
+                        {p.insuranceMemberNumber && (
+                          <span className="text-[10px] text-indigo-600 font-mono font-normal shrink-0">
+                            • Nº {p.insuranceMemberNumber}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-medium border border-slate-200">
+                        Particular (Sin Cobertura)
+                      </span>
+                    )}
                   </div>
 
                   {hasAlert && (
@@ -372,6 +411,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
             <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase text-[10px] tracking-wider">
               <tr>
                 <th className="px-5 py-3">Paciente / Documento</th>
+                <th className="px-4 py-3">Modalidad / Cobertura</th>
                 <th className="px-4 py-3">Ubicación (PY)</th>
                 <th className="px-4 py-3">Contacto Directo</th>
                 <th className="px-4 py-3">Alertas Clínicas (Anamnesis)</th>
@@ -382,6 +422,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
             <tbody className="divide-y divide-slate-100 font-medium">
               {paginatedPatients.map((p) => {
                 const primaryBranch = branches.find((b) => b.id === p.primaryBranchId);
+                const assignedPlan = insurancePlans.find((ip) => ip.id === p.insurancePlanId);
 
                 const hasAlert =
                   p.allergies &&
@@ -417,6 +458,26 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                           </div>
                         </div>
                       </div>
+                    </td>
+
+                    <td className="px-4 py-3.5">
+                      {p.modality === 'PLAN_SEGURO' ? (
+                        <div className="space-y-0.5">
+                          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 text-indigo-900 border border-indigo-200 text-[10px] font-bold max-w-[170px] truncate">
+                            <ShieldCheck className="h-3 w-3 text-indigo-600 shrink-0" />
+                            <span className="truncate">{assignedPlan?.name || 'Plan de Seguro'}</span>
+                          </div>
+                          {p.insuranceMemberNumber && (
+                            <div className="text-[10px] text-slate-500 font-mono">
+                              Nº {p.insuranceMemberNumber}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-medium border border-slate-200">
+                          Particular
+                        </span>
+                      )}
                     </td>
 
                     <td className="px-4 py-3.5">

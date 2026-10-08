@@ -37,6 +37,14 @@ export const PatientModal: React.FC<PatientModalProps> = ({
   const [medicalConditions, setMedicalConditions] = useState('Ninguna');
   const [medications, setMedications] = useState('Ninguna');
   const [primaryBranchId, setPrimaryBranchId] = useState('');
+  const [modality, setModality] = useState<'PARTICULAR' | 'PLAN_SEGURO'>('PARTICULAR');
+  const [insurancePlanId, setInsurancePlanId] = useState('');
+  const [insuranceMemberNumber, setInsuranceMemberNumber] = useState('');
+
+  const allInsurancePlans = dbStore.getInsurancePlans(true);
+  const availablePlans = allInsurancePlans.filter(
+    (p) => p.status === 'ACTIVE' || p.id === patientToEdit?.insurancePlanId
+  );
 
   useEffect(() => {
     if (patientToEdit) {
@@ -60,6 +68,9 @@ export const PatientModal: React.FC<PatientModalProps> = ({
       setMedicalConditions(patientToEdit.medicalConditions || 'Ninguna');
       setMedications(patientToEdit.medications || 'Ninguna');
       setPrimaryBranchId(patientToEdit.primaryBranchId || branches[0]?.id || '');
+      setModality(patientToEdit.modality === 'PLAN_SEGURO' ? 'PLAN_SEGURO' : 'PARTICULAR');
+      setInsurancePlanId(patientToEdit.insurancePlanId || (availablePlans[0]?.id || ''));
+      setInsuranceMemberNumber(patientToEdit.insuranceMemberNumber || '');
     } else {
       setDocumentType('CI');
       setDocumentNumber('');
@@ -81,6 +92,9 @@ export const PatientModal: React.FC<PatientModalProps> = ({
       setMedicalConditions('Ninguna');
       setMedications('Ninguna');
       setPrimaryBranchId(branches[0]?.id || '');
+      setModality('PARTICULAR');
+      setInsurancePlanId(availablePlans[0]?.id || '');
+      setInsuranceMemberNumber('');
     }
   }, [patientToEdit, isOpen]);
 
@@ -119,6 +133,9 @@ export const PatientModal: React.FC<PatientModalProps> = ({
         medicalConditions,
         medications,
         primaryBranchId,
+        modality,
+        insurancePlanId: modality === 'PLAN_SEGURO' ? (insurancePlanId || null) : null,
+        insuranceMemberNumber: modality === 'PLAN_SEGURO' ? (insuranceMemberNumber.trim() || null) : null,
       });
     } else {
       dbStore.addPatient({
@@ -131,6 +148,9 @@ export const PatientModal: React.FC<PatientModalProps> = ({
         department,
         city,
         allergies,
+        modality,
+        insurancePlanId: modality === 'PLAN_SEGURO' ? (insurancePlanId || null) : null,
+        insuranceMemberNumber: modality === 'PLAN_SEGURO' ? (insuranceMemberNumber.trim() || null) : null,
       });
     }
 
@@ -396,6 +416,131 @@ export const PatientModal: React.FC<PatientModalProps> = ({
                 className="w-full text-xs bg-white border border-rose-300 rounded-xl px-3 py-2 font-medium text-slate-900 focus:ring-2 focus:ring-rose-500 min-h-[42px]"
               />
             </div>
+          </div>
+
+          {/* Modalidad Comercial y Cobertura */}
+          <div className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-900 flex items-center gap-1.5 uppercase tracking-wide">
+                <ShieldCheck className="h-4 w-4 text-teal-600" />
+                <span>Modalidad Comercial & Cobertura Odontológica</span>
+              </label>
+              <span className="text-[11px] font-semibold text-slate-500">
+                Determina el tarifario del paciente
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <label
+                className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                  modality === 'PARTICULAR'
+                    ? 'border-teal-600 bg-teal-50/70 ring-1 ring-teal-600'
+                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="patientModality"
+                  value="PARTICULAR"
+                  checked={modality === 'PARTICULAR'}
+                  onChange={() => setModality('PARTICULAR')}
+                  className="mt-0.5 text-teal-600 focus:ring-teal-500"
+                />
+                <div className="text-xs">
+                  <div className="font-bold text-slate-900">Particular / Financiación Directa</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Tarifario oficial de lista. Pagos directos o cuotas sin cobertura de seguro.
+                  </div>
+                </div>
+              </label>
+
+              <label
+                className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                  modality === 'PLAN_SEGURO'
+                    ? 'border-indigo-600 bg-indigo-50/70 ring-1 ring-indigo-600'
+                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="patientModality"
+                  value="PLAN_SEGURO"
+                  checked={modality === 'PLAN_SEGURO'}
+                  onChange={() => setModality('PLAN_SEGURO')}
+                  className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                />
+                <div className="text-xs">
+                  <div className="font-bold text-indigo-950 flex items-center gap-1">
+                    <span>Plan / Seguro Dental</span>
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800">Convenio</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Precios preferenciales o cobertura según póliza/seguro mensual.
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            {modality === 'PLAN_SEGURO' && (
+              <div className="p-3.5 bg-white border border-indigo-100 rounded-xl space-y-3 animate-in fade-in duration-150">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Plan Odontológico Asociado *
+                    </label>
+                    <select
+                      value={insurancePlanId}
+                      onChange={(e) => setInsurancePlanId(e.target.value)}
+                      className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 font-medium text-slate-900 focus:ring-2 focus:ring-indigo-500 min-h-[42px]"
+                      required={modality === 'PLAN_SEGURO'}
+                    >
+                      {availablePlans.length === 0 ? (
+                        <option value="">No hay planes activos configurados</option>
+                      ) : (
+                        availablePlans.map((plan) => (
+                          <option key={plan.id} value={plan.id}>
+                            {plan.name} {plan.status === 'INACTIVE' ? '(Inactivo)' : ''}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Nº de Afiliado / Carnet / Póliza
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. SEG-2026-9812 / 845210"
+                      value={insuranceMemberNumber}
+                      onChange={(e) => setInsuranceMemberNumber(e.target.value)}
+                      className="w-full text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 focus:ring-2 focus:ring-indigo-500 min-h-[42px]"
+                    />
+                  </div>
+                </div>
+
+                {/* Resumen del plan seleccionado */}
+                {(() => {
+                  const selectedPlan = availablePlans.find((p) => p.id === insurancePlanId);
+                  if (!selectedPlan) return null;
+                  return (
+                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-lg text-xs text-indigo-900 flex items-start gap-2">
+                      <ShieldCheck className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-bold">{selectedPlan.name} ({selectedPlan.code})</div>
+                        <div className="text-[11px] text-indigo-800 mt-0.5">{selectedPlan.description}</div>
+                        {selectedPlan.coverageTerms && (
+                          <div className="text-[10px] text-indigo-600 font-mono mt-0.5">
+                            Condición: {selectedPlan.coverageTerms}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
 
           {/* Primary branch */}

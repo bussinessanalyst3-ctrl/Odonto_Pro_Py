@@ -24,6 +24,9 @@ export const patients = pgTable('patients', {
   allergies: text('allergies'),
   medicalConditions: text('medical_conditions'),
   medications: text('medications'),
+  modality: varchar('modality', { length: 30 }).default('PARTICULAR').notNull(), // PARTICULAR, PLAN_SEGURO
+  insurancePlanId: uuid('insurance_plan_id'),
+  insuranceMemberNumber: varchar('insurance_member_number', { length: 100 }),
   status: varchar('status', { length: 20 }).default('ACTIVE').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

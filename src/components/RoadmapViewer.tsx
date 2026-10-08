@@ -128,6 +128,8 @@ const PHASES: RoadmapPhase[] = [
     deliverables: [
       'Catálogo por Especialidad con Duración y Precio PYG',
       'Personalización de Precios por Sucursal (Asunción, San Lorenzo, Luque)',
+      'Planes, Seguros Odontológicos y Tarifarios por Cobertura/Copago',
+      'Liquidaciones a Aseguradoras (Claims), Remesas y Conciliación SIPAP',
       'Vinculación de Tratamientos a Piezas Dentales FDI',
       'Seguimiento de Estados (Planificado, En Progreso, Completado)',
       'Cobro de Cuotas con Recibo Oficial y Saldo en Guaraníes'

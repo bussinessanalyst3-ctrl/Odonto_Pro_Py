@@ -85,6 +85,26 @@ class DatabaseStore {
       if (this.data && !(this.data as any).regulatoryRestrictions) {
         (this.data as any).regulatoryRestrictions = REGULATORY_RESTRICTIONS_CATALOG.filter((r) => r.defaultEnforced).map((r) => r.id);
       }
+      // Failsafe de integridad: Planes de seguro y modalidad de pacientes
+      const defaultSeed = generateInitialSeedData();
+      if (!this.data.insurancePlans || !Array.isArray(this.data.insurancePlans) || this.data.insurancePlans.length === 0) {
+        this.data.insurancePlans = defaultSeed.insurancePlans || [];
+      }
+      if (!this.data.planServicePrices || !Array.isArray(this.data.planServicePrices) || this.data.planServicePrices.length === 0) {
+        this.data.planServicePrices = defaultSeed.planServicePrices || [];
+      }
+      if (!this.data.insuranceClaims || !Array.isArray(this.data.insuranceClaims) || this.data.insuranceClaims.length === 0) {
+        this.data.insuranceClaims = defaultSeed.insuranceClaims || [];
+      }
+      if (this.data.patients && Array.isArray(this.data.patients)) {
+        this.data.patients.forEach((p: any) => {
+          if (!p.modality) {
+            p.modality = 'PARTICULAR';
+            p.insurancePlanId = null;
+            p.insuranceMemberNumber = null;
+          }
+        });
+      }
     } catch (e) {
       // Ignorar
     }
@@ -121,6 +141,26 @@ class DatabaseStore {
         if (payload && payload.data && payload.organizationsList && Array.isArray(payload.organizationsList)) {
           this.data = payload.data;
           this.organizationsList = payload.organizationsList;
+          // Failsafe de integridad para planes y pacientes
+          const defaultSeed = generateInitialSeedData();
+          if (!this.data.insurancePlans || !Array.isArray(this.data.insurancePlans) || this.data.insurancePlans.length === 0) {
+            this.data.insurancePlans = defaultSeed.insurancePlans || [];
+          }
+          if (!this.data.planServicePrices || !Array.isArray(this.data.planServicePrices) || this.data.planServicePrices.length === 0) {
+            this.data.planServicePrices = defaultSeed.planServicePrices || [];
+          }
+          if (!this.data.insuranceClaims || !Array.isArray(this.data.insuranceClaims) || this.data.insuranceClaims.length === 0) {
+            this.data.insuranceClaims = defaultSeed.insuranceClaims || [];
+          }
+          if (this.data.patients && Array.isArray(this.data.patients)) {
+            this.data.patients.forEach((p: any) => {
+              if (!p.modality) {
+                p.modality = 'PARTICULAR';
+                p.insurancePlanId = null;
+                p.insuranceMemberNumber = null;
+              }
+            });
+          }
           // Mantener consistente la organización activa con la lista actualizada
           const currentActiveId = this.data.organization?.id;
           const matched = this.organizationsList.find((o) => o.id === currentActiveId);
@@ -290,6 +330,9 @@ class DatabaseStore {
       payments: (this.data.payments || []).filter((p) => p.organizationId === orgId),
       cashRegisters: (this.data.cashRegisters || []).filter((c) => c.organizationId === orgId),
       quotes: (this.data.quotes || []).filter((q) => q.organizationId === orgId),
+      insurancePlans: (this.data.insurancePlans || []).filter((p) => p.organizationId === orgId),
+      planServicePrices: this.data.planServicePrices || [],
+      insuranceClaims: (this.data.insuranceClaims || []).filter((ic: any) => ic.organizationId === orgId),
       auditLogs: (this.data.auditLogs || []).filter((l) => l.organizationId === orgId),
     };
   }
@@ -908,6 +951,100 @@ class DatabaseStore {
   public getBranchServices(branchId?: string) {
     if (!branchId) return this.data.branchServices || [];
     return (this.data.branchServices || []).filter(bs => bs.branchId === branchId);
+  }
+
+  public getInsurancePlans(includeInactive: boolean = false) {
+    const orgId = this.data.organization.id;
+    let list = (this.data.insurancePlans || []).filter((p) => p.organizationId === orgId);
+    if (!includeInactive) {
+      list = list.filter((p) => p.status === 'ACTIVO');
+    }
+    return list;
+  }
+
+  public getAllInsurancePlans() {
+    const orgId = this.data.organization.id;
+    return (this.data.insurancePlans || []).filter((p) => p.organizationId === orgId);
+  }
+
+  public getInsurancePlan(planId: string) {
+    return (this.data.insurancePlans || []).find((p) => p.id === planId) || null;
+  }
+
+  public getPlanServicePrices(planId?: string) {
+    if (!planId) return this.data.planServicePrices || [];
+    return (this.data.planServicePrices || []).filter((psp) => psp.planId === planId);
+  }
+
+  public resolveServicePrice(params: {
+    serviceId: string;
+    patientId?: string | null;
+    branchId?: string | null;
+    forcedModality?: 'PARTICULAR' | 'PLAN_SEGURO';
+    forcedPlanId?: string | null;
+  }) {
+    const service = (this.data.services || []).find((s) => s.id === params.serviceId) || null;
+    const branchService = params.branchId
+      ? (this.data.branchServices || []).find(
+          (bs) => bs.branchId === params.branchId && bs.serviceId === params.serviceId
+        )
+      : null;
+    const listPrice = Number(branchService?.customPrice ?? (service?.basePrice || 0));
+
+    const patient = params.patientId
+      ? (this.data.patients || []).find((p) => p.id === params.patientId)
+      : null;
+
+    const modality: 'PARTICULAR' | 'PLAN_SEGURO' =
+      params.forcedModality || (patient?.modality === 'PLAN_SEGURO' ? 'PLAN_SEGURO' : 'PARTICULAR');
+
+    let planId: string | null = null;
+    let plan = null;
+    let finalPrice = listPrice;
+    let hasSpecialPrice = false;
+    let coverageNote = '';
+
+    if (modality === 'PLAN_SEGURO') {
+      planId = params.forcedPlanId || patient?.insurancePlanId || null;
+      if (!planId) {
+        // Fallback al primer plan activo si no se especificó
+        const activePlan = (this.data.insurancePlans || []).find((p) => p.status === 'ACTIVO' || p.status === 'ACTIVE');
+        planId = activePlan ? activePlan.id : null;
+      }
+
+      if (planId) {
+        plan = (this.data.insurancePlans || []).find((p) => p.id === planId) || null;
+        const planPriceEntry = (this.data.planServicePrices || []).find(
+          (psp) => psp.planId === planId && psp.serviceId === params.serviceId
+        );
+
+        if (planPriceEntry !== undefined && planPriceEntry !== null) {
+          finalPrice = Number(planPriceEntry.price);
+          hasSpecialPrice = true;
+          coverageNote = planPriceEntry.notes || plan?.coverageTerms || '';
+        } else {
+          // Si el plan no tiene precio específico configurado para este servicio, mantiene el de lista
+          coverageNote = plan?.coverageTerms || 'Sin tarifa especial definida en este plan; aplica tarifa estándar';
+        }
+      }
+    }
+
+    const discountAmount = Math.max(0, listPrice - finalPrice);
+    const discountPercentage = listPrice > 0 ? Math.round(((listPrice - finalPrice) / listPrice) * 100) : 0;
+
+    return {
+      service,
+      modality,
+      planId: modality === 'PLAN_SEGURO' ? (plan?.id || planId) : null,
+      planName: modality === 'PLAN_SEGURO' ? (plan?.name || null) : null,
+      planCode: modality === 'PLAN_SEGURO' ? (plan?.code || null) : null,
+      listPrice,
+      finalPrice,
+      discountAmount,
+      discountPercentage,
+      hasSpecialPrice,
+      coverageNote,
+    };
   }
 
   public getOrganization() {
@@ -2411,6 +2548,9 @@ class DatabaseStore {
     department?: string;
     city?: string;
     allergies?: string;
+    modality?: 'PARTICULAR' | 'PLAN_SEGURO';
+    insurancePlanId?: string | null;
+    insuranceMemberNumber?: string | null;
   }) {
     const id = crypto.randomUUID();
     const patientRecord = {
@@ -2436,6 +2576,9 @@ class DatabaseStore {
       allergies: newPatient.allergies || 'Ninguna conocida',
       medicalConditions: 'Ninguna',
       medications: 'Ninguna',
+      modality: newPatient.modality || 'PARTICULAR',
+      insurancePlanId: newPatient.insurancePlanId || null,
+      insuranceMemberNumber: newPatient.insuranceMemberNumber || null,
       status: 'ACTIVE',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -2886,6 +3029,11 @@ class DatabaseStore {
     toothNumbers?: number[];
     odontologistId?: string;
     quoteId?: string;
+    serviceId?: string;
+    appliedModality?: 'PARTICULAR' | 'PLAN_SEGURO';
+    appliedPlanId?: string;
+    appliedPlanName?: string;
+    originalListPrice?: number;
     status?: 'PLANIFICADO' | 'EN_PROGRESO' | 'COMPLETADO' | 'SUSPENDIDO';
     startDate?: string;
     notes?: string;
@@ -2895,12 +3043,32 @@ class DatabaseStore {
     const paid = treatment.paidAmount || 0;
     const balance = Math.max(0, treatment.totalAmount - paid);
 
+    const patient = (this.data.patients || []).find((p) => p.id === treatment.patientId);
+    const modality: 'PARTICULAR' | 'PLAN_SEGURO' =
+      treatment.appliedModality || (patient?.modality === 'PLAN_SEGURO' ? 'PLAN_SEGURO' : 'PARTICULAR');
+    const planId = treatment.appliedPlanId || (modality === 'PLAN_SEGURO' ? patient?.insurancePlanId : null) || null;
+    const planName =
+      treatment.appliedPlanName ||
+      (planId ? (this.data.insurancePlans || []).find((p) => p.id === planId)?.name : null) ||
+      null;
+    let origListPrice = treatment.originalListPrice;
+    if (origListPrice === undefined && treatment.serviceId) {
+      const svc = (this.data.services || []).find((s) => s.id === treatment.serviceId);
+      origListPrice = svc?.basePrice || treatment.totalAmount;
+    }
+
     const newTreatment = {
       id,
       organizationId: this.data.organization.id,
       branchId: treatment.branchId,
       patientId: treatment.patientId,
       quoteId: treatment.quoteId || null,
+      serviceId: treatment.serviceId || null,
+      appliedModality: modality,
+      appliedPlanId: planId,
+      appliedPlanName: planName,
+      originalListPrice: origListPrice ?? treatment.totalAmount,
+      finalAppliedPrice: treatment.totalAmount,
       title: treatment.title,
       totalAmount: treatment.totalAmount,
       paidAmount: paid,
@@ -2919,6 +3087,41 @@ class DatabaseStore {
       this.data.treatments = [];
     }
     this.data.treatments.unshift(newTreatment);
+
+    // FASE 5: Auto-generar reclamo de liquidación de seguro si aplica cobertura
+    if (modality === 'PLAN_SEGURO' && planId) {
+      if (!this.data.insuranceClaims) this.data.insuranceClaims = [];
+      const planObj = (this.data.insurancePlans || []).find((p) => p.id === planId);
+      const covered = Math.max(0, (origListPrice ?? treatment.totalAmount) - treatment.totalAmount);
+      const claimCode = planObj?.code ? planObj.code.replace(/[^A-Z0-9]/gi, '').slice(0, 4).toUpperCase() : 'SEG';
+      const seq = (this.data.insuranceClaims.length + 1).toString().padStart(4, '0');
+      const claimNumber = `LIQ-${claimCode}-2026-${seq}`;
+
+      const newClaim = {
+        id: crypto.randomUUID(),
+        organizationId: this.data.organization.id,
+        branchId: treatment.branchId,
+        planId,
+        claimNumber,
+        patientId: treatment.patientId,
+        treatmentId: id,
+        serviceId: treatment.serviceId || null,
+        patientMemberNumber: patient?.insuranceMemberNumber || null,
+        serviceName: treatment.title,
+        toothNumber: treatment.toothNumbers?.[0] || null,
+        originalListPrice: origListPrice ?? treatment.totalAmount,
+        copayAmount: treatment.totalAmount,
+        coveredAmount: covered > 0 ? covered : (origListPrice ?? treatment.totalAmount),
+        status: 'PENDIENTE_ENVIO',
+        submissionDate: null,
+        settledDate: null,
+        settlementReference: null,
+        notes: `Generado automáticamente por plan de tratamiento odontológico "${treatment.title}"`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      this.data.insuranceClaims.unshift(newClaim);
+    }
 
     this.data.auditLogs.unshift({
       id: crypto.randomUUID(),
@@ -3282,6 +3485,523 @@ class DatabaseStore {
     return { branchId, serviceId, customPrice, isAvailable };
   }
 
+  // --- FASE 10.B: PLANES, SEGUROS ODONTOLÓGICOS Y TARIFARIOS POR MODALIDAD ---
+  public createInsurancePlan(plan: {
+    code: string;
+    name: string;
+    description?: string;
+    coverageTerms?: string;
+    status?: 'ACTIVO' | 'INACTIVO';
+    actorUserId?: string;
+  }) {
+    if (!this.data.insurancePlans) {
+      this.data.insurancePlans = [];
+    }
+
+    const id = crypto.randomUUID();
+    const newPlan = {
+      id,
+      organizationId: this.data.organization.id,
+      code: plan.code.toUpperCase().trim(),
+      name: plan.name.trim(),
+      description: plan.description || '',
+      coverageTerms: plan.coverageTerms || '',
+      status: plan.status || 'ACTIVO',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    this.data.insurancePlans.unshift(newPlan);
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: null,
+      userId: plan.actorUserId || this.data.users[0]?.id,
+      action: 'CREATE',
+      entity: 'INSURANCE_PLAN',
+      entityId: id,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Insurance Engine',
+      oldValues: null,
+      newValues: newPlan,
+      description: `Creación de nuevo plan/seguro odontológico "${newPlan.name}" (${newPlan.code})`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return newPlan;
+  }
+
+  public updateInsurancePlan(
+    planId: string,
+    updates: Partial<{
+      code: string;
+      name: string;
+      description: string;
+      coverageTerms: string;
+      status: 'ACTIVO' | 'INACTIVO';
+    }>,
+    actorUserId?: string
+  ) {
+    const plan = (this.data.insurancePlans || []).find((p) => p.id === planId);
+    if (!plan) return null;
+
+    const oldValues = { ...plan };
+    Object.assign(plan, updates, { updatedAt: new Date() });
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: null,
+      userId: actorUserId || this.data.users[0]?.id,
+      action: 'UPDATE',
+      entity: 'INSURANCE_PLAN',
+      entityId: planId,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Insurance Engine',
+      oldValues,
+      newValues: updates,
+      description: `Actualización de parámetros del plan/seguro "${plan.name}"`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return plan;
+  }
+
+  public toggleInsurancePlanStatus(planId: string, actorUserId?: string) {
+    const plan = (this.data.insurancePlans || []).find((p) => p.id === planId);
+    if (!plan) return null;
+
+    const newStatus = plan.status === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO';
+    plan.status = newStatus;
+    plan.updatedAt = new Date();
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: null,
+      userId: actorUserId || this.data.users[0]?.id,
+      action: 'STATUS_CHANGE',
+      entity: 'INSURANCE_PLAN',
+      entityId: planId,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Insurance Engine',
+      oldValues: null,
+      newValues: { status: newStatus },
+      description: `Cambio de estado del plan/seguro "${plan.name}" a ${newStatus}`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return plan;
+  }
+
+  public setPlanServicePrice(
+    planId: string,
+    serviceId: string,
+    price: number,
+    notes?: string,
+    actorUserId?: string
+  ) {
+    if (!this.data.planServicePrices) {
+      this.data.planServicePrices = [];
+    }
+
+    const plan = (this.data.insurancePlans || []).find((p) => p.id === planId);
+    const service = (this.data.services || []).find((s) => s.id === serviceId);
+    const existing = this.data.planServicePrices.find(
+      (psp) => psp.planId === planId && psp.serviceId === serviceId
+    );
+
+    if (existing) {
+      existing.price = price;
+      if (notes !== undefined) existing.notes = notes;
+      existing.updatedAt = new Date();
+    } else {
+      this.data.planServicePrices.push({
+        id: crypto.randomUUID(),
+        planId,
+        serviceId,
+        price,
+        notes: notes || '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: null,
+      userId: actorUserId || this.data.users[0]?.id,
+      action: 'UPDATE_PRICING',
+      entity: 'PLAN_SERVICE_PRICE',
+      entityId: `${planId}-${serviceId}`,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Pricing Engine',
+      oldValues: null,
+      newValues: { price, notes },
+      description: `Fijación de tarifa para "${service?.name}" en plan "${plan?.name}": ₲ ${price.toLocaleString('es-PY')}`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return { planId, serviceId, price, notes };
+  }
+
+  public getEffectiveServicePrice(
+    serviceId: string,
+    patientId?: string,
+    branchId?: string
+  ): {
+    price: number;
+    originalBasePrice: number;
+    modality: 'PARTICULAR' | 'PLAN_SEGURO';
+    planId: string | null;
+    planName: string | null;
+    isCoveredByPlan: boolean;
+    discountOrCopayAmount: number;
+    notes: string;
+  } {
+    const service = (this.data.services || []).find((s) => s.id === serviceId);
+    if (!service) {
+      return {
+        price: 0,
+        originalBasePrice: 0,
+        modality: 'PARTICULAR',
+        planId: null,
+        planName: null,
+        isCoveredByPlan: false,
+        discountOrCopayAmount: 0,
+        notes: 'Servicio no encontrado',
+      };
+    }
+
+    // 1. Obtener precio particular base o personalizado de sucursal
+    let listPrice = service.basePrice;
+    if (branchId) {
+      const branchSvc = (this.data.branchServices || []).find(
+        (bs) => bs.branchId === branchId && bs.serviceId === serviceId && bs.isAvailable
+      );
+      if (branchSvc) {
+        listPrice = branchSvc.customPrice;
+      }
+    }
+
+    // 2. Si no hay paciente, retornar precio particular de lista
+    if (!patientId) {
+      return {
+        price: listPrice,
+        originalBasePrice: listPrice,
+        modality: 'PARTICULAR',
+        planId: null,
+        planName: null,
+        isCoveredByPlan: false,
+        discountOrCopayAmount: 0,
+        notes: 'Precio Particular de Lista',
+      };
+    }
+
+    const patient = (this.data.patients || []).find((p) => p.id === patientId);
+    if (!patient || patient.modality !== 'PLAN_SEGURO' || !patient.insurancePlanId) {
+      return {
+        price: listPrice,
+        originalBasePrice: listPrice,
+        modality: 'PARTICULAR',
+        planId: null,
+        planName: null,
+        isCoveredByPlan: false,
+        discountOrCopayAmount: 0,
+        notes: 'Modalidad Particular (Sin Plan Activo)',
+      };
+    }
+
+    // 3. Paciente con Plan/Seguro: buscar el plan
+    const plan = (this.data.insurancePlans || []).find((p) => p.id === patient.insurancePlanId);
+    if (!plan || plan.status !== 'ACTIVO') {
+      return {
+        price: listPrice,
+        originalBasePrice: listPrice,
+        modality: 'PARTICULAR',
+        planId: plan?.id || null,
+        planName: plan?.name || null,
+        isCoveredByPlan: false,
+        discountOrCopayAmount: 0,
+        notes: plan ? `Plan ${plan.name} Inactivo (Aplica Particular)` : 'Plan no encontrado',
+      };
+    }
+
+    // 4. Buscar tarifa específica en el plan
+    const planPrice = (this.data.planServicePrices || []).find(
+      (psp) => psp.planId === plan.id && psp.serviceId === serviceId
+    );
+
+    if (planPrice) {
+      const discount = Math.max(0, listPrice - planPrice.price);
+      return {
+        price: planPrice.price,
+        originalBasePrice: listPrice,
+        modality: 'PLAN_SEGURO',
+        planId: plan.id,
+        planName: plan.name,
+        isCoveredByPlan: true,
+        discountOrCopayAmount: discount,
+        notes: planPrice.notes || (planPrice.price === 0 ? '100% Cubierto por Seguro' : `Copago Plan ${plan.name}`),
+      };
+    }
+
+    // 5. Fallback a tarifa particular si no está en el catálogo del plan
+    return {
+      price: listPrice,
+      originalBasePrice: listPrice,
+      modality: 'PLAN_SEGURO',
+      planId: plan.id,
+      planName: plan.name,
+      isCoveredByPlan: false,
+      discountOrCopayAmount: 0,
+      notes: `No tarifado en ${plan.name} (Aplica precio lista)`,
+    };
+  }
+
+  // --- FASE 10.C (FASE 5 FINAL): LIQUIDACIONES DE SEGUROS Y RECLAMOS DE COBERTURA (CLAIMS) ---
+  public getInsuranceClaims(filters?: {
+    planId?: string;
+    status?: string;
+    branchId?: string;
+    patientId?: string;
+  }) {
+    if (!this.data.insuranceClaims) this.data.insuranceClaims = [];
+    return this.data.insuranceClaims.filter((c: any) => {
+      if (filters?.planId && filters.planId !== 'TODOS' && c.planId !== filters.planId) return false;
+      if (filters?.status && filters.status !== 'TODOS' && c.status !== filters.status) return false;
+      if (filters?.branchId && filters.branchId !== 'TODAS' && c.branchId !== filters.branchId) return false;
+      if (filters?.patientId && c.patientId !== filters.patientId) return false;
+      return true;
+    });
+  }
+
+  public getNextClaimNumber(planCode = 'SEG') {
+    if (!this.data.insuranceClaims) this.data.insuranceClaims = [];
+    const cleanCode = (planCode || 'SEG').replace(/[^A-Z0-9]/gi, '').slice(0, 4).toUpperCase();
+    const count = this.data.insuranceClaims.length + 1;
+    return `LIQ-${cleanCode}-2026-${count.toString().padStart(4, '0')}`;
+  }
+
+  public createInsuranceClaim(params: {
+    branchId: string;
+    planId: string;
+    patientId: string;
+    treatmentId?: string;
+    serviceId?: string;
+    patientMemberNumber?: string;
+    serviceName: string;
+    toothNumber?: number | null;
+    originalListPrice: number;
+    copayAmount: number;
+    coveredAmount: number;
+    notes?: string;
+    actorUserId?: string;
+  }) {
+    if (!this.data.insuranceClaims) this.data.insuranceClaims = [];
+    const plan = (this.data.insurancePlans || []).find((p) => p.id === params.planId);
+    const claimNumber = this.getNextClaimNumber(plan?.code);
+    const id = crypto.randomUUID();
+
+    const newClaim = {
+      id,
+      organizationId: this.data.organization.id,
+      branchId: params.branchId,
+      planId: params.planId,
+      claimNumber,
+      patientId: params.patientId,
+      treatmentId: params.treatmentId || null,
+      serviceId: params.serviceId || null,
+      patientMemberNumber: params.patientMemberNumber || null,
+      serviceName: params.serviceName,
+      toothNumber: params.toothNumber || null,
+      originalListPrice: params.originalListPrice,
+      copayAmount: params.copayAmount,
+      coveredAmount: params.coveredAmount,
+      status: 'PENDIENTE_ENVIO',
+      submissionDate: null,
+      settledDate: null,
+      settlementReference: null,
+      notes: params.notes || '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    this.data.insuranceClaims.unshift(newClaim);
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: params.branchId,
+      userId: params.actorUserId || this.data.users[0]?.id,
+      action: 'CREATE',
+      entity: 'INSURANCE_CLAIM',
+      entityId: id,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Insurance Claims Engine',
+      oldValues: null,
+      newValues: newClaim,
+      description: `Generación de reclamo ${claimNumber} para plan ${plan?.name || 'Seguro'} por valor de ₲ ${params.coveredAmount.toLocaleString('es-PY')}`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return newClaim;
+  }
+
+  public updateInsuranceClaimStatus(
+    claimId: string,
+    status: 'PENDIENTE_ENVIO' | 'EN_AUDITORIA' | 'APROBADO' | 'LIQUIDADO_COBRADO' | 'RECHAZADO',
+    options?: {
+      settlementReference?: string;
+      notes?: string;
+      actorUserId?: string;
+    }
+  ) {
+    if (!this.data.insuranceClaims) this.data.insuranceClaims = [];
+    const claim = this.data.insuranceClaims.find((c: any) => c.id === claimId);
+    if (!claim) return null;
+
+    const oldStatus = claim.status;
+    claim.status = status;
+    claim.updatedAt = new Date();
+
+    if (status === 'EN_AUDITORIA' && !claim.submissionDate) {
+      claim.submissionDate = new Date();
+    }
+    if (status === 'LIQUIDADO_COBRADO') {
+      claim.settledDate = new Date();
+      if (options?.settlementReference) {
+        claim.settlementReference = options.settlementReference;
+      }
+    }
+    if (options?.notes) {
+      claim.notes = options.notes;
+    }
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: claim.branchId,
+      userId: options?.actorUserId || this.data.users[0]?.id,
+      action: 'UPDATE',
+      entity: 'INSURANCE_CLAIM',
+      entityId: claimId,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Claims Engine',
+      oldValues: { status: oldStatus },
+      newValues: { status, settlementReference: claim.settlementReference },
+      description: `Actualización de reclamo ${claim.claimNumber}: ${oldStatus} -> ${status}`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return claim;
+  }
+
+  public batchSettleInsuranceClaims(params: {
+    claimIds: string[];
+    paymentMethod: string;
+    settlementReference: string;
+    targetCashRegisterId?: string;
+    actorUserId?: string;
+  }) {
+    if (!this.data.insuranceClaims) this.data.insuranceClaims = [];
+    const targetClaims = this.data.insuranceClaims.filter((c: any) => params.claimIds.includes(c.id));
+    if (targetClaims.length === 0) {
+      throw new Error('No se encontraron reclamos para liquidar.');
+    }
+
+    const now = new Date();
+    let totalCoveredAmount = 0;
+
+    targetClaims.forEach((claim: any) => {
+      claim.status = 'LIQUIDADO_COBRADO';
+      claim.settledDate = now;
+      claim.settlementReference = params.settlementReference;
+      claim.updatedAt = now;
+      totalCoveredAmount += (claim.coveredAmount || 0);
+    });
+
+    // Registrar movimiento de ingreso en caja si hay caja asignada o abierta
+    let cashMovementId: string | null = null;
+    const cashRegId = params.targetCashRegisterId || (this.data.cashRegisters || []).find((c) => c.status === 'ABIERTA')?.id;
+    if (cashRegId && totalCoveredAmount > 0) {
+      const firstClaim = targetClaims[0];
+      const plan = (this.data.insurancePlans || []).find((p) => p.id === firstClaim?.planId);
+      const planName = plan?.name || 'Aseguradora';
+      const receiptNumber = this.getNextReceiptNumber();
+
+      const mov = this.addCashMovement({
+        cashRegisterId: cashRegId,
+        movementType: 'INGRESO',
+        amount: totalCoveredAmount,
+        paymentMethod: params.paymentMethod || 'TRANSFERENCIA_SIPAP',
+        concept: `Liquidación Aseguradora (${planName}) - ${targetClaims.length} prestaciones`,
+        referenceNumber: params.settlementReference,
+        receiptNumber,
+        actorUserId: params.actorUserId || this.data.users[0]?.id,
+      });
+      cashMovementId = mov.id;
+    }
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: targetClaims[0]?.branchId || null,
+      userId: params.actorUserId || this.data.users[0]?.id,
+      action: 'BATCH_SETTLE_CLAIMS',
+      entity: 'INSURANCE_CLAIM',
+      entityId: params.settlementReference,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Claims Settlement',
+      oldValues: { settledCount: 0 },
+      newValues: { settledCount: targetClaims.length, totalAmount: totalCoveredAmount, settlementReference: params.settlementReference },
+      description: `Liquidación masiva de ${targetClaims.length} prestaciones de seguro por ₲ ${totalCoveredAmount.toLocaleString('es-PY')} (Ref: ${params.settlementReference})`,
+      createdAt: now,
+    });
+
+    this.notify();
+    return {
+      settledClaimsCount: targetClaims.length,
+      totalAmount: totalCoveredAmount,
+      cashMovementId,
+      settlementReference: params.settlementReference,
+    };
+  }
+
+  public getInsuranceClaimsMetrics() {
+    if (!this.data.insuranceClaims) this.data.insuranceClaims = [];
+    const claims = this.data.insuranceClaims;
+    const totalClaimed = claims.reduce((s: number, c: any) => s + (c.coveredAmount || 0), 0);
+    const totalSettled = claims.filter((c: any) => c.status === 'LIQUIDADO_COBRADO').reduce((s: number, c: any) => s + (c.coveredAmount || 0), 0);
+    const totalPending = claims.filter((c: any) => c.status !== 'LIQUIDADO_COBRADO' && c.status !== 'RECHAZADO').reduce((s: number, c: any) => s + (c.coveredAmount || 0), 0);
+    const countTotal = claims.length;
+    const countPending = claims.filter((c: any) => c.status === 'PENDIENTE_ENVIO').length;
+    const countAuditing = claims.filter((c: any) => c.status === 'EN_AUDITORIA').length;
+    const countApproved = claims.filter((c: any) => c.status === 'APROBADO').length;
+    const countSettled = claims.filter((c: any) => c.status === 'LIQUIDADO_COBRADO').length;
+    const countRejected = claims.filter((c: any) => c.status === 'RECHAZADO').length;
+
+    return {
+      totalClaimed,
+      totalSettled,
+      totalPending,
+      countTotal,
+      countPending,
+      countAuditing,
+      countApproved,
+      countSettled,
+      countRejected,
+    };
+  }
+
   // --- FASE 11: PRESUPUESTOS (QUOTES) EN GUARANÍES ---
   public createQuote(params: {
     branchId: string;
@@ -3341,7 +4061,19 @@ class DatabaseStore {
       this.data.quoteItems = [];
     }
 
+    const patient = this.data.patients.find((p) => p.id === params.patientId);
+    const plan = patient?.insurancePlanId
+      ? (this.data.insurancePlans || []).find((p) => p.id === patient.insurancePlanId)
+      : null;
+
     params.items.forEach((item) => {
+      const appliedModality =
+        (item as any).appliedModality ||
+        (patient?.modality === 'PLAN_SEGURO' ? 'PLAN_SEGURO' : 'PARTICULAR');
+      const appliedPlanId = (item as any).appliedPlanId || (appliedModality === 'PLAN_SEGURO' ? plan?.id || null : null);
+      const appliedPlanName = (item as any).appliedPlanName || (appliedPlanId ? plan?.name || null : null);
+      const origListPrice = (item as any).originalListPrice ?? item.unitPrice;
+
       this.data.quoteItems.push({
         id: crypto.randomUUID(),
         quoteId: id,
@@ -3351,10 +4083,12 @@ class DatabaseStore {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         subtotal: item.subtotal || item.quantity * item.unitPrice,
+        appliedModality,
+        appliedPlanId,
+        appliedPlanName,
+        originalListPrice: origListPrice,
       });
     });
-
-    const patient = this.data.patients.find((p) => p.id === params.patientId);
 
     this.data.auditLogs.unshift({
       id: crypto.randomUUID(),
@@ -3408,6 +4142,11 @@ class DatabaseStore {
           .map((it) => it.toothNumber)
           .filter((tn): tn is number => tn !== null && tn !== undefined);
 
+        const patient = (this.data.patients || []).find((p) => p.id === q.patientId);
+        const plan = patient?.insurancePlanId
+          ? (this.data.insurancePlans || []).find((p) => p.id === patient.insurancePlanId)
+          : null;
+
         createdTreatment = this.addTreatment({
           patientId: q.patientId,
           branchId: q.branchId,
@@ -3418,6 +4157,10 @@ class DatabaseStore {
           odontologistId: q.odontologistId || undefined,
           quoteId: q.id,
           status: 'EN_PROGRESO',
+          appliedModality: patient?.modality || 'PARTICULAR',
+          appliedPlanId: patient?.insurancePlanId || undefined,
+          appliedPlanName: plan?.name || undefined,
+          originalListPrice: q.totalAmount,
           notes: `Generado automáticamente por aprobación del presupuesto ${q.quoteNumber}`,
           actorUserId,
         });

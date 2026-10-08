@@ -18,13 +18,18 @@ import {
   ChevronRight,
   ShieldAlert,
   ArrowUpRight,
-  Edit2
+  Edit2,
+  Shield,
+  ShieldCheck,
+  Landmark
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import { CreateTreatmentModal } from './CreateTreatmentModal.tsx';
 import { RecordTreatmentPaymentModal } from './RecordTreatmentPaymentModal.tsx';
 import { CreateServiceModal } from './CreateServiceModal.tsx';
+import { InsurancePlansTab } from './InsurancePlansTab.tsx';
+import { InsuranceClaimsTab } from './InsuranceClaimsTab.tsx';
 import { useAuth } from '../../auth/authContext.tsx';
 
 interface TreatmentsManagementViewProps {
@@ -39,10 +44,11 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
   const { session } = useAuth();
   const snapshot = dbStore.getSnapshot();
 
-  const [activeTab, setActiveTab] = useState<'treatments' | 'catalog' | 'branch_pricing'>('treatments');
+  const [activeTab, setActiveTab] = useState<'treatments' | 'catalog' | 'branch_pricing' | 'insurance_plans' | 'insurance_claims'>('treatments');
 
   // Filters for treatments
   const [treatmentStatusFilter, setTreatmentStatusFilter] = useState<string>('TODOS');
+  const [treatmentModalityFilter, setTreatmentModalityFilter] = useState<string>('TODAS');
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('TODAS');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -69,20 +75,26 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
       if (treatmentStatusFilter !== 'TODOS' && t.status !== treatmentStatusFilter) return false;
       if (selectedBranchFilter !== 'TODAS' && t.branchId !== selectedBranchFilter) return false;
 
+      if (treatmentModalityFilter !== 'TODAS') {
+        if (treatmentModalityFilter === 'PLAN_SEGURO' && t.appliedModality !== 'PLAN_SEGURO') return false;
+        if (treatmentModalityFilter === 'PARTICULAR' && t.appliedModality === 'PLAN_SEGURO') return false;
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const p = snapshot.patients.find((pat) => pat.id === t.patientId);
         const patientMatch =
           p?.firstName.toLowerCase().includes(q) ||
           p?.lastName.toLowerCase().includes(q) ||
-          p?.nationalId.includes(q);
+          p?.documentNumber?.toLowerCase().includes(q) ||
+          p?.nationalId?.includes(q);
         const titleMatch = t.title.toLowerCase().includes(q);
         if (!patientMatch && !titleMatch) return false;
       }
 
       return true;
     });
-  }, [snapshot.treatments, snapshot.patients, treatmentStatusFilter, selectedBranchFilter, searchQuery]);
+  }, [snapshot.treatments, snapshot.patients, treatmentStatusFilter, treatmentModalityFilter, selectedBranchFilter, searchQuery]);
 
   // Treatments Financial Metrics
   const metrics = useMemo(() => {
@@ -203,6 +215,35 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
             <Building2 className="h-4 w-4" />
             <span>Precios por Sucursal</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('insurance_plans')}
+            className={`pb-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === 'insurance_plans'
+                ? 'border-teal-600 text-teal-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Shield className="h-4 w-4" />
+            <span>Planes & Seguros ({snapshot.insurancePlans?.length || 0})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('insurance_claims')}
+            className={`pb-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === 'insurance_claims'
+                ? 'border-teal-600 text-teal-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Landmark className="h-4 w-4" />
+            <span>Liquidaciones & Reclamos ({snapshot.insuranceClaims?.length || 0})</span>
+            {((snapshot.insuranceClaims || []).filter((c: any) => c.status === 'PENDIENTE_ENVIO' || c.status === 'EN_AUDITORIA').length > 0) && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                {(snapshot.insuranceClaims || []).filter((c: any) => c.status === 'PENDIENTE_ENVIO' || c.status === 'EN_AUDITORIA').length}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -277,6 +318,16 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
 
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
               <select
+                value={treatmentModalityFilter}
+                onChange={(e) => setTreatmentModalityFilter(e.target.value)}
+                className="flex-1 sm:flex-none text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden min-h-[40px] cursor-pointer"
+              >
+                <option value="TODAS">Todas las Modalidades</option>
+                <option value="PARTICULAR">👤 Particular (Lista)</option>
+                <option value="PLAN_SEGURO">🛡️ Con Seguro / Plan</option>
+              </select>
+
+              <select
                 value={treatmentStatusFilter}
                 onChange={(e) => setTreatmentStatusFilter(e.target.value)}
                 className="flex-1 sm:flex-none text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden min-h-[40px] cursor-pointer"
@@ -325,7 +376,7 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
                   >
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-100 pb-3">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-bold text-slate-900">{t.title}</span>
                           <span
                             className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
@@ -340,6 +391,16 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
                           >
                             {t.status}
                           </span>
+                          {t.appliedModality === 'PLAN_SEGURO' ? (
+                            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-900 border border-indigo-200 inline-flex items-center gap-1">
+                              <ShieldCheck className="h-3 w-3 text-indigo-600" />
+                              <span>{t.appliedPlanName || 'Seguro Dental'}</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                              Particular
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
                           <span>
@@ -347,7 +408,7 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
                             <span className="font-semibold text-slate-800">
                               {pat?.firstName} {pat?.lastName}
                             </span>{' '}
-                            (C.I. {pat?.nationalId})
+                            (C.I. {pat?.documentNumber || pat?.nationalId})
                           </span>
                           <span>•</span>
                           <span>{branch?.name}</span>
@@ -361,6 +422,12 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
                         <div className="text-sm font-black text-slate-900">
                           {formatPYG(t.totalAmount)}
                         </div>
+                        {t.originalListPrice && t.originalListPrice > t.totalAmount && (
+                          <div className="text-[10px] text-emerald-700 font-semibold">
+                            <span className="line-through text-slate-400 mr-1">{formatPYG(t.originalListPrice)}</span>
+                            <span>Ahorro: {formatPYG(t.originalListPrice - t.totalAmount)}</span>
+                          </div>
+                        )}
                         <div className="text-[11px] text-slate-500">
                           Cobrado: <span className="font-semibold text-emerald-700">{formatPYG(t.paidAmount)}</span> •
                           Saldo: <span className="font-bold text-red-600">{formatPYG(t.balanceDue)}</span>
@@ -632,6 +699,12 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
           </div>
         </div>
       )}
+
+      {/* TAB 4: PLANES & SEGUROS ODONTOLÓGICOS (MODALIDAD DE COBERTURA) */}
+      {activeTab === 'insurance_plans' && <InsurancePlansTab />}
+
+      {/* TAB 5: LIQUIDACIONES DE SEGUROS Y RECLAMOS DE COBERTURA */}
+      {activeTab === 'insurance_claims' && <InsuranceClaimsTab />}
 
       {/* Modals */}
       <CreateTreatmentModal

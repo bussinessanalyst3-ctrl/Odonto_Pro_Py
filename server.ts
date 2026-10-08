@@ -106,6 +106,26 @@ function sanitizeUsersForClient(users: any[]): any[] {
   });
 }
 
+function ensureInsuranceIntegrity(state: any) {
+  if (!state || !state.data) return;
+  const initial = generateInitialSeedData();
+  if (!state.data.insurancePlans || !Array.isArray(state.data.insurancePlans) || state.data.insurancePlans.length === 0) {
+    state.data.insurancePlans = initial.insurancePlans || [];
+  }
+  if (!state.data.planServicePrices || !Array.isArray(state.data.planServicePrices) || state.data.planServicePrices.length === 0) {
+    state.data.planServicePrices = initial.planServicePrices || [];
+  }
+  if (state.data.patients && Array.isArray(state.data.patients)) {
+    state.data.patients.forEach((p: any) => {
+      if (!p.modality) {
+        p.modality = 'PARTICULAR';
+        p.insurancePlanId = null;
+        p.insuranceMemberNumber = null;
+      }
+    });
+  }
+}
+
 async function loadDatabaseState() {
   if (pgPool) {
     try {
@@ -121,6 +141,7 @@ async function loadDatabaseState() {
       const res = await pgPool.query('SELECT data FROM system_state WHERE key = $1', ['app_state']);
       if (res.rows.length > 0 && res.rows[0].data) {
         serverDbState = res.rows[0].data;
+        ensureInsuranceIntegrity(serverDbState);
         console.log(`[PostgreSQL] Loaded persistent state with ${serverDbState.organizationsList?.length || 1} organization(s) from remote database.`);
         saveDatabaseStateToDisk();
         return;
@@ -152,6 +173,7 @@ async function loadDatabaseState() {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.data && parsed.organizationsList && Array.isArray(parsed.organizationsList)) {
         serverDbState = parsed;
+        ensureInsuranceIntegrity(serverDbState);
         console.log(`[Backend Database] Loaded persistent state with ${serverDbState.organizationsList.length} organization(s).`);
         return;
       }

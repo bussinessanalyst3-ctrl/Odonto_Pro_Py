@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Check, Stethoscope, AlertCircle, Plus } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { X, Check, Stethoscope, AlertCircle, Plus, ShieldCheck, Tag, Info, Sparkles } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import { useAuth } from '../../auth/authContext.tsx';
@@ -36,11 +36,37 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
   const [toothInput, setToothInput] = useState<string>(initialToothNumber ? String(initialToothNumber) : '');
   const [notes, setNotes] = useState<string>('');
 
+  // Control comercial de modalidad
+  const [forcedModality, setForcedModality] = useState<'AUTO' | 'PARTICULAR' | 'PLAN_SEGURO'>('AUTO');
+  const [forcedPlanId, setForcedPlanId] = useState<string>('');
+
   const [error, setError] = useState<string | null>(null);
+
+  const selectedPatient = snapshot.patients.find((p) => p.id === patientId);
+  const insurancePlans = (snapshot.insurancePlans || []).filter((ip) => ip.status === 'ACTIVO' || ip.status === 'ACTIVE');
+
+  // Resolución reactiva del precio
+  const resolved = useMemo(() => {
+    if (!serviceId) return null;
+    return dbStore.resolveServicePrice({
+      serviceId,
+      patientId,
+      branchId,
+      forcedModality: forcedModality === 'AUTO' ? undefined : forcedModality,
+      forcedPlanId: forcedPlanId || undefined,
+    });
+  }, [serviceId, patientId, branchId, forcedModality, forcedPlanId, snapshot]);
+
+  // Actualiza el monto automáticamente cuando se resuelve una nueva tarifa
+  useEffect(() => {
+    if (resolved) {
+      setTotalAmount(resolved.finalPrice);
+    }
+  }, [resolved]);
 
   if (!isOpen) return null;
 
-  // When service is selected, auto-fill title and base price
+  // When service is selected, auto-fill title
   const handleServiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const sId = e.target.value;
     setServiceId(sId);
@@ -51,7 +77,6 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
       if (!title || title === '') {
         setTitle(s.name);
       }
-      setTotalAmount(s.basePrice);
     }
   };
 
@@ -67,8 +92,8 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
       setError('El título del tratamiento es obligatorio.');
       return;
     }
-    if (totalAmount <= 0) {
-      setError('El monto total debe ser mayor a ₲ 0.');
+    if (totalAmount < 0) {
+      setError('El monto total no puede ser negativo.');
       return;
     }
 
@@ -82,6 +107,7 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
       dbStore.addTreatment({
         patientId,
         branchId,
+        serviceId: serviceId || undefined,
         title,
         totalAmount,
         paidAmount,
@@ -90,6 +116,10 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
         status,
         startDate,
         notes,
+        appliedModality: resolved?.modality || (selectedPatient?.modality === 'PLAN_SEGURO' ? 'PLAN_SEGURO' : 'PARTICULAR'),
+        appliedPlanId: resolved?.planId || undefined,
+        appliedPlanName: resolved?.planName || undefined,
+        originalListPrice: resolved?.listPrice ?? totalAmount,
         actorUserId: session?.userId,
       });
 
@@ -142,13 +172,16 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
                 value={patientId}
                 onChange={(e) => setPatientId(e.target.value)}
                 required
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden font-medium"
               >
-                {snapshot.patients.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.firstName} {p.lastName} (C.I. {p.nationalId})
-                  </option>
-                ))}
+                {snapshot.patients.map((p) => {
+                  const plan = (snapshot.insurancePlans || []).find((ip) => ip.id === p.insurancePlanId);
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {p.firstName} {p.lastName} • C.I. {p.documentNumber || p.nationalId} — {p.modality === 'PLAN_SEGURO' ? `🛡️ ${plan?.name || 'Seguro'}` : '👤 Particular'}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -172,10 +205,66 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
             </div>
           </div>
 
-          {/* Catalog Service (optional helper) */}
+          {/* Modalidad Comercial y Cobertura Banner */}
+          {selectedPatient && (
+            <div className={`p-3 rounded-2xl border text-xs transition-all ${
+              resolved?.modality === 'PLAN_SEGURO'
+                ? 'bg-indigo-50/70 border-indigo-200'
+                : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className={`h-4 w-4 ${resolved?.modality === 'PLAN_SEGURO' ? 'text-indigo-600' : 'text-slate-400'}`} />
+                  <div>
+                    <span className="font-bold text-slate-900">
+                      {resolved?.modality === 'PLAN_SEGURO' ? 'Modalidad: Plan / Seguro Odontológico' : 'Modalidad: Particular (Precio Lista)'}
+                    </span>
+                    {resolved?.modality === 'PLAN_SEGURO' && resolved.planName && (
+                      <span className="text-indigo-800 font-semibold block text-[11px]">
+                        {resolved.planName} {selectedPatient.insuranceMemberNumber ? `(Carnet: ${selectedPatient.insuranceMemberNumber})` : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Opción de forzar modalidad si el odontólogo lo requiere */}
+                <div className="flex items-center gap-1.5 self-end sm:self-center">
+                  <span className="text-[10px] text-slate-500 font-medium">Aplicar como:</span>
+                  <select
+                    value={forcedModality}
+                    onChange={(e) => setForcedModality(e.target.value as any)}
+                    className="text-[11px] font-bold bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="AUTO">Automático (Según ficha)</option>
+                    <option value="PLAN_SEGURO">🛡️ Plan / Seguro</option>
+                    <option value="PARTICULAR">👤 Particular (Lista)</option>
+                  </select>
+                </div>
+              </div>
+
+              {forcedModality === 'PLAN_SEGURO' && !selectedPatient.insurancePlanId && (
+                <div className="mt-2 pt-2 border-t border-indigo-100 flex items-center gap-2">
+                  <label className="text-[10px] font-semibold text-indigo-900">Seleccionar Plan:</label>
+                  <select
+                    value={forcedPlanId}
+                    onChange={(e) => setForcedPlanId(e.target.value)}
+                    className="text-xs bg-white border border-indigo-200 rounded-lg px-2 py-1 text-indigo-950 font-medium"
+                  >
+                    {insurancePlans.map((ip) => (
+                      <option key={ip.id} value={ip.id}>
+                        {ip.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Catalog Service */}
           <div>
             <label className="text-xs font-semibold text-slate-700 mb-1 block">
-              Cargar desde Catálogo de Servicios (Autocompleta precio base):
+              Cargar desde Catálogo de Servicios (Determina automáticamente la tarifa):
             </label>
             <select
               value={serviceId}
@@ -185,11 +274,54 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
               <option value="">-- Seleccionar servicio del catálogo --</option>
               {snapshot.services.map((s) => (
                 <option key={s.id} value={s.id}>
-                  [{s.category}] {s.name} — {formatPYG(s.basePrice)}
+                  [{s.category}] {s.name} — Precio base: {formatPYG(s.basePrice)}
                 </option>
               ))}
             </select>
           </div>
+
+          {/* Desglose de Tarifa Resuelta */}
+          {resolved && (
+            <div className={`p-3 rounded-2xl border text-xs space-y-2 animate-in fade-in duration-150 ${
+              resolved.hasSpecialPrice
+                ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                : 'bg-slate-50 border-slate-200 text-slate-800'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="font-bold uppercase tracking-wider text-[10px] text-slate-500">
+                  Condición Tarifaria Calculada
+                </span>
+                {resolved.hasSpecialPrice && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                    <Sparkles className="h-3 w-3 text-emerald-600" />
+                    <span>Ahorro del Seguro: {formatPYG(resolved.discountAmount)} ({resolved.discountPercentage}%)</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <div>
+                  <span className="text-[11px] text-slate-500 block">Tarifa Oficial de Lista (Particular):</span>
+                  <span className={`font-mono ${resolved.hasSpecialPrice ? 'line-through text-slate-400 text-xs' : 'font-bold text-slate-800'}`}>
+                    {formatPYG(resolved.listPrice)}
+                  </span>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[11px] text-slate-500 block">Tarifa Aplicada a Cobrar:</span>
+                  <span className="font-mono text-base font-black text-teal-800">
+                    {resolved.finalPrice === 0 ? '₲ 0 (100% Cubierto)' : formatPYG(resolved.finalPrice)}
+                  </span>
+                </div>
+              </div>
+
+              {resolved.coverageNote && (
+                <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-200/60 font-mono">
+                  Cobertura: {resolved.coverageNote}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Title */}
           <div>

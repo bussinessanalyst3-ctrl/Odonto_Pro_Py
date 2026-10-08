@@ -11,6 +11,9 @@ export interface SeedDataResult {
   userBranches: any[];
   services: any[];
   branchServices: any[];
+  insurancePlans: any[];
+  planServicePrices: any[];
+  insuranceClaims: any[];
   patients: any[];
   patientBranches: any[];
   appointments: any[];
@@ -250,6 +253,66 @@ export function generateInitialSeedData(): SeedDataResult {
     }))
   );
 
+  // 5.b Planes y Seguros Odontológicos
+  const planBasicoId = '66666666-6666-4666-8666-666666666661';
+  const planPremiumId = '66666666-6666-4666-8666-666666666662';
+  const planCorpId = '66666666-6666-4666-8666-666666666663';
+
+  const insurancePlans = [
+    {
+      id: planBasicoId,
+      organizationId: orgId,
+      code: 'SEG-BASICO',
+      name: 'Seguro Dental Básico Familiar',
+      description: 'Cobertura preventiva total con consultas y limpiezas 100% bonificadas y copagos accesibles en restauraciones.',
+      status: 'ACTIVO',
+      coverageTerms: 'Consulta y Limpieza: ₲ 0 (100% cubierto). Restauraciones simples: ₲ 80.000. Extracciones: ₲ 50.000.',
+      createdAt: new Date('2026-01-15T08:00:00.000Z'),
+      updatedAt: new Date('2026-01-15T08:00:00.000Z'),
+    },
+    {
+      id: planPremiumId,
+      organizationId: orgId,
+      code: 'SEG-PREMIUM',
+      name: 'Seguro OdontoPro Integral Premium',
+      description: 'Máxima cobertura en ortodoncia, endodoncia, prótesis y estética dental con tarifas preferenciales VIP.',
+      status: 'ACTIVO',
+      coverageTerms: 'Consultas y profilaxis 100% cubiertas (₲ 0). Restauraciones: ₲ 40.000. Endodoncia: ₲ 250.000. Ortodoncia con 50% de descuento.',
+      createdAt: new Date('2026-01-15T08:00:00.000Z'),
+      updatedAt: new Date('2026-01-15T08:00:00.000Z'),
+    },
+    {
+      id: planCorpId,
+      organizationId: orgId,
+      code: 'SEG-CORP',
+      name: 'Convenio Odontológico Corporativo',
+      description: 'Convenio interinstitucional para colaboradores de empresas asociadas y sus dependientes directos.',
+      status: 'ACTIVO',
+      coverageTerms: 'Descuento generalizado del 40% sobre aranceles de lista particular.',
+      createdAt: new Date('2026-01-15T08:00:00.000Z'),
+      updatedAt: new Date('2026-01-15T08:00:00.000Z'),
+    },
+  ];
+
+  // Precios específicos por plan
+  const planServicePrices = [
+    // Plan Básico
+    { id: '77777777-7777-4777-8777-777777777001', planId: planBasicoId, serviceId: services[0]?.id, price: 0, notes: '100% Cobertura Anual' },
+    { id: '77777777-7777-4777-8777-777777777002', planId: planBasicoId, serviceId: services[1]?.id, price: 0, notes: '100% Cobertura Preventiva' },
+    { id: '77777777-7777-4777-8777-777777777003', planId: planBasicoId, serviceId: services[2]?.id, price: 80000, notes: 'Copago Seguro Básico' },
+    { id: '77777777-7777-4777-8777-777777777004', planId: planBasicoId, serviceId: services[3]?.id, price: 120000, notes: 'Copago Seguro Básico' },
+    { id: '77777777-7777-4777-8777-777777777005', planId: planBasicoId, serviceId: services[4]?.id, price: 300000, notes: 'Arancel Bonificado' },
+
+    // Plan Premium
+    { id: '77777777-7777-4777-8777-777777777011', planId: planPremiumId, serviceId: services[0]?.id, price: 0, notes: '100% Cubierto VIP' },
+    { id: '77777777-7777-4777-8777-777777777012', planId: planPremiumId, serviceId: services[1]?.id, price: 0, notes: '100% Cubierto VIP' },
+    { id: '77777777-7777-4777-8777-777777777013', planId: planPremiumId, serviceId: services[2]?.id, price: 40000, notes: 'Copago Preferencial VIP' },
+    { id: '77777777-7777-4777-8777-777777777014', planId: planPremiumId, serviceId: services[3]?.id, price: 70000, notes: 'Copago Preferencial VIP' },
+    { id: '77777777-7777-4777-8777-777777777015', planId: planPremiumId, serviceId: services[4]?.id, price: 250000, notes: 'Tarifa Especial Premium' },
+    { id: '77777777-7777-4777-8777-777777777016', planId: planPremiumId, serviceId: services[5]?.id, price: 450000, notes: 'Tarifa Especial Premium' },
+    { id: '77777777-7777-4777-8777-777777777017', planId: planPremiumId, serviceId: services[6]?.id, price: 600000, notes: 'Descuento 50% Ortodoncia' },
+  ];
+
   // 6. Pacientes Paraguayos de Demostración
   const pat1Id = '55555555-5555-4555-8555-555555555551';
   const pat2Id = '55555555-5555-4555-8555-555555555552';
@@ -280,6 +343,9 @@ export function generateInitialSeedData(): SeedDataResult {
       allergies: 'Penicilina (reacción cutánea)',
       medicalConditions: 'Ninguna',
       medications: 'Ninguna',
+      modality: 'PLAN_SEGURO',
+      insurancePlanId: planBasicoId,
+      insuranceMemberNumber: 'SDB-489201',
       status: 'ACTIVE',
       createdAt: new Date('2026-02-10T09:00:00.000Z'),
       updatedAt: new Date('2026-02-10T09:00:00.000Z'),
@@ -307,6 +373,9 @@ export function generateInitialSeedData(): SeedDataResult {
       allergies: 'Ninguna conocida',
       medicalConditions: 'Hipertensión controlada con Enalapril 10mg',
       medications: 'Enalapril 10mg / día',
+      modality: 'PLAN_SEGURO',
+      insurancePlanId: planPremiumId,
+      insuranceMemberNumber: 'VIP-773192',
       status: 'ACTIVE',
       createdAt: new Date('2026-02-14T10:30:00.000Z'),
       updatedAt: new Date('2026-02-14T10:30:00.000Z'),
@@ -334,6 +403,9 @@ export function generateInitialSeedData(): SeedDataResult {
       allergies: 'Aspirina',
       medicalConditions: 'Asma bronquial leve',
       medications: 'Salbutamol aerosol SOS',
+      modality: 'PARTICULAR',
+      insurancePlanId: null,
+      insuranceMemberNumber: null,
       status: 'ACTIVE',
       createdAt: new Date('2026-02-20T14:00:00.000Z'),
       updatedAt: new Date('2026-02-20T14:00:00.000Z'),
@@ -361,6 +433,9 @@ export function generateInitialSeedData(): SeedDataResult {
       allergies: 'Ninguna conocida',
       medicalConditions: 'Ninguna',
       medications: 'Ninguna',
+      modality: 'PARTICULAR',
+      insurancePlanId: null,
+      insuranceMemberNumber: null,
       status: 'ACTIVE',
       createdAt: new Date('2026-03-01T11:15:00.000Z'),
       updatedAt: new Date('2026-03-01T11:15:00.000Z'),
@@ -782,6 +857,102 @@ export function generateInitialSeedData(): SeedDataResult {
     }
   ];
 
+  // 12. Reclamos y Liquidaciones de Seguros Odontológicos en Paraguay
+  const insuranceClaims = [
+    {
+      id: 'aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaa1',
+      organizationId: orgId,
+      branchId: branchAsuId,
+      planId: planBasicoId,
+      claimNumber: 'LIQ-BAS-2026-0001',
+      patientId: pat1Id,
+      treatmentId: treat1Id,
+      serviceId: services[0]?.id,
+      patientMemberNumber: 'SDB-489201',
+      serviceName: 'Consulta Diagnóstica Inicial y Odontograma Completo',
+      toothNumber: null,
+      originalListPrice: 150000,
+      copayAmount: 0,
+      coveredAmount: 150000,
+      status: 'LIQUIDADO_COBRADO',
+      submissionDate: new Date('2026-09-10T10:00:00.000Z'),
+      settledDate: new Date('2026-09-18T14:30:00.000Z'),
+      settlementReference: 'SIPAP-ITAU-883910-ASISMED',
+      notes: 'Liquidación aprobada por auditoría médica y transferida vía SIPAP.',
+      createdAt: new Date('2026-09-10T10:00:00.000Z'),
+      updatedAt: new Date('2026-09-18T14:30:00.000Z'),
+    },
+    {
+      id: 'aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaa2',
+      organizationId: orgId,
+      branchId: branchAsuId,
+      planId: planBasicoId,
+      claimNumber: 'LIQ-BAS-2026-0002',
+      patientId: pat1Id,
+      treatmentId: treat1Id,
+      serviceId: services[2]?.id,
+      patientMemberNumber: 'SDB-489201',
+      serviceName: 'Restauración con Resina Fotocurable Oclusal',
+      toothNumber: 16,
+      originalListPrice: 220000,
+      copayAmount: 80000,
+      coveredAmount: 140000,
+      status: 'APROBADO',
+      submissionDate: new Date('2026-09-15T11:00:00.000Z'),
+      settledDate: null,
+      settlementReference: null,
+      notes: 'Auditoría odontológica aprobada. Pendiente de liquidación en remesa mensual.',
+      createdAt: new Date('2026-09-15T11:00:00.000Z'),
+      updatedAt: new Date('2026-09-16T09:00:00.000Z'),
+    },
+    {
+      id: 'aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaa3',
+      organizationId: orgId,
+      branchId: branchAsuId,
+      planId: planPremiumId,
+      claimNumber: 'LIQ-PREM-2026-0001',
+      patientId: pat2Id,
+      treatmentId: null,
+      serviceId: services[4]?.id,
+      patientMemberNumber: 'VIP-773192',
+      serviceName: 'Endodoncia Mecanizada Pieza 24',
+      toothNumber: 24,
+      originalListPrice: 650000,
+      copayAmount: 250000,
+      coveredAmount: 400000,
+      status: 'EN_AUDITORIA',
+      submissionDate: new Date('2026-09-20T09:30:00.000Z'),
+      settledDate: null,
+      settlementReference: null,
+      notes: 'Rx periapical pre y post operatoria adjuntada a plataforma médica.',
+      createdAt: new Date('2026-09-20T09:30:00.000Z'),
+      updatedAt: new Date('2026-09-20T09:30:00.000Z'),
+    },
+    {
+      id: 'aaaaaaaa-1111-4aaa-8aaa-aaaaaaaaaaa4',
+      organizationId: orgId,
+      branchId: branchAsuId,
+      planId: planPremiumId,
+      claimNumber: 'LIQ-PREM-2026-0002',
+      patientId: pat2Id,
+      treatmentId: null,
+      serviceId: services[1]?.id,
+      patientMemberNumber: 'VIP-773192',
+      serviceName: 'Tartrectomía con Ultrasonido y Profilaxis VIP',
+      toothNumber: null,
+      originalListPrice: 200000,
+      copayAmount: 0,
+      coveredAmount: 200000,
+      status: 'PENDIENTE_ENVIO',
+      submissionDate: null,
+      settledDate: null,
+      settlementReference: null,
+      notes: 'Generado automáticamente tras atención clínica. Pendiente de envío en lote.',
+      createdAt: new Date('2026-09-21T08:00:00.000Z'),
+      updatedAt: new Date('2026-09-21T08:00:00.000Z'),
+    },
+  ];
+
   return {
     organization,
     branches,
@@ -792,6 +963,9 @@ export function generateInitialSeedData(): SeedDataResult {
     userBranches,
     services,
     branchServices,
+    insurancePlans,
+    planServicePrices,
+    insuranceClaims,
     patients,
     patientBranches,
     appointments,

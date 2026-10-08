@@ -15,7 +15,8 @@ import {
   CheckCircle2,
   FileText,
   Receipt,
-  Sparkles
+  Sparkles,
+  ShieldCheck
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
@@ -47,6 +48,8 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
   const patientPayments = snapshot.payments.filter((p) => p.patientId === patientId);
   const patientEvolutions = (snapshot.clinicalRecords || []).filter((cr) => cr.patientId === patientId);
   const primaryBranch = snapshot.branches.find((b) => b.id === patient.primaryBranchId);
+  const insurancePlans = snapshot.insurancePlans || [];
+  const assignedPlan = insurancePlans.find((ip) => ip.id === patient.insurancePlanId);
 
   // Calculate age
   const birthYear = patient.birthDate ? new Date(patient.birthDate).getFullYear() : 1995;
@@ -88,13 +91,26 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                 </div>
 
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="text-lg font-bold text-slate-900">
                       {patient.firstName} {patient.lastName}
                     </h2>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                       {patient.bloodType || 'O+'}
                     </span>
+                    {patient.modality === 'PLAN_SEGURO' ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-200 inline-flex items-center gap-1">
+                        <ShieldCheck className="h-3 w-3 text-indigo-600" />
+                        <span>{assignedPlan?.name || 'Seguro Dental'}</span>
+                        {patient.insuranceMemberNumber && (
+                          <span className="font-mono text-indigo-700">({patient.insuranceMemberNumber})</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                        Particular
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
@@ -228,6 +244,57 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
           <div className="p-6 flex-1 overflow-y-auto space-y-5">
             {activeSubTab === 'clinical' && (
               <div className="space-y-4">
+                {/* Modalidad Comercial & Cobertura */}
+                <div className={`p-4 rounded-2xl border space-y-3 ${
+                  patient.modality === 'PLAN_SEGURO'
+                    ? 'bg-indigo-50/50 border-indigo-200/80'
+                    : 'bg-slate-50 border-slate-200/80'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <ShieldCheck className={`h-4 w-4 ${patient.modality === 'PLAN_SEGURO' ? 'text-indigo-600' : 'text-slate-500'}`} />
+                      <span>Modalidad Comercial & Cobertura Odontológica</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      patient.modality === 'PLAN_SEGURO'
+                        ? 'bg-indigo-100 text-indigo-900'
+                        : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {patient.modality === 'PLAN_SEGURO' ? 'Plan / Seguro Activo' : 'Atención Particular'}
+                    </span>
+                  </div>
+
+                  {patient.modality === 'PLAN_SEGURO' && assignedPlan ? (
+                    <div className="space-y-2 text-xs">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-2.5 bg-white rounded-xl border border-indigo-100">
+                          <span className="text-slate-400 block text-[10px]">Nombre del Plan</span>
+                          <span className="font-bold text-indigo-950">{assignedPlan.name} ({assignedPlan.code})</span>
+                        </div>
+                        <div className="p-2.5 bg-white rounded-xl border border-indigo-100">
+                          <span className="text-slate-400 block text-[10px]">Carnet / N° Afiliado</span>
+                          <span className="font-mono font-bold text-slate-800">
+                            {patient.insuranceMemberNumber || 'No registrado'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-2.5 bg-white rounded-xl border border-indigo-100 text-[11px]">
+                        <span className="text-slate-500 font-semibold block">Condición / Cobertura:</span>
+                        <span className="text-slate-800">{assignedPlan.description}</span>
+                        {assignedPlan.coverageTerms && (
+                          <div className="text-[10px] text-indigo-700 font-mono mt-0.5">
+                            Regla: {assignedPlan.coverageTerms}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 bg-white rounded-xl border border-slate-200 text-xs text-slate-600">
+                      El paciente abona según el tarifario institucional oficial (precio de lista particular). No requiere validación de cobertura ni número de carnet.
+                    </div>
+                  )}
+                </div>
+
                 {/* Location & Contact Card */}
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
                   <div className="text-xs font-bold text-slate-900 uppercase tracking-wider">

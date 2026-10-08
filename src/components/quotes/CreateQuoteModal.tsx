@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
-import { X, Plus, Trash2, Calculator, Calendar, User, FileText, CheckCircle2 } from 'lucide-react';
+import { X, Plus, Trash2, Calculator, Calendar, User, FileText, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
 
 interface CreateQuoteModalProps {
   isOpen: boolean;
@@ -17,6 +17,11 @@ interface QuoteItemInput {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  appliedModality?: 'PARTICULAR' | 'PLAN_SEGURO';
+  appliedPlanId?: string | null;
+  appliedPlanName?: string | null;
+  originalListPrice?: number;
+  hasSpecialPrice?: boolean;
 }
 
 export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
@@ -30,6 +35,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
   const branches = dbStore.getBranches();
   const services = dbStore.getServices();
   const users = dbStore.getUsers();
+  const insurancePlans = dbStore.getInsurancePlans(true);
 
   const dentists = users.filter((u) => u.roleId === 'ODONTOLOGO');
 
@@ -42,30 +48,109 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
   );
   const [discountAmount, setDiscountAmount] = useState<number>(0);
 
-  const [items, setItems] = useState<QuoteItemInput[]>([
-    {
-      serviceId: services[0]?.id || '',
+  // Control comercial del presupuesto
+  const [quoteModality, setQuoteModality] = useState<'AUTO' | 'PARTICULAR' | 'PLAN_SEGURO'>('AUTO');
+  const [quotePlanId, setQuotePlanId] = useState<string>('');
+
+  const currentPatient = patients.find((p) => p.id === patientId);
+
+  // Helper para resolver precio unitario según modalidad
+  const calculateItemPrice = (sId: string, qModality: string, qPlanId: string) => {
+    const s = services.find((srv) => srv.id === sId);
+    if (!s) return { unitPrice: 0, listPrice: 0, modality: 'PARTICULAR' as const, planId: null, planName: null, hasSpecialPrice: false };
+
+    const resolved = dbStore.resolveServicePrice({
+      serviceId: sId,
+      patientId,
+      branchId,
+      forcedModality: qModality === 'AUTO' ? undefined : (qModality as any),
+      forcedPlanId: qPlanId || undefined,
+    });
+
+    return {
+      unitPrice: resolved.finalPrice,
+      listPrice: resolved.listPrice,
+      modality: resolved.modality,
+      planId: resolved.planId,
+      planName: resolved.planName,
+      hasSpecialPrice: resolved.hasSpecialPrice,
+    };
+  };
+
+  const [items, setItems] = useState<QuoteItemInput[]>(() => {
+    const firstService = services[0];
+    if (!firstService) {
+      return [{
+        serviceId: '',
+        toothNumber: undefined,
+        description: 'Consulta Odontológica',
+        quantity: 1,
+        unitPrice: 120000,
+        subtotal: 120000,
+        originalListPrice: 120000,
+      }];
+    }
+    const resolved = dbStore.resolveServicePrice({
+      serviceId: firstService.id,
+      patientId: initialPatientId || patients[0]?.id || '',
+      branchId: session?.currentBranchId || branches[0]?.id || '',
+    });
+    return [{
+      serviceId: firstService.id,
       toothNumber: undefined,
-      description: services[0]?.name || 'Consulta y Diagnóstico Odontológico',
+      description: firstService.name,
       quantity: 1,
-      unitPrice: services[0]?.basePrice || 120000,
-      subtotal: services[0]?.basePrice || 120000,
-    },
-  ]);
+      unitPrice: resolved.finalPrice,
+      subtotal: resolved.finalPrice,
+      originalListPrice: resolved.listPrice,
+      appliedModality: resolved.modality,
+      appliedPlanId: resolved.planId,
+      appliedPlanName: resolved.planName,
+      hasSpecialPrice: resolved.hasSpecialPrice,
+    }];
+  });
+
+  // Cuando cambia el paciente o la modalidad del presupuesto, recalcular los ítems que tengan servicio
+  useEffect(() => {
+    if (!patientId) return;
+    setItems((prevItems) =>
+      prevItems.map((it) => {
+        if (!it.serviceId) return it;
+        const res = calculateItemPrice(it.serviceId, quoteModality, quotePlanId);
+        return {
+          ...it,
+          unitPrice: res.unitPrice,
+          subtotal: res.unitPrice * it.quantity,
+          originalListPrice: res.listPrice,
+          appliedModality: res.modality,
+          appliedPlanId: res.planId,
+          appliedPlanName: res.planName,
+          hasSpecialPrice: res.hasSpecialPrice,
+        };
+      })
+    );
+  }, [patientId, branchId, quoteModality, quotePlanId]);
 
   if (!isOpen) return null;
 
   const handleAddItem = () => {
     const firstService = services[0];
+    if (!firstService) return;
+    const res = calculateItemPrice(firstService.id, quoteModality, quotePlanId);
     setItems([
       ...items,
       {
-        serviceId: firstService?.id || '',
+        serviceId: firstService.id,
         toothNumber: undefined,
-        description: firstService?.name || 'Procedimiento Dental',
+        description: firstService.name,
         quantity: 1,
-        unitPrice: firstService?.basePrice || 150000,
-        subtotal: firstService?.basePrice || 150000,
+        unitPrice: res.unitPrice,
+        subtotal: res.unitPrice,
+        originalListPrice: res.listPrice,
+        appliedModality: res.modality,
+        appliedPlanId: res.planId,
+        appliedPlanName: res.planName,
+        hasSpecialPrice: res.hasSpecialPrice,
       },
     ]);
   };
@@ -79,18 +164,19 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
     const s = services.find((srv) => srv.id === sId);
     if (!s) return;
 
-    // Check branch custom price
-    const branchServices = dbStore.getBranchServices();
-    const custom = branchServices.find((bs) => bs.branchId === branchId && bs.serviceId === sId);
-    const price = custom?.customPrice || s.basePrice;
-
+    const res = calculateItemPrice(sId, quoteModality, quotePlanId);
     const newItems = [...items];
     newItems[index] = {
       ...newItems[index],
       serviceId: sId,
       description: s.name,
-      unitPrice: price,
-      subtotal: price * newItems[index].quantity,
+      unitPrice: res.unitPrice,
+      subtotal: res.unitPrice * newItems[index].quantity,
+      originalListPrice: res.listPrice,
+      appliedModality: res.modality,
+      appliedPlanId: res.planId,
+      appliedPlanName: res.planName,
+      hasSpecialPrice: res.hasSpecialPrice,
     };
     setItems(newItems);
   };
@@ -110,6 +196,10 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
   };
 
   const grossTotal = items.reduce((sum, it) => sum + it.subtotal, 0);
+  const totalInsuranceSavings = items.reduce((sum, it) => {
+    const orig = it.originalListPrice ?? it.unitPrice;
+    return sum + Math.max(0, (orig - it.unitPrice) * it.quantity);
+  }, 0);
   const finalTotal = Math.max(0, grossTotal - discountAmount);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -134,6 +224,10 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
         quantity: it.quantity,
         unitPrice: it.unitPrice,
         subtotal: it.subtotal,
+        appliedModality: it.appliedModality,
+        appliedPlanId: it.appliedPlanId || undefined,
+        appliedPlanName: it.appliedPlanName || undefined,
+        originalListPrice: it.originalListPrice ?? it.unitPrice,
       })),
       actorUserId: session?.userId,
     });
@@ -180,13 +274,16 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                 value={patientId}
                 onChange={(e) => setPatientId(e.target.value)}
                 required
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none font-medium"
               >
-                {patients.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.firstName} {p.lastName} — C.I. {p.documentNumber}
-                  </option>
-                ))}
+                {patients.map((p) => {
+                  const plan = insurancePlans.find((ip) => ip.id === p.insurancePlanId);
+                  return (
+                    <option key={p.id} value={p.id}>
+                      {p.firstName} {p.lastName} — C.I. {p.documentNumber} {p.modality === 'PLAN_SEGURO' ? `🛡️ ${plan?.name || 'Seguro'}` : '👤 Particular'}
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -225,6 +322,72 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
               </select>
             </div>
           </div>
+
+          {/* Modalidad Comercial y Cobertura Banner */}
+          {currentPatient && (
+            <div className={`p-3.5 rounded-2xl border text-xs transition-all ${
+              (quoteModality === 'PLAN_SEGURO' || (quoteModality === 'AUTO' && currentPatient.modality === 'PLAN_SEGURO'))
+                ? 'bg-indigo-50/70 border-indigo-200'
+                : 'bg-slate-50 border-slate-200'
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <ShieldCheck className={`h-4 w-4 ${
+                    (quoteModality === 'PLAN_SEGURO' || (quoteModality === 'AUTO' && currentPatient.modality === 'PLAN_SEGURO'))
+                      ? 'text-indigo-600'
+                      : 'text-slate-400'
+                  }`} />
+                  <div>
+                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                      <span>Modalidad: {(quoteModality === 'PLAN_SEGURO' || (quoteModality === 'AUTO' && currentPatient.modality === 'PLAN_SEGURO')) ? 'Plan / Seguro Odontológico' : 'Particular (Precio Lista)'}</span>
+                      {totalInsuranceSavings > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
+                          <Sparkles className="h-3 w-3 text-emerald-600" />
+                          <span>Ahorro Cobertura: ₲ {totalInsuranceSavings.toLocaleString('es-PY')}</span>
+                        </span>
+                      )}
+                    </div>
+                    {currentPatient.modality === 'PLAN_SEGURO' && (
+                      <span className="text-[11px] text-indigo-800 font-medium block mt-0.5">
+                        Plan Afiliado: {insurancePlans.find((ip) => ip.id === currentPatient.insurancePlanId)?.name || 'Seguro Activo'}
+                        {currentPatient.insuranceMemberNumber ? ` • Carnet: ${currentPatient.insuranceMemberNumber}` : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 self-end sm:self-center">
+                  <span className="text-[10px] text-slate-500 font-medium">Cotizar con:</span>
+                  <select
+                    value={quoteModality}
+                    onChange={(e) => setQuoteModality(e.target.value as any)}
+                    className="text-[11px] font-bold bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="AUTO">Automático (Según ficha)</option>
+                    <option value="PLAN_SEGURO">🛡️ Plan / Seguro</option>
+                    <option value="PARTICULAR">👤 Particular (Lista)</option>
+                  </select>
+                </div>
+              </div>
+
+              {quoteModality === 'PLAN_SEGURO' && !currentPatient.insurancePlanId && (
+                <div className="mt-2 pt-2 border-t border-indigo-100 flex items-center gap-2">
+                  <label className="text-[10px] font-semibold text-indigo-900">Seleccionar Plan:</label>
+                  <select
+                    value={quotePlanId}
+                    onChange={(e) => setQuotePlanId(e.target.value)}
+                    className="text-xs bg-white border border-indigo-200 rounded-lg px-2 py-1 text-indigo-950 font-medium"
+                  >
+                    {insurancePlans.map((ip) => (
+                      <option key={ip.id} value={ip.id}>
+                        {ip.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Line items section */}
           <div>
@@ -320,8 +483,18 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                           onChange={(e) =>
                             handleItemChange(idx, 'unitPrice', parseInt(e.target.value, 10) || 0)
                           }
-                          className="w-28 p-1.5 text-xs text-right font-medium border border-slate-300 rounded-lg"
+                          className={`w-28 p-1.5 text-xs text-right font-medium border rounded-lg ${
+                            it.hasSpecialPrice
+                              ? 'border-emerald-300 bg-emerald-50/50 font-bold text-emerald-950'
+                              : 'border-slate-300'
+                          }`}
                         />
+                        {it.hasSpecialPrice && it.originalListPrice && it.originalListPrice > it.unitPrice && (
+                          <div className="text-[10px] text-emerald-700 font-medium flex items-center justify-end gap-1 mt-0.5">
+                            <span className="line-through text-slate-400">₲ {it.originalListPrice.toLocaleString('es-PY')}</span>
+                            <span>🛡️ (-₲ {(it.originalListPrice - it.unitPrice).toLocaleString('es-PY')})</span>
+                          </div>
+                        )}
                       </td>
 
                       <td className="py-2 px-3 text-right font-bold text-slate-800">

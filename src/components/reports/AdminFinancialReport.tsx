@@ -14,6 +14,8 @@ import {
   Download,
   ArrowUpRight,
   ShieldCheck,
+  Shield,
+  Clock,
   Percent
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
@@ -34,6 +36,8 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
   const cashMovements = snapshot.cashMovements || [];
   const patients = snapshot.patients || [];
   const quotes = snapshot.quotes || [];
+  const insurancePlans = snapshot.insurancePlans || [];
+  const insuranceClaims = snapshot.insuranceClaims || [];
 
   // Filter payments by branch if branch selected
   const filteredPayments = selectedBranchId
@@ -133,6 +137,48 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
   const totalTransactionsCount =
     filteredPayments.length + filteredMovements.filter((m) => m.movementType === 'INGRESO').length;
   const averageTicket = totalTransactionsCount > 0 ? Math.round(totalRevenue / totalTransactionsCount) : 0;
+
+  // Modality metrics: Particulares vs Aseguradoras (Fase 5)
+  const branchFilteredClaims = selectedBranchId
+    ? insuranceClaims.filter((c: any) => c.branchId === selectedBranchId)
+    : insuranceClaims;
+
+  let particularPaymentsTotal = 0;
+  let insuranceCopaysTotal = 0;
+
+  filteredPayments.forEach((pay) => {
+    const pat = patients.find((p) => p.id === pay.patientId);
+    if (pat?.modality === 'PLAN_SEGURO') {
+      insuranceCopaysTotal += pay.amount;
+    } else {
+      particularPaymentsTotal += pay.amount;
+    }
+  });
+
+  const insuranceSettledTotal = branchFilteredClaims
+    .filter((c: any) => c.status === 'LIQUIDADO_COBRADO')
+    .reduce((s: number, c: any) => s + (c.coveredAmount || 0), 0);
+
+  const insurancePendingTotal = branchFilteredClaims
+    .filter((c: any) => c.status !== 'LIQUIDADO_COBRADO' && c.status !== 'RECHAZADO')
+    .reduce((s: number, c: any) => s + (c.coveredAmount || 0), 0);
+
+  const totalGrossCommercial = particularPaymentsTotal + insuranceCopaysTotal + insuranceSettledTotal + insurancePendingTotal;
+
+  // Plan metrics breakdown
+  const planBreakdown = insurancePlans.map((pl) => {
+    const pClaims = branchFilteredClaims.filter((c: any) => c.planId === pl.id);
+    const coveredSum = pClaims.reduce((s: number, c: any) => s + (c.coveredAmount || 0), 0);
+    const settledSum = pClaims.filter((c: any) => c.status === 'LIQUIDADO_COBRADO').reduce((s: number, c: any) => s + (c.coveredAmount || 0), 0);
+    const pendingSum = pClaims.filter((c: any) => c.status !== 'LIQUIDADO_COBRADO' && c.status !== 'RECHAZADO').reduce((s: number, c: any) => s + (c.coveredAmount || 0), 0);
+    return {
+      plan: pl,
+      claimsCount: pClaims.length,
+      coveredSum,
+      settledSum,
+      pendingSum,
+    };
+  });
 
   // Handle Export CSV
   const handleExportCSV = () => {
@@ -356,6 +402,147 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
             <div>
               <strong>Conciliación Bancaria Automática:</strong> Los cobros mediante SIPAP y QR Bancard no requieren arqueo físico en caja, ingresando directamente a la cuenta corriente del banco.
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Fase 5: Insurance & Prepagas Financial Performance Section */}
+      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 uppercase tracking-wider mb-0.5">
+              <ShieldCheck className="h-4 w-4" />
+              <span>Fase 5 • Facturación por Modalidad Comercial</span>
+            </div>
+            <h3 className="text-base font-extrabold text-slate-900">
+              Desglose de Ingresos: Particulares vs Seguros & Prepagas Odontológicas
+            </h3>
+            <p className="text-xs text-slate-500">
+              Comparativa entre aranceles particulares directos, copagos recaudados en caja y liquidaciones cobradas/pendientes de aseguradoras.
+            </p>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Volumen Económico Total</span>
+            <span className="text-base font-black text-indigo-950">{formatPYG(totalGrossCommercial)}</span>
+          </div>
+        </div>
+
+        {/* 4 Cards Breakdown */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Ingresos Particulares */}
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Pacientes Particulares
+              </span>
+              <Users className="h-4 w-4 text-slate-500" />
+            </div>
+            <div className="text-lg font-black text-slate-900 mt-2">
+              {formatPYG(particularPaymentsTotal)}
+            </div>
+            <div className="text-[11px] text-slate-500 mt-1">
+              {totalGrossCommercial > 0 ? Math.round((particularPaymentsTotal / totalGrossCommercial) * 100) : 0}% del volumen comercial
+            </div>
+          </div>
+
+          {/* Copagos Recaudados */}
+          <div className="p-4 bg-indigo-50/60 rounded-2xl border border-indigo-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">
+                Copagos en Clínica
+              </span>
+              <Wallet className="h-4 w-4 text-indigo-600" />
+            </div>
+            <div className="text-lg font-black text-indigo-900 mt-2">
+              {formatPYG(insuranceCopaysTotal)}
+            </div>
+            <div className="text-[11px] text-indigo-700 font-semibold mt-1">
+              Abonados por pacientes asegurados
+            </div>
+          </div>
+
+          {/* Liquidaciones Cobradas en Banco */}
+          <div className="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider">
+                Liquidado Aseguradoras
+              </span>
+              <Landmark className="h-4 w-4 text-emerald-600" />
+            </div>
+            <div className="text-lg font-black text-emerald-900 mt-2">
+              {formatPYG(insuranceSettledTotal)}
+            </div>
+            <div className="text-[11px] text-emerald-700 font-semibold mt-1">
+              Cancelado vía SIPAP por aseguradoras
+            </div>
+          </div>
+
+          {/* Cuentas por Cobrar Aseguradoras */}
+          <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">
+                Por Cobrar a Aseguradoras
+              </span>
+              <Clock className="h-4 w-4 text-amber-600" />
+            </div>
+            <div className="text-lg font-black text-amber-900 mt-2">
+              {formatPYG(insurancePendingTotal)}
+            </div>
+            <div className="text-[11px] text-amber-700 font-semibold mt-1">
+              En auditoría o pendiente de remesa
+            </div>
+          </div>
+        </div>
+
+        {/* Plan Breakdown Table */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+            Rendimiento por Entidad Aseguradora & Convenio
+          </h4>
+          <div className="overflow-x-auto rounded-2xl border border-slate-200">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th className="px-4 py-3">Aseguradora / Convenio</th>
+                  <th className="px-4 py-3 text-center">Prestaciones</th>
+                  <th className="px-4 py-3 text-right">Total Cobertura</th>
+                  <th className="px-4 py-3 text-right">Cobrado (SIPAP)</th>
+                  <th className="px-4 py-3 text-right text-amber-800">Por Cobrar</th>
+                  <th className="px-4 py-3 text-right">Participación</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {planBreakdown.map((pb) => {
+                  const pct = totalGrossCommercial > 0 ? Math.round((pb.coveredSum / totalGrossCommercial) * 100) : 0;
+                  return (
+                    <tr key={pb.plan.id} className="hover:bg-slate-50/80">
+                      <td className="px-4 py-3 font-bold text-slate-900 flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-indigo-600 shrink-0" />
+                        <div>
+                          <div>{pb.plan.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono font-normal">{pb.plan.code}</div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center font-semibold text-slate-700">
+                        {pb.claimsCount}
+                      </td>
+                      <td className="px-4 py-3 text-right font-extrabold text-slate-900">
+                        {formatPYG(pb.coveredSum)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-emerald-700">
+                        {formatPYG(pb.settledSum)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-amber-700">
+                        {formatPYG(pb.pendingSum)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold text-slate-600">
+                        {pct}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

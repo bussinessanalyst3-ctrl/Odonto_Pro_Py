@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Check, CreditCard, Receipt, AlertCircle } from 'lucide-react';
+import { X, Check, CreditCard, Receipt, AlertCircle, ShieldCheck } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import { useAuth } from '../../auth/authContext.tsx';
@@ -98,15 +98,44 @@ export const RecordTreatmentPaymentModal: React.FC<RecordTreatmentPaymentModalPr
         )}
 
         {/* Treatment Info Summary */}
-        <div className="mt-4 p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-1 text-xs">
-          <div className="font-bold text-slate-900">{treatment.title}</div>
-          <div className="text-slate-600">
-            Paciente: <span className="font-semibold">{patient?.firstName} {patient?.lastName}</span>
+        <div className="mt-4 p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <div className="font-bold text-slate-900">{treatment.title}</div>
+            {treatment.appliedModality === 'PLAN_SEGURO' && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-900 border border-indigo-200 inline-flex items-center gap-1">
+                <ShieldCheck className="h-3 w-3 text-indigo-600" />
+                <span>{treatment.appliedPlanName || 'Seguro Dental'}</span>
+              </span>
+            )}
           </div>
+          <div className="text-slate-600 flex items-center justify-between">
+            <span>
+              Paciente: <span className="font-semibold">{patient?.firstName} {patient?.lastName}</span>
+            </span>
+            {patient?.insuranceMemberNumber && (
+              <span className="text-[11px] font-mono text-indigo-700 font-semibold">
+                Carnet: {patient.insuranceMemberNumber}
+              </span>
+            )}
+          </div>
+
+          {treatment.appliedModality === 'PLAN_SEGURO' && treatment.originalListPrice && treatment.originalListPrice > treatment.totalAmount && (
+            <div className="p-2 bg-indigo-50/70 rounded-xl border border-indigo-100 text-[11px] text-indigo-900 flex items-center justify-between">
+              <div>
+                Arancel: <span className="line-through text-slate-400">{formatPYG(treatment.originalListPrice)}</span>
+                {' • '}
+                Cobertura: <span className="font-bold text-indigo-700">{formatPYG(treatment.originalListPrice - treatment.totalAmount)}</span>
+              </div>
+              <div className="font-bold">
+                Copago: {formatPYG(treatment.totalAmount)}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-[11px]">
-            <div>Total: <span className="font-bold text-slate-800">{formatPYG(treatment.totalAmount)}</span></div>
+            <div>Total Tratamiento: <span className="font-bold text-slate-800">{formatPYG(treatment.totalAmount)}</span></div>
             <div>Pagado: <span className="font-bold text-emerald-700">{formatPYG(treatment.paidAmount)}</span></div>
-            <div>Saldo: <span className="font-bold text-red-600">{formatPYG(treatment.balanceDue)}</span></div>
+            <div>Saldo Pendiente: <span className="font-bold text-red-600">{formatPYG(treatment.balanceDue)}</span></div>
           </div>
         </div>
 

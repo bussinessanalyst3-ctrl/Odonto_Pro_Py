@@ -21,7 +21,8 @@ import {
   ArrowRight,
   TrendingUp,
   Tag,
-  DollarSign
+  DollarSign,
+  ShieldCheck
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
@@ -50,6 +51,9 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
   const patient = snapshot.patients.find((p) => p.id === patientId);
 
   if (!patient) return null;
+
+  const insurancePlans = snapshot.insurancePlans || [];
+  const assignedPlan = insurancePlans.find((ip) => ip.id === patient.insurancePlanId);
 
   // Relaciones integradas
   const patientAppointments = snapshot.appointments.filter((a) => a.patientId === patientId);
@@ -123,6 +127,21 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
                   Grupo Sanguíneo: {patient.bloodType || 'O+'}
                 </span>
+                {patient.modality === 'PLAN_SEGURO' ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-900 border border-indigo-200 flex items-center gap-1.5 shadow-2xs">
+                    <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
+                    <span>{assignedPlan?.name || 'Seguro Dental'}</span>
+                    {patient.insuranceMemberNumber && (
+                      <span className="text-[11px] font-mono text-indigo-700 font-normal">
+                        • Nº {patient.insuranceMemberNumber}
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                    Particular
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
                 <span>{patient.city}, {patient.department}</span>
@@ -236,6 +255,59 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                     {pendingBalancePyg > 0 ? 'Cobro pendiente en caja' : 'Al día / Sin saldo deudor'}
                   </span>
                 </div>
+              </div>
+
+              {/* Modalidad Comercial y Cobertura */}
+              <div className={`p-5 rounded-2xl border ${
+                patient.modality === 'PLAN_SEGURO'
+                  ? 'bg-indigo-50/50 border-indigo-200'
+                  : 'bg-white border-slate-200/80 shadow-2xs'
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className={`h-5 w-5 ${patient.modality === 'PLAN_SEGURO' ? 'text-indigo-600' : 'text-teal-600'}`} />
+                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      Modalidad Comercial & Cobertura Odontológica
+                    </h3>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold w-fit ${
+                    patient.modality === 'PLAN_SEGURO'
+                      ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
+                      : 'bg-slate-100 text-slate-700 border border-slate-200'
+                  }`}>
+                    {patient.modality === 'PLAN_SEGURO' ? 'Plan / Seguro Mensual Activo' : 'Atención Particular / Precio de Lista'}
+                  </span>
+                </div>
+
+                {patient.modality === 'PLAN_SEGURO' && assignedPlan ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                    <div className="p-3 bg-white rounded-xl border border-indigo-100">
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Plan Asignado</span>
+                      <span className="font-bold text-indigo-950 text-sm block mt-0.5">{assignedPlan.name}</span>
+                      <span className="text-[11px] text-slate-500 block font-mono mt-0.5">Código: {assignedPlan.code}</span>
+                    </div>
+                    <div className="p-3 bg-white rounded-xl border border-indigo-100">
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Credencial / Carnet</span>
+                      <span className="font-mono font-bold text-slate-800 text-sm block mt-0.5">
+                        {patient.insuranceMemberNumber || 'Sin número registrado'}
+                      </span>
+                      <span className="text-[11px] text-emerald-600 block font-semibold mt-0.5">Estado: Activo</span>
+                    </div>
+                    <div className="p-3 bg-white rounded-xl border border-indigo-100">
+                      <span className="text-slate-400 block text-[10px] uppercase font-semibold">Condiciones y Cobertura</span>
+                      <span className="text-slate-800 text-[11px] line-clamp-2 block mt-0.5">{assignedPlan.description}</span>
+                      {assignedPlan.coverageTerms && (
+                        <span className="text-[10px] text-indigo-700 font-mono block mt-1">
+                          {assignedPlan.coverageTerms}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600">
+                    El paciente está registrado bajo modalidad <strong>Particular</strong>. Las atenciones, tratamientos y presupuestos se liquidan con el precio institucional de lista de la clínica sin bonificaciones de seguro.
+                  </div>
+                )}
               </div>
 
               {/* Anamnesis y Antecedentes */}
@@ -387,13 +459,23 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                       className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                     >
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-bold text-slate-900">{t.title}</span>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                             t.status === 'COMPLETADO' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                           }`}>
                             {t.status}
                           </span>
+                          {t.appliedModality === 'PLAN_SEGURO' ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-900 border border-indigo-200 inline-flex items-center gap-1">
+                              <ShieldCheck className="h-3 w-3 text-indigo-600" />
+                              <span>{t.appliedPlanName || 'Plan Seguro'}</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                              Particular
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5">
                           Piezas: {t.toothNumbers?.join(', ') || 'General'} • Inicio: {t.startDate}
@@ -403,7 +485,13 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                         <div className="text-sm font-black text-teal-800">
                           {formatPYG(t.totalAmount)}
                         </div>
-                        <span className="text-[11px] text-slate-400">Arancel Oficial</span>
+                        {t.originalListPrice && t.originalListPrice > t.totalAmount ? (
+                          <span className="text-[10px] text-emerald-700 font-semibold block">
+                            Lista: <span className="line-through text-slate-400">{formatPYG(t.originalListPrice)}</span> • Seguro
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400">Tarifa Aplicada</span>
+                        )}
                       </div>
                     </div>
                   ))}

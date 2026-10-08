@@ -13,7 +13,8 @@ import {
   Clock,
   User,
   History,
-  Tag
+  Tag,
+  ShieldCheck
 } from 'lucide-react';
 import { ToothData } from './ToothSVG.tsx';
 import { dbStore } from '../../db/inMemoryStore.ts';
@@ -357,17 +358,25 @@ export const ToothClinicalDrawer: React.FC<ToothClinicalDrawerProps> = ({
                       key={t.id}
                       className="p-3.5 bg-white border border-slate-200 rounded-2xl shadow-2xs space-y-1.5"
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="text-xs font-bold text-slate-900">{t.title}</span>
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            t.status === 'COMPLETADO'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {t.status}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {t.appliedModality === 'PLAN_SEGURO' && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-900 border border-indigo-200 inline-flex items-center gap-0.5">
+                              <ShieldCheck className="h-2.5 w-2.5 text-indigo-600" />
+                              <span>{t.appliedPlanName || 'Seguro'}</span>
+                            </span>
+                          )}
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              t.status === 'COMPLETADO'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {t.status}
+                          </span>
+                        </div>
                       </div>
                       <div className="text-[11px] text-slate-500 flex items-center justify-between">
                         <span>Inicio: {t.startDate}</span>

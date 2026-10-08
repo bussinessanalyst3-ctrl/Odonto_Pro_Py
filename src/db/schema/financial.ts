@@ -31,6 +31,10 @@ export const quoteItems = pgTable('quote_items', {
   quantity: integer('quantity').default(1).notNull(),
   unitPrice: bigint('unit_price', { mode: 'number' }).notNull(),
   subtotal: bigint('subtotal', { mode: 'number' }).notNull(),
+  appliedModality: varchar('applied_modality', { length: 30 }), // PARTICULAR, PLAN_SEGURO
+  appliedPlanId: uuid('applied_plan_id'),
+  appliedPlanName: varchar('applied_plan_name', { length: 200 }),
+  originalListPrice: bigint('original_list_price', { mode: 'number' }),
 });
 
 export const treatments = pgTable('treatments', {
@@ -39,11 +43,16 @@ export const treatments = pgTable('treatments', {
   branchId: uuid('branch_id').notNull().references(() => branches.id),
   patientId: uuid('patient_id').notNull().references(() => patients.id),
   quoteId: uuid('quote_id').references(() => quotes.id),
+  serviceId: uuid('service_id').references(() => services.id),
   title: varchar('title', { length: 200 }).notNull(),
   totalAmount: bigint('total_amount', { mode: 'number' }).notNull(),
   paidAmount: bigint('paid_amount', { mode: 'number' }).default(0).notNull(),
   balanceDue: bigint('balance_due', { mode: 'number' }).notNull(),
   status: varchar('status', { length: 25 }).default('EN_PROGRESO').notNull(), // PLANIFICADO, EN_PROGRESO, COMPLETADO, SUSPENDIDO
+  appliedModality: varchar('applied_modality', { length: 30 }).default('PARTICULAR'),
+  appliedPlanId: uuid('applied_plan_id'),
+  appliedPlanName: varchar('applied_plan_name', { length: 200 }),
+  originalListPrice: bigint('original_list_price', { mode: 'number' }),
   startDate: date('start_date'),
   completedDate: date('completed_date'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
