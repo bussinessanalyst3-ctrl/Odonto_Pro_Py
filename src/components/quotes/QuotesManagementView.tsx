@@ -17,6 +17,8 @@ import {
   TrendingUp,
   FileCheck,
   AlertCircle,
+  Edit2,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface QuotesManagementViewProps {
@@ -37,6 +39,7 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('TODOS');
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [quoteToEditId, setQuoteToEditId] = useState<string | null>(null);
   const [inspectQuoteId, setInspectQuoteId] = useState<string | null>(null);
 
   const reloadData = () => {
@@ -145,7 +148,10 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={() => {
+                setQuoteToEditId(null);
+                setIsCreateModalOpen(true);
+              }}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
             >
               <Plus className="h-4 w-4" />
@@ -315,6 +321,14 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
                         <div className="text-[10px] text-slate-400">
                           {new Date(q.createdAt).toLocaleDateString('es-PY')}
                         </div>
+                        {q.planName ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200 mt-1 max-w-[140px] truncate">
+                            <ShieldCheck className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{q.planName}</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 block mt-0.5">👤 Particular</span>
+                        )}
                       </td>
 
                       <td className="py-3 px-4">
@@ -361,6 +375,19 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
                             <Eye className="h-4 w-4" />
                           </button>
 
+                          {q.status === 'PENDIENTE' && (
+                            <button
+                              onClick={() => {
+                                setQuoteToEditId(q.id);
+                                setIsCreateModalOpen(true);
+                              }}
+                              title="Editar Presupuesto"
+                              className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                          )}
+
                           <a
                             href={waUrl}
                             target="_blank"
@@ -394,7 +421,11 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
       {/* Modals */}
       <CreateQuoteModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        quoteToEditId={quoteToEditId}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setQuoteToEditId(null);
+        }}
         onQuoteCreated={(quoteId) => {
           reloadData();
           setInspectQuoteId(quoteId);

@@ -1,16 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
-import { X, Plus, Trash2, Calculator, Calendar, User, FileText, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
+import {
+  X,
+  Plus,
+  Trash2,
+  Calculator,
+  Calendar,
+  User,
+  FileText,
+  CheckCircle2,
+  ShieldCheck,
+  Sparkles,
+  AlertCircle,
+  Info,
+  Tag,
+  Building2,
+  Stethoscope,
+} from 'lucide-react';
 
-interface CreateQuoteModalProps {
+export interface CreateQuoteModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialPatientId?: string;
+  quoteToEditId?: string | null;
   onQuoteCreated?: (quoteId: string) => void;
 }
 
-interface QuoteItemInput {
+export interface QuoteItemInput {
   serviceId?: string;
   toothNumber?: number;
   description: string;
@@ -28,95 +45,221 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
   isOpen,
   onClose,
   initialPatientId,
+  quoteToEditId,
   onQuoteCreated,
 }) => {
   const { session } = useAuth();
-  const patients = dbStore.getPatients();
-  const branches = dbStore.getBranches();
-  const services = dbStore.getServices();
-  const users = dbStore.getUsers();
-  const insurancePlans = dbStore.getInsurancePlans(true);
 
-  const dentists = users.filter((u) => u.roleId === 'ODONTOLOGO');
+  // Almacén reactivo de datos
+  const [patients, setPatients] = useState(() => dbStore.getPatients());
+  const [branches, setBranches] = useState(() => dbStore.getBranches());
+  const [services, setServices] = useState(() => dbStore.getServices());
+  const [users, setUsers] = useState(() => dbStore.getUsers());
+  const [insurancePlans, setInsurancePlans] = useState(() => dbStore.getInsurancePlans(false));
 
-  const [patientId, setPatientId] = useState<string>(initialPatientId || patients[0]?.id || '');
-  const [branchId, setBranchId] = useState<string>(session?.currentBranchId || branches[0]?.id || '');
-  const [odontologistId, setOdontologistId] = useState<string>(dentists[0]?.id || '');
+  const dentists = useMemo(() => {
+    const list = users.filter((u) => u.roleId === 'ODONTOLOGO');
+    return list.length > 0 ? list : users;
+  }, [users]);
+
+  // Recarga reactiva de catálogos
+  const reloadStoreData = useCallback(() => {
+    setPatients([...dbStore.getPatients()]);
+    setBranches([...dbStore.getBranches()]);
+    setServices([...dbStore.getServices()]);
+    setUsers([...dbStore.getUsers()]);
+    setInsurancePlans([...dbStore.getInsurancePlans(false)]);
+  }, []);
+
+  useEffect(() => {
+    return dbStore.subscribe(reloadStoreData);
+  }, [reloadStoreData]);
+
+  // Estado del formulario
+  const [patientId, setPatientId] = useState<string>('');
+  const [branchId, setBranchId] = useState<string>('');
+  const [odontologistId, setOdontologistId] = useState<string>('');
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(''); // '' = PARTICULAR
   const [validDays, setValidDays] = useState<number>(30);
   const [notes, setNotes] = useState<string>(
     'Validez de 30 días. Financiación hasta en 3 cuotas sin intereses con entrega inicial del 40%.'
   );
   const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [items, setItems] = useState<QuoteItemInput[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  // Control comercial del presupuesto
-  const [quoteModality, setQuoteModality] = useState<'AUTO' | 'PARTICULAR' | 'PLAN_SEGURO'>('AUTO');
-  const [quotePlanId, setQuotePlanId] = useState<string>('');
+  // Helper para resolver precio unitario según servicio y plan seleccionado
+  const calculateItemPrice = useCallback(
+    (sId: string, pId: string, bId: string, planIdToApply: string) => {
+      const s = services.find((srv) => srv.id === sId);
+      if (!s) {
+        return {
+          unitPrice: 0,
+          listPrice: 0,
+          modality: (planIdToApply ? 'PLAN_SEGURO' : 'PARTICULAR') as 'PARTICULAR' | 'PLAN_SEGURO',
+          planId: planIdToApply || null,
+          planName: planIdToApply ? (insurancePlans.find((ip) => ip.id === planIdToApply)?.name || null) : null,
+          hasSpecialPrice: false,
+        };
+      }
 
-  const currentPatient = patients.find((p) => p.id === patientId);
+      const resolved = dbStore.resolveServicePrice({
+        serviceId: sId,
+        patientId: pId,
+        branchId: bId,
+        forcedModality: planIdToApply ? 'PLAN_SEGURO' : 'PARTICULAR',
+        forcedPlanId: planIdToApply || undefined,
+      });
 
-  // Helper para resolver precio unitario según modalidad
-  const calculateItemPrice = (sId: string, qModality: string, qPlanId: string) => {
-    const s = services.find((srv) => srv.id === sId);
-    if (!s) return { unitPrice: 0, listPrice: 0, modality: 'PARTICULAR' as const, planId: null, planName: null, hasSpecialPrice: false };
+      return {
+        unitPrice: resolved.finalPrice,
+        listPrice: resolved.listPrice,
+        modality: resolved.modality,
+        planId: resolved.planId,
+        planName: resolved.planName,
+        hasSpecialPrice: resolved.hasSpecialPrice,
+      };
+    },
+    [services, insurancePlans]
+  );
 
-    const resolved = dbStore.resolveServicePrice({
-      serviceId: sId,
-      patientId,
-      branchId,
-      forcedModality: qModality === 'AUTO' ? undefined : (qModality as any),
-      forcedPlanId: qPlanId || undefined,
-    });
+  // Inicialización o reapertura del modal
+  useEffect(() => {
+    if (!isOpen) return;
 
-    return {
-      unitPrice: resolved.finalPrice,
-      listPrice: resolved.listPrice,
-      modality: resolved.modality,
-      planId: resolved.planId,
-      planName: resolved.planName,
-      hasSpecialPrice: resolved.hasSpecialPrice,
-    };
+    // Refrescar catálogos frescos al abrir
+    reloadStoreData();
+    const currentPatients = dbStore.getPatients();
+    const currentBranches = dbStore.getBranches();
+    const currentServices = dbStore.getServices();
+    const currentUsers = dbStore.getUsers();
+    const currentPlans = dbStore.getInsurancePlans(false);
+
+    setFormError(null);
+
+    // Caso A: Modo Edición de un presupuesto existente
+    if (quoteToEditId) {
+      const existingQuote = dbStore.getQuotes().find((q) => q.id === quoteToEditId);
+      if (existingQuote) {
+        setPatientId(existingQuote.patientId);
+        setBranchId(existingQuote.branchId);
+        setOdontologistId(existingQuote.odontologistId || '');
+        setSelectedPlanId(existingQuote.planId || '');
+        setDiscountAmount(existingQuote.discountAmount || 0);
+        setNotes(existingQuote.notes || '');
+
+        const existingItems = dbStore.getQuoteItems(quoteToEditId);
+        if (existingItems && existingItems.length > 0) {
+          setItems(
+            existingItems.map((qi) => ({
+              serviceId: qi.serviceId || undefined,
+              toothNumber: qi.toothNumber || undefined,
+              description: qi.description,
+              quantity: qi.quantity,
+              unitPrice: qi.unitPrice,
+              subtotal: qi.subtotal,
+              appliedModality: (qi.appliedModality as any) || 'PARTICULAR',
+              appliedPlanId: qi.appliedPlanId || null,
+              appliedPlanName: qi.appliedPlanName || null,
+              originalListPrice: qi.originalListPrice ?? qi.unitPrice,
+              hasSpecialPrice: qi.appliedModality === 'PLAN_SEGURO' && (qi.originalListPrice ?? 0) > qi.unitPrice,
+            }))
+          );
+        }
+        return;
+      }
+    }
+
+    // Caso B: Modo Nuevo Presupuesto
+    const defaultPatientId = initialPatientId || currentPatients[0]?.id || '';
+    const defaultBranchId = session?.currentBranchId || currentBranches[0]?.id || '';
+    const defaultDentistId = currentUsers.find((u) => u.roleId === 'ODONTOLOGO')?.id || currentUsers[0]?.id || '';
+
+    setPatientId(defaultPatientId);
+    setBranchId(defaultBranchId);
+    setOdontologistId(defaultDentistId);
+    setDiscountAmount(0);
+    setValidDays(30);
+    setNotes('Validez de 30 días. Financiación hasta en 3 cuotas sin intereses con entrega inicial del 40%.');
+
+    // Determinar plan por defecto (si el paciente tiene plan asignado, pre-seleccionarlo)
+    const pat = currentPatients.find((p) => p.id === defaultPatientId);
+    const initialPlanId = pat?.insurancePlanId && currentPlans.some((cp) => cp.id === pat.insurancePlanId)
+      ? pat.insurancePlanId
+      : '';
+    setSelectedPlanId(initialPlanId);
+
+    // Inicializar ítem por defecto
+    const firstService = currentServices[0];
+    if (firstService) {
+      const resolved = dbStore.resolveServicePrice({
+        serviceId: firstService.id,
+        patientId: defaultPatientId,
+        branchId: defaultBranchId,
+        forcedModality: initialPlanId ? 'PLAN_SEGURO' : 'PARTICULAR',
+        forcedPlanId: initialPlanId || undefined,
+      });
+
+      setItems([
+        {
+          serviceId: firstService.id,
+          toothNumber: undefined,
+          description: firstService.name,
+          quantity: 1,
+          unitPrice: resolved.finalPrice,
+          subtotal: resolved.finalPrice,
+          originalListPrice: resolved.listPrice,
+          appliedModality: resolved.modality,
+          appliedPlanId: resolved.planId,
+          appliedPlanName: resolved.planName,
+          hasSpecialPrice: resolved.hasSpecialPrice,
+        },
+      ]);
+    } else {
+      // Catálogo libre si aún no se han registrado servicios específicos
+      setItems([
+        {
+          serviceId: '',
+          toothNumber: undefined,
+          description: 'Consulta y Diagnóstico Odontológico',
+          quantity: 1,
+          unitPrice: 120000,
+          subtotal: 120000,
+          originalListPrice: 120000,
+          appliedModality: 'PARTICULAR',
+          appliedPlanId: null,
+          appliedPlanName: null,
+          hasSpecialPrice: false,
+        },
+      ]);
+    }
+  }, [isOpen, quoteToEditId, initialPatientId, session?.currentBranchId, reloadStoreData]);
+
+  // Si cambia el paciente seleccionado, sincronizar plan por defecto si no se había configurado manualmente
+  const handlePatientChange = (newPatientId: string) => {
+    setPatientId(newPatientId);
+    const pat = patients.find((p) => p.id === newPatientId);
+    if (pat?.insurancePlanId && insurancePlans.some((ip) => ip.id === pat.insurancePlanId)) {
+      setSelectedPlanId(pat.insurancePlanId);
+    } else if (!quoteToEditId) {
+      setSelectedPlanId('');
+    }
   };
 
-  const [items, setItems] = useState<QuoteItemInput[]>(() => {
-    const firstService = services[0];
-    if (!firstService) {
-      return [{
-        serviceId: '',
-        toothNumber: undefined,
-        description: 'Consulta Odontológica',
-        quantity: 1,
-        unitPrice: 120000,
-        subtotal: 120000,
-        originalListPrice: 120000,
-      }];
-    }
-    const resolved = dbStore.resolveServicePrice({
-      serviceId: firstService.id,
-      patientId: initialPatientId || patients[0]?.id || '',
-      branchId: session?.currentBranchId || branches[0]?.id || '',
-    });
-    return [{
-      serviceId: firstService.id,
-      toothNumber: undefined,
-      description: firstService.name,
-      quantity: 1,
-      unitPrice: resolved.finalPrice,
-      subtotal: resolved.finalPrice,
-      originalListPrice: resolved.listPrice,
-      appliedModality: resolved.modality,
-      appliedPlanId: resolved.planId,
-      appliedPlanName: resolved.planName,
-      hasSpecialPrice: resolved.hasSpecialPrice,
-    }];
-  });
-
-  // Cuando cambia el paciente o la modalidad del presupuesto, recalcular los ítems que tengan servicio
+  // Recalcular ítems cuando cambie el plan seleccionado o la sucursal
   useEffect(() => {
-    if (!patientId) return;
+    if (!isOpen || items.length === 0) return;
     setItems((prevItems) =>
       prevItems.map((it) => {
-        if (!it.serviceId) return it;
-        const res = calculateItemPrice(it.serviceId, quoteModality, quotePlanId);
+        if (!it.serviceId) {
+          return {
+            ...it,
+            appliedModality: selectedPlanId ? 'PLAN_SEGURO' : 'PARTICULAR',
+            appliedPlanId: selectedPlanId || null,
+            appliedPlanName: selectedPlanId ? (insurancePlans.find((ip) => ip.id === selectedPlanId)?.name || null) : null,
+          };
+        }
+        const res = calculateItemPrice(it.serviceId, patientId, branchId, selectedPlanId);
         return {
           ...it,
           unitPrice: res.unitPrice,
@@ -129,43 +272,114 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
         };
       })
     );
-  }, [patientId, branchId, quoteModality, quotePlanId]);
+  }, [selectedPlanId, branchId]);
 
   if (!isOpen) return null;
 
+  const currentPatient = patients.find((p) => p.id === patientId);
+  const activeSelectedPlan = insurancePlans.find((ip) => ip.id === selectedPlanId);
+
+  // Agregar Ítem garantizado (nunca bloqueado)
   const handleAddItem = () => {
-    const firstService = services[0];
-    if (!firstService) return;
-    const res = calculateItemPrice(firstService.id, quoteModality, quotePlanId);
-    setItems([
-      ...items,
-      {
-        serviceId: firstService.id,
-        toothNumber: undefined,
-        description: firstService.name,
-        quantity: 1,
-        unitPrice: res.unitPrice,
-        subtotal: res.unitPrice,
-        originalListPrice: res.listPrice,
-        appliedModality: res.modality,
-        appliedPlanId: res.planId,
-        appliedPlanName: res.planName,
-        hasSpecialPrice: res.hasSpecialPrice,
-      },
-    ]);
+    const nextService = services[items.length % (services.length || 1)] || services[0];
+    if (nextService) {
+      const res = calculateItemPrice(nextService.id, patientId, branchId, selectedPlanId);
+      setItems((prev) => [
+        ...prev,
+        {
+          serviceId: nextService.id,
+          toothNumber: undefined,
+          description: nextService.name,
+          quantity: 1,
+          unitPrice: res.unitPrice,
+          subtotal: res.unitPrice,
+          originalListPrice: res.listPrice,
+          appliedModality: res.modality,
+          appliedPlanId: res.planId,
+          appliedPlanName: res.planName,
+          hasSpecialPrice: res.hasSpecialPrice,
+        },
+      ]);
+    } else {
+      // Ítem manual libre en caso de no haber servicios cargados
+      setItems((prev) => [
+        ...prev,
+        {
+          serviceId: '',
+          toothNumber: undefined,
+          description: 'Procedimiento Odontológico Adicional',
+          quantity: 1,
+          unitPrice: 100000,
+          subtotal: 100000,
+          originalListPrice: 100000,
+          appliedModality: selectedPlanId ? 'PLAN_SEGURO' : 'PARTICULAR',
+          appliedPlanId: selectedPlanId || null,
+          appliedPlanName: activeSelectedPlan?.name || null,
+          hasSpecialPrice: false,
+        },
+      ]);
+    }
   };
 
   const handleRemoveItem = (index: number) => {
-    if (items.length <= 1) return;
-    setItems(items.filter((_, i) => i !== index));
+    if (items.length <= 1) {
+      // Si solo queda un ítem, resetearlo en vez de eliminarlo
+      const firstSrv = services[0];
+      if (firstSrv) {
+        const res = calculateItemPrice(firstSrv.id, patientId, branchId, selectedPlanId);
+        setItems([
+          {
+            serviceId: firstSrv.id,
+            toothNumber: undefined,
+            description: firstSrv.name,
+            quantity: 1,
+            unitPrice: res.unitPrice,
+            subtotal: res.unitPrice,
+            originalListPrice: res.listPrice,
+            appliedModality: res.modality,
+            appliedPlanId: res.planId,
+            appliedPlanName: res.planName,
+            hasSpecialPrice: res.hasSpecialPrice,
+          },
+        ]);
+      } else {
+        setItems([
+          {
+            serviceId: '',
+            toothNumber: undefined,
+            description: 'Procedimiento Odontológico',
+            quantity: 1,
+            unitPrice: 0,
+            subtotal: 0,
+            appliedModality: selectedPlanId ? 'PLAN_SEGURO' : 'PARTICULAR',
+          },
+        ]);
+      }
+      return;
+    }
+    setItems((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleServiceChange = (index: number, sId: string) => {
+    const newItems = [...items];
+    if (!sId) {
+      // Cambio a servicio manual / libre
+      newItems[index] = {
+        ...newItems[index],
+        serviceId: '',
+        appliedModality: selectedPlanId ? 'PLAN_SEGURO' : 'PARTICULAR',
+        appliedPlanId: selectedPlanId || null,
+        appliedPlanName: activeSelectedPlan?.name || null,
+        hasSpecialPrice: false,
+      };
+      setItems(newItems);
+      return;
+    }
+
     const s = services.find((srv) => srv.id === sId);
     if (!s) return;
 
-    const res = calculateItemPrice(sId, quoteModality, quotePlanId);
-    const newItems = [...items];
+    const res = calculateItemPrice(sId, patientId, branchId, selectedPlanId);
     newItems[index] = {
       ...newItems[index],
       serviceId: sId,
@@ -183,19 +397,26 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
 
   const handleItemChange = (index: number, field: keyof QuoteItemInput, value: any) => {
     const newItems = [...items];
-    const current = { ...newItems[index], [field]: value };
+    const current = { ...newItems[index] };
 
-    if (field === 'quantity' || field === 'unitPrice') {
-      const q = field === 'quantity' ? Number(value) : current.quantity;
-      const p = field === 'unitPrice' ? Number(value) : current.unitPrice;
-      current.subtotal = q * p;
+    if (field === 'quantity') {
+      const q = Math.max(1, parseInt(value, 10) || 1);
+      current.quantity = q;
+      current.subtotal = q * current.unitPrice;
+    } else if (field === 'unitPrice') {
+      const p = Math.max(0, parseInt(value, 10) || 0);
+      current.unitPrice = p;
+      current.subtotal = current.quantity * p;
+    } else {
+      (current as any)[field] = value;
     }
 
     newItems[index] = current;
     setItems(newItems);
   };
 
-  const grossTotal = items.reduce((sum, it) => sum + it.subtotal, 0);
+  // Cálculos financieros en PYG
+  const grossTotal = items.reduce((sum, it) => sum + (it.subtotal || 0), 0);
   const totalInsuranceSavings = items.reduce((sum, it) => {
     const orig = it.originalListPrice ?? it.unitPrice;
     return sum + Math.max(0, (orig - it.unitPrice) * it.quantity);
@@ -204,38 +425,76 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!patientId || !branchId || items.length === 0) return;
+    setFormError(null);
+
+    if (!patientId) {
+      setFormError('Debe seleccionar un paciente para emitir el presupuesto.');
+      return;
+    }
+    if (!branchId) {
+      setFormError('Debe seleccionar una sucursal emisora.');
+      return;
+    }
+    if (items.length === 0) {
+      setFormError('Debe agregar al menos un ítem o procedimiento al presupuesto.');
+      return;
+    }
 
     const d = new Date();
     d.setDate(d.getDate() + validDays);
     const validUntilStr = d.toISOString().split('T')[0];
 
-    const quote = dbStore.createQuote({
-      branchId,
-      patientId,
-      odontologistId: odontologistId || undefined,
-      validUntil: validUntilStr,
-      notes,
-      discountAmount,
-      items: items.map((it) => ({
-        serviceId: it.serviceId || undefined,
-        toothNumber: it.toothNumber ? Number(it.toothNumber) : undefined,
-        description: it.description,
-        quantity: it.quantity,
-        unitPrice: it.unitPrice,
-        subtotal: it.subtotal,
-        appliedModality: it.appliedModality,
-        appliedPlanId: it.appliedPlanId || undefined,
-        appliedPlanName: it.appliedPlanName || undefined,
-        originalListPrice: it.originalListPrice ?? it.unitPrice,
-      })),
-      actorUserId: session?.userId,
-    });
+    const cleanItems = items.map((it) => ({
+      serviceId: it.serviceId || undefined,
+      toothNumber: it.toothNumber ? Number(it.toothNumber) : undefined,
+      description: it.description?.trim() || 'Procedimiento Odontológico',
+      quantity: Math.max(1, it.quantity || 1),
+      unitPrice: Math.max(0, it.unitPrice || 0),
+      subtotal: Math.max(0, it.subtotal || 0),
+      appliedModality: selectedPlanId ? ('PLAN_SEGURO' as const) : ('PARTICULAR' as const),
+      appliedPlanId: selectedPlanId || undefined,
+      appliedPlanName: activeSelectedPlan?.name || undefined,
+      originalListPrice: it.originalListPrice ?? it.unitPrice,
+    }));
 
-    if (onQuoteCreated) {
-      onQuoteCreated(quote.id);
+    try {
+      if (quoteToEditId) {
+        // Actualizar presupuesto existente
+        const updated = dbStore.updateQuote(quoteToEditId, {
+          branchId,
+          patientId,
+          odontologistId: odontologistId || undefined,
+          planId: selectedPlanId || null,
+          validUntil: validUntilStr,
+          notes,
+          discountAmount,
+          items: cleanItems,
+          actorUserId: session?.userId,
+        });
+        if (updated && onQuoteCreated) {
+          onQuoteCreated(updated.id);
+        }
+      } else {
+        // Crear nuevo presupuesto
+        const quote = dbStore.createQuote({
+          branchId,
+          patientId,
+          odontologistId: odontologistId || undefined,
+          planId: selectedPlanId || null,
+          validUntil: validUntilStr,
+          notes,
+          discountAmount,
+          items: cleanItems,
+          actorUserId: session?.userId,
+        });
+        if (onQuoteCreated) {
+          onQuoteCreated(quote.id);
+        }
+      }
+      onClose();
+    } catch (err: any) {
+      setFormError(err?.message || 'Error al guardar el presupuesto.');
     }
-    onClose();
   };
 
   return (
@@ -248,9 +507,11 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
               <Calculator className="h-5 w-5" />
             </span>
             <div>
-              <h2 className="text-base font-bold text-white">Nuevo Presupuesto Odontológico</h2>
+              <h2 className="text-base font-bold text-white">
+                {quoteToEditId ? 'Editar Presupuesto Odontológico' : 'Nuevo Presupuesto Odontológico'}
+              </h2>
               <p className="text-xs text-slate-400">
-                Cotización oficial con aranceles vigentes en Guaraníes (PYG)
+                Cotización oficial con aranceles vigentes en Guaraníes (PYG) y cobertura de planes
               </p>
             </div>
           </div>
@@ -264,7 +525,14 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
 
         {/* Modal Body Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Header metadata row */}
+          {formError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+              <span>{formError}</span>
+            </div>
+          )}
+
+          {/* Fila 1: Paciente, Sucursal y Odontólogo */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -272,18 +540,22 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
               </label>
               <select
                 value={patientId}
-                onChange={(e) => setPatientId(e.target.value)}
+                onChange={(e) => handlePatientChange(e.target.value)}
                 required
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none font-medium"
+                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none font-medium text-slate-900"
               >
-                {patients.map((p) => {
-                  const plan = insurancePlans.find((ip) => ip.id === p.insurancePlanId);
-                  return (
-                    <option key={p.id} value={p.id}>
-                      {p.firstName} {p.lastName} — C.I. {p.documentNumber} {p.modality === 'PLAN_SEGURO' ? `🛡️ ${plan?.name || 'Seguro'}` : '👤 Particular'}
-                    </option>
-                  );
-                })}
+                {patients.length === 0 ? (
+                  <option value="">No hay pacientes registrados</option>
+                ) : (
+                  patients.map((p) => {
+                    const plan = insurancePlans.find((ip) => ip.id === p.insurancePlanId);
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.firstName} {p.lastName} — C.I. {p.documentNumber} {p.modality === 'PLAN_SEGURO' ? `🛡️ ${plan?.name || 'Seguro'}` : '👤 Particular'}
+                      </option>
+                    );
+                  })
+                )}
               </select>
             </div>
 
@@ -295,13 +567,17 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                 value={branchId}
                 onChange={(e) => setBranchId(e.target.value)}
                 required
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none text-slate-900"
               >
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name} ({b.city})
-                  </option>
-                ))}
+                {branches.length === 0 ? (
+                  <option value="">Sin sucursales disponibles</option>
+                ) : (
+                  branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.city})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -312,97 +588,111 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
               <select
                 value={odontologistId}
                 onChange={(e) => setOdontologistId(e.target.value)}
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none text-slate-900"
               >
                 {dentists.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.firstName} {d.lastName} {d.medicalLicenseNumber ? `(Reg: ${d.medicalLicenseNumber})` : ''}
+                    Dr(a). {d.firstName} {d.lastName} {d.medicalLicenseNumber ? `(Reg: ${d.medicalLicenseNumber})` : ''}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* Modalidad Comercial y Cobertura Banner */}
-          {currentPatient && (
-            <div className={`p-3.5 rounded-2xl border text-xs transition-all ${
-              (quoteModality === 'PLAN_SEGURO' || (quoteModality === 'AUTO' && currentPatient.modality === 'PLAN_SEGURO'))
-                ? 'bg-indigo-50/70 border-indigo-200'
-                : 'bg-slate-50 border-slate-200'
-            }`}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  <ShieldCheck className={`h-4 w-4 ${
-                    (quoteModality === 'PLAN_SEGURO' || (quoteModality === 'AUTO' && currentPatient.modality === 'PLAN_SEGURO'))
-                      ? 'text-indigo-600'
-                      : 'text-slate-400'
-                  }`} />
-                  <div>
-                    <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                      <span>Modalidad: {(quoteModality === 'PLAN_SEGURO' || (quoteModality === 'AUTO' && currentPatient.modality === 'PLAN_SEGURO')) ? 'Plan / Seguro Odontológico' : 'Particular (Precio Lista)'}</span>
-                      {totalInsuranceSavings > 0 && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200 inline-flex items-center gap-1">
-                          <Sparkles className="h-3 w-3 text-emerald-600" />
-                          <span>Ahorro Cobertura: ₲ {totalInsuranceSavings.toLocaleString('es-PY')}</span>
-                        </span>
-                      )}
-                    </div>
-                    {currentPatient.modality === 'PLAN_SEGURO' && (
-                      <span className="text-[11px] text-indigo-800 font-medium block mt-0.5">
-                        Plan Afiliado: {insurancePlans.find((ip) => ip.id === currentPatient.insurancePlanId)?.name || 'Seguro Activo'}
-                        {currentPatient.insuranceMemberNumber ? ` • Carnet: ${currentPatient.insuranceMemberNumber}` : ''}
+          {/* Fila 2: Selector Explicito y Transparente de Planes y Coberturas (Problema 1 Solucionado) */}
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className={`p-2 rounded-xl ${selectedPlanId ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-700'}`}>
+                  <ShieldCheck className="h-5 w-5" />
+                </span>
+                <div>
+                  <label htmlFor="plan-selector" className="text-xs font-bold text-slate-900 flex items-center gap-1.5 cursor-pointer">
+                    <span>Plan / Cobertura Odontológica:</span>
+                    {selectedPlanId ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        Tarifario Preferencial Activo
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+                        Tarifa Estándar Particular
                       </span>
                     )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5 self-end sm:self-center">
-                  <span className="text-[10px] text-slate-500 font-medium">Cotizar con:</span>
-                  <select
-                    value={quoteModality}
-                    onChange={(e) => setQuoteModality(e.target.value as any)}
-                    className="text-[11px] font-bold bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="AUTO">Automático (Según ficha)</option>
-                    <option value="PLAN_SEGURO">🛡️ Plan / Seguro</option>
-                    <option value="PARTICULAR">👤 Particular (Lista)</option>
-                  </select>
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Aplica automáticamente los precios acordados, copagos o bonificaciones del plan seleccionado.
+                  </p>
                 </div>
               </div>
 
-              {quoteModality === 'PLAN_SEGURO' && !currentPatient.insurancePlanId && (
-                <div className="mt-2 pt-2 border-t border-indigo-100 flex items-center gap-2">
-                  <label className="text-[10px] font-semibold text-indigo-900">Seleccionar Plan:</label>
-                  <select
-                    value={quotePlanId}
-                    onChange={(e) => setQuotePlanId(e.target.value)}
-                    className="text-xs bg-white border border-indigo-200 rounded-lg px-2 py-1 text-indigo-950 font-medium"
-                  >
-                    {insurancePlans.map((ip) => (
-                      <option key={ip.id} value={ip.id}>
-                        {ip.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              {/* Selector de Plan */}
+              <div className="w-full sm:w-72">
+                <select
+                  id="plan-selector"
+                  value={selectedPlanId}
+                  onChange={(e) => setSelectedPlanId(e.target.value)}
+                  className={`w-full text-xs font-semibold p-2.5 rounded-xl border focus:outline-none transition-all ${
+                    selectedPlanId
+                      ? 'bg-indigo-50 border-indigo-300 text-indigo-950 focus:ring-2 focus:ring-indigo-500'
+                      : 'bg-white border-slate-300 text-slate-800 focus:ring-2 focus:ring-teal-500'
+                  }`}
+                >
+                  <option value="">👤 Particular (Tarifa Estándar de Lista)</option>
+                  {insurancePlans.map((ip) => (
+                    <option key={ip.id} value={ip.id}>
+                      🛡️ {ip.name} ({ip.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          )}
 
-          {/* Line items section */}
+            {/* Banner de Cobertura y Ahorro */}
+            {selectedPlanId && activeSelectedPlan && (
+              <div className="pt-2 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-indigo-900 gap-2">
+                <div className="space-y-0.5">
+                  <span className="font-bold">{activeSelectedPlan.name}</span>
+                  {activeSelectedPlan.coverageTerms && (
+                    <p className="text-[11px] text-indigo-700">{activeSelectedPlan.coverageTerms}</p>
+                  )}
+                </div>
+                {totalInsuranceSavings > 0 && (
+                  <div className="px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-800 font-extrabold text-[11px] inline-flex items-center gap-1 border border-emerald-200 shrink-0">
+                    <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                    <span>Ahorro total por cobertura: ₲ {totalInsuranceSavings.toLocaleString('es-PY')}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Aviso en caso de no haber planes creados aún */}
+            {insurancePlans.length === 0 && (
+              <div className="pt-2 border-t border-slate-200 flex items-center gap-2 text-[11px] text-slate-500">
+                <Info className="h-4 w-4 text-amber-500 shrink-0" />
+                <span>
+                  No hay planes creados en esta organización. El presupuesto se cotizará con tarifa Particular estándar.
+                  Puede dar de alta planes en la sección <strong>Tratamientos &gt; Planes &amp; Seguros</strong>.
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Fila 3: Detalle de Procedimientos & Ítems (Problema 2 Solucionado) */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="h-4 w-4 text-teal-600" />
-                Detalle de Procedimientos & Aranceles
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <FileText className="h-4 w-4 text-teal-600" />
+                  Detalle de Procedimientos &amp; Aranceles ({items.length})
+                </h3>
+              </div>
               <button
                 type="button"
                 onClick={handleAddItem}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors border border-teal-200"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl transition-all shadow-xs cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Agregar Ítem
+                <span>Agregar Ítem</span>
               </button>
             </div>
 
@@ -425,7 +715,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                         <select
                           value={it.serviceId || ''}
                           onChange={(e) => handleServiceChange(idx, e.target.value)}
-                          className="w-full text-xs p-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none"
+                          className="w-full text-xs p-1.5 bg-white border border-slate-300 rounded-lg focus:outline-none font-medium text-slate-900"
                         >
                           <option value="">-- Personalizado / Libre --</option>
                           {services.map((s) => (
@@ -439,7 +729,8 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                           value={it.description}
                           onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
                           placeholder="Descripción detallada del procedimiento"
-                          className="w-full text-xs p-1 bg-transparent border-b border-slate-200 focus:border-teal-500 focus:outline-none"
+                          required
+                          className="w-full text-xs p-1 bg-transparent border-b border-slate-200 focus:border-teal-500 focus:outline-none text-slate-800"
                         />
                       </td>
 
@@ -457,7 +748,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                               e.target.value ? parseInt(e.target.value, 10) : undefined
                             )
                           }
-                          className="w-16 p-1.5 text-xs text-center border border-slate-300 rounded-lg"
+                          className="w-16 p-1.5 text-xs text-center border border-slate-300 rounded-lg text-slate-900"
                         />
                       </td>
 
@@ -470,7 +761,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                           onChange={(e) =>
                             handleItemChange(idx, 'quantity', parseInt(e.target.value, 10) || 1)
                           }
-                          className="w-14 p-1.5 text-xs text-center border border-slate-300 rounded-lg"
+                          className="w-14 p-1.5 text-xs text-center border border-slate-300 rounded-lg font-semibold text-slate-900"
                         />
                       </td>
 
@@ -485,12 +776,12 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                           }
                           className={`w-28 p-1.5 text-xs text-right font-medium border rounded-lg ${
                             it.hasSpecialPrice
-                              ? 'border-emerald-300 bg-emerald-50/50 font-bold text-emerald-950'
-                              : 'border-slate-300'
+                              ? 'border-indigo-300 bg-indigo-50/60 font-bold text-indigo-950'
+                              : 'border-slate-300 text-slate-900'
                           }`}
                         />
                         {it.hasSpecialPrice && it.originalListPrice && it.originalListPrice > it.unitPrice && (
-                          <div className="text-[10px] text-emerald-700 font-medium flex items-center justify-end gap-1 mt-0.5">
+                          <div className="text-[10px] text-indigo-700 font-medium flex items-center justify-end gap-1 mt-0.5">
                             <span className="line-through text-slate-400">₲ {it.originalListPrice.toLocaleString('es-PY')}</span>
                             <span>🛡️ (-₲ {(it.originalListPrice - it.unitPrice).toLocaleString('es-PY')})</span>
                           </div>
@@ -504,9 +795,9 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                       <td className="py-2 px-2 text-center">
                         <button
                           type="button"
-                          disabled={items.length <= 1}
                           onClick={() => handleRemoveItem(idx)}
-                          className="p-1 text-slate-400 hover:text-red-600 disabled:opacity-30 rounded-md transition-colors"
+                          title="Eliminar este ítem"
+                          className="p-1 text-slate-400 hover:text-red-600 rounded-md transition-colors cursor-pointer"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -518,7 +809,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
             </div>
           </div>
 
-          {/* Totals & Financial terms row */}
+          {/* Fila 4: Totales & Términos Financieros */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
             <div className="space-y-3">
               <div>
@@ -531,9 +822,9 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                       key={days}
                       type="button"
                       onClick={() => setValidDays(days)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                         validDays === days
-                          ? 'bg-teal-600 text-white'
+                          ? 'bg-teal-600 text-white shadow-xs'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
@@ -552,12 +843,12 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Especificaciones sobre cuotas, materiales o garantía..."
-                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none text-slate-800"
                 />
               </div>
             </div>
 
-            {/* Calculations Box */}
+            {/* Resumen Financiero */}
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
               <div className="flex justify-between items-center text-xs text-slate-600">
                 <span>Subtotal Bruto:</span>
@@ -566,9 +857,21 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                 </span>
               </div>
 
+              {selectedPlanId && totalInsuranceSavings > 0 && (
+                <div className="flex justify-between items-center text-xs text-indigo-700">
+                  <span className="flex items-center gap-1">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    <span>Bonificación Plan:</span>
+                  </span>
+                  <span className="font-bold">
+                    -₲ {totalInsuranceSavings.toLocaleString('es-PY')}
+                  </span>
+                </div>
+              )}
+
               <div className="flex justify-between items-center text-xs text-slate-600">
                 <span className="flex items-center gap-1">
-                  <span>Descuento Comercial:</span>
+                  <span>Descuento Adicional:</span>
                 </span>
                 <div className="flex items-center gap-1.5">
                   <span className="text-slate-500">₲</span>
@@ -578,7 +881,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                     min="0"
                     max={grossTotal}
                     value={discountAmount}
-                    onChange={(e) => setDiscountAmount(parseInt(e.target.value, 10) || 0)}
+                    onChange={(e) => setDiscountAmount(Math.max(0, parseInt(e.target.value, 10) || 0))}
                     className="w-28 p-1 text-xs text-right font-medium bg-white border border-slate-300 rounded-lg text-red-600"
                   />
                 </div>
@@ -598,7 +901,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
             </div>
           </div>
 
-          {/* Action buttons */}
+          {/* Botones de Acción */}
           <div className="pt-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
             <button
               type="button"
@@ -612,7 +915,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl transition-all shadow-md shadow-teal-700/20 cursor-pointer"
             >
               <CheckCircle2 className="h-4 w-4" />
-              <span>Emitir Presupuesto Oficial</span>
+              <span>{quoteToEditId ? 'Guardar Cambios del Presupuesto' : 'Emitir Presupuesto Oficial'}</span>
             </button>
           </div>
         </form>

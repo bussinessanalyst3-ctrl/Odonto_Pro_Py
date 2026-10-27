@@ -186,8 +186,8 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
             </div>
           </div>
 
-          {/* Patient & Odontologist Meta */}
-          <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+          {/* Patient, Odontologist & Plan Meta */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
             <div>
               <span className="font-bold text-slate-700 block mb-1 uppercase tracking-wide">
                 Datos del Paciente
@@ -199,7 +199,6 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
               <p className="text-slate-600">Teléfono: {patient?.phone || 'Sin registro'}</p>
               <p className="text-slate-600">Ciudad: {patient?.city || 'Asunción'}</p>
             </div>
-
             <div>
               <span className="font-bold text-slate-700 block mb-1 uppercase tracking-wide">
                 Profesional Responsable
@@ -211,6 +210,28 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
                 Registro MSPBS: {odontologist?.medicalLicenseNumber || 'En trámite'}
               </p>
               <p className="text-slate-600">Sede: {branch?.name}</p>
+            </div>
+            <div>
+              <span className="font-bold text-slate-700 block mb-1 uppercase tracking-wide">
+                Modalidad & Cobertura
+              </span>
+              {quote.planName ? (
+                <div className="space-y-1">
+                  <p className="font-bold text-indigo-900 text-sm flex items-center gap-1">
+                    <span>🛡️ {quote.planName}</span>
+                  </p>
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800">
+                    Tarifario Preferencial Aplicado
+                  </span>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <p className="font-bold text-slate-800 text-sm">👤 Particular</p>
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-slate-200 text-slate-700">
+                    Tarifa Estándar de Lista
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -231,6 +252,11 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
                   <tr key={it.id || idx} className="hover:bg-slate-50">
                     <td className="py-3 px-3">
                       <p className="font-semibold text-slate-900">{it.description}</p>
+                      {it.appliedPlanName && (
+                        <span className="text-[10px] text-indigo-600 block mt-0.5 font-medium">
+                          🛡️ {it.appliedPlanName}
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-2 text-center font-bold text-teal-700">
                       {it.toothNumber ? `Pieza ${it.toothNumber}` : 'General'}

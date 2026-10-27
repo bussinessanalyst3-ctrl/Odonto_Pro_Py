@@ -520,6 +520,23 @@ class DatabaseStore {
       }
     }
 
+    // Inicializar catálogo estándar de servicios para la nueva organización médica
+    const initialServices = STANDARD_SERVICES.map((s) => ({
+      id: crypto.randomUUID(),
+      organizationId: id,
+      category: s.category,
+      code: s.code,
+      name: s.name,
+      description: s.description,
+      defaultDurationMin: s.defaultDurationMin,
+      basePrice: s.basePrice,
+      status: 'ACTIVE' as const,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+    if (!this.data.services) this.data.services = [];
+    this.data.services.push(...initialServices);
+
     this.data.auditLogs.unshift({
       id: crypto.randomUUID(),
       organizationId: this.data.organization.id,
@@ -904,9 +921,28 @@ class DatabaseStore {
     return (this.data.odontogramItems || []).filter(oi => oi.odontogramId === odontogramId);
   }
 
-  public getServices() {
-    const orgId = this.data.organization.id;
-    return this.data.services.filter(s => s.organizationId === orgId);
+  public getServices(targetOrgId?: string) {
+    const orgId = targetOrgId || this.data.organization.id;
+    let list = (this.data.services || []).filter(s => s.organizationId === orgId);
+    if (list.length === 0) {
+      const seeded = STANDARD_SERVICES.map((s) => ({
+        id: crypto.randomUUID(),
+        organizationId: orgId,
+        category: s.category,
+        code: s.code,
+        name: s.name,
+        description: s.description,
+        defaultDurationMin: s.defaultDurationMin,
+        basePrice: s.basePrice,
+        status: 'ACTIVE' as const,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+      if (!this.data.services) this.data.services = [];
+      this.data.services.push(...seeded);
+      list = seeded;
+    }
+    return list;
   }
 
   public getTreatments(branchId?: string, patientId?: string) {
@@ -953,18 +989,23 @@ class DatabaseStore {
     return (this.data.branchServices || []).filter(bs => bs.branchId === branchId);
   }
 
-  public getInsurancePlans(includeInactive: boolean = false) {
+  public getInsurancePlans(includeInactive: boolean = false, branchId?: string) {
     const orgId = this.data.organization.id;
     let list = (this.data.insurancePlans || []).filter((p) => p.organizationId === orgId);
     if (!includeInactive) {
-      list = list.filter((p) => p.status === 'ACTIVO');
+      list = list.filter((p) => {
+        const s = (p.status || '').toUpperCase();
+        return s === 'ACTIVO' || s === 'ACTIVE';
+      });
+    }
+    if (branchId) {
+      list = list.filter((p) => !p.branchId || p.branchId === branchId);
     }
     return list;
   }
 
-  public getAllInsurancePlans() {
-    const orgId = this.data.organization.id;
-    return (this.data.insurancePlans || []).filter((p) => p.organizationId === orgId);
+  public getAllInsurancePlans(branchId?: string) {
+    return this.getInsurancePlans(true, branchId);
   }
 
   public getInsurancePlan(planId: string) {
@@ -3643,7 +3684,7 @@ class DatabaseStore {
       userAgent: 'OdontoPro Pricing Engine',
       oldValues: null,
       newValues: { price, notes },
-      description: `Fijación de tarifa para "${service?.name}" en plan "${plan?.name}": ₲ ${price.toLocaleString('es-PY')}`,
+      description: `Fijación de tarifa para "${service?.name || serviceId}" en plan "${plan?.name || planId}": ₲ ${Number(price || 0).toLocaleString('es-PY')}`,
       createdAt: new Date(),
     });
 
@@ -4007,6 +4048,7 @@ class DatabaseStore {
     branchId: string;
     patientId: string;
     odontologistId?: string;
+    planId?: string | null;
     validUntil?: string;
     notes?: string;
     discountAmount?: number;
@@ -4017,12 +4059,15 @@ class DatabaseStore {
       quantity: number;
       unitPrice: number;
       subtotal: number;
+      appliedModality?: 'PARTICULAR' | 'PLAN_SEGURO';
+      appliedPlanId?: string | null;
+      appliedPlanName?: string | null;
+      originalListPrice?: number;
     }>;
     actorUserId?: string;
   }) {
     const id = crypto.randomUUID();
     const quoteNumber = this.getNextQuoteNumber();
-
     const totalAmount = params.items.reduce((sum, item) => sum + (item.subtotal || item.unitPrice * item.quantity), 0);
     const discountAmount = params.discountAmount || 0;
     const finalAmount = Math.max(0, totalAmount - discountAmount);
@@ -4035,11 +4080,20 @@ class DatabaseStore {
       validUntilDate = d.toISOString().split('T')[0];
     }
 
+    const patient = (this.data.patients || []).find((p) => p.id === params.patientId);
+    const selectedPlan = params.planId
+      ? (this.data.insurancePlans || []).find((p) => p.id === params.planId)
+      : (patient?.insurancePlanId
+          ? (this.data.insurancePlans || []).find((p) => p.id === patient.insurancePlanId)
+          : null);
+
     const newQuote = {
       id,
       organizationId: this.data.organization.id,
       branchId: params.branchId,
       patientId: params.patientId,
+      planId: selectedPlan?.id || null,
+      planName: selectedPlan?.name || null,
       odontologistId: params.odontologistId || this.data.users.find((u) => u.roleId === 'ODONTOLOGO')?.id || null,
       quoteNumber,
       totalAmount,
@@ -4061,18 +4115,19 @@ class DatabaseStore {
       this.data.quoteItems = [];
     }
 
-    const patient = this.data.patients.find((p) => p.id === params.patientId);
-    const plan = patient?.insurancePlanId
-      ? (this.data.insurancePlans || []).find((p) => p.id === patient.insurancePlanId)
-      : null;
-
     params.items.forEach((item) => {
       const appliedModality =
-        (item as any).appliedModality ||
-        (patient?.modality === 'PLAN_SEGURO' ? 'PLAN_SEGURO' : 'PARTICULAR');
-      const appliedPlanId = (item as any).appliedPlanId || (appliedModality === 'PLAN_SEGURO' ? plan?.id || null : null);
-      const appliedPlanName = (item as any).appliedPlanName || (appliedPlanId ? plan?.name || null : null);
-      const origListPrice = (item as any).originalListPrice ?? item.unitPrice;
+        item.appliedModality ||
+        (selectedPlan ? 'PLAN_SEGURO' : (patient?.modality === 'PLAN_SEGURO' ? 'PLAN_SEGURO' : 'PARTICULAR'));
+      const appliedPlanId =
+        item.appliedPlanId !== undefined
+          ? item.appliedPlanId
+          : (appliedModality === 'PLAN_SEGURO' ? selectedPlan?.id || null : null);
+      const appliedPlanName =
+        item.appliedPlanName !== undefined
+          ? item.appliedPlanName
+          : (appliedPlanId ? (this.data.insurancePlans || []).find((p) => p.id === appliedPlanId)?.name || null : null);
+      const origListPrice = item.originalListPrice ?? item.unitPrice;
 
       this.data.quoteItems.push({
         id: crypto.randomUUID(),
@@ -4101,13 +4156,118 @@ class DatabaseStore {
       ipAddress: '190.52.144.12',
       userAgent: 'OdontoPro Quotes Engine',
       oldValues: null,
-      newValues: { quoteNumber, finalAmount, itemsCount: params.items.length },
-      description: `Presupuesto ${quoteNumber} emitido para ${patient?.firstName} ${patient?.lastName} por ₲ ${finalAmount.toLocaleString('es-PY')}`,
+      newValues: { quoteNumber, finalAmount, itemsCount: params.items.length, planId: selectedPlan?.id || null },
+      description: `Presupuesto ${quoteNumber} emitido para ${patient?.firstName} ${patient?.lastName}${selectedPlan ? ` (Plan: ${selectedPlan.name})` : ''} por ₲ ${finalAmount.toLocaleString('es-PY')}`,
       createdAt: new Date(),
     });
 
     this.notify();
     return newQuote;
+  }
+
+  public updateQuote(
+    quoteId: string,
+    params: {
+      branchId?: string;
+      patientId?: string;
+      odontologistId?: string;
+      planId?: string | null;
+      validUntil?: string;
+      notes?: string;
+      discountAmount?: number;
+      items?: Array<{
+        serviceId?: string;
+        toothNumber?: number;
+        description: string;
+        quantity: number;
+        unitPrice: number;
+        subtotal: number;
+        appliedModality?: 'PARTICULAR' | 'PLAN_SEGURO';
+        appliedPlanId?: string | null;
+        appliedPlanName?: string | null;
+        originalListPrice?: number;
+      }>;
+      actorUserId?: string;
+    }
+  ) {
+    const qIndex = (this.data.quotes || []).findIndex((q) => q.id === quoteId);
+    if (qIndex === -1) return null;
+    const q = this.data.quotes[qIndex];
+
+    const selectedPlan = params.planId !== undefined
+      ? (params.planId ? (this.data.insurancePlans || []).find((p) => p.id === params.planId) : null)
+      : (q.planId ? (this.data.insurancePlans || []).find((p) => p.id === q.planId) : null);
+
+    if (params.items && Array.isArray(params.items)) {
+      const totalAmount = params.items.reduce((sum, item) => sum + (item.subtotal || item.unitPrice * item.quantity), 0);
+      const discountAmount = params.discountAmount !== undefined ? params.discountAmount : q.discountAmount;
+      const finalAmount = Math.max(0, totalAmount - discountAmount);
+
+      q.totalAmount = totalAmount;
+      q.discountAmount = discountAmount;
+      q.finalAmount = finalAmount;
+
+      this.data.quoteItems = (this.data.quoteItems || []).filter((qi) => qi.quoteId !== quoteId);
+      params.items.forEach((item) => {
+        const appliedModality =
+          item.appliedModality ||
+          (selectedPlan ? 'PLAN_SEGURO' : 'PARTICULAR');
+        const appliedPlanId =
+          item.appliedPlanId !== undefined
+            ? item.appliedPlanId
+            : (appliedModality === 'PLAN_SEGURO' ? selectedPlan?.id || null : null);
+        const appliedPlanName =
+          item.appliedPlanName !== undefined
+            ? item.appliedPlanName
+            : (appliedPlanId ? (this.data.insurancePlans || []).find((p) => p.id === appliedPlanId)?.name || null : null);
+        const origListPrice = item.originalListPrice ?? item.unitPrice;
+
+        this.data.quoteItems.push({
+          id: crypto.randomUUID(),
+          quoteId: q.id,
+          serviceId: item.serviceId || null,
+          toothNumber: item.toothNumber || null,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          subtotal: item.subtotal || item.quantity * item.unitPrice,
+          appliedModality,
+          appliedPlanId,
+          appliedPlanName,
+          originalListPrice: origListPrice,
+        });
+      });
+    }
+
+    if (params.branchId) q.branchId = params.branchId;
+    if (params.patientId) q.patientId = params.patientId;
+    if (params.odontologistId !== undefined) q.odontologistId = params.odontologistId;
+    if (params.planId !== undefined) {
+      q.planId = selectedPlan ? selectedPlan.id : null;
+      q.planName = selectedPlan ? selectedPlan.name : null;
+    }
+    if (params.validUntil !== undefined) q.validUntil = params.validUntil;
+    if (params.notes !== undefined) q.notes = params.notes;
+    q.updatedAt = new Date();
+
+    this.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: this.data.organization.id,
+      branchId: q.branchId,
+      userId: params.actorUserId || this.data.users[0]?.id,
+      action: 'UPDATE',
+      entity: 'QUOTE',
+      entityId: quoteId,
+      ipAddress: '190.52.144.12',
+      userAgent: 'OdontoPro Quotes Engine',
+      oldValues: null,
+      newValues: { quoteNumber: q.quoteNumber, finalAmount: q.finalAmount, planId: q.planId },
+      description: `Presupuesto ${q.quoteNumber} actualizado correctamente.`,
+      createdAt: new Date(),
+    });
+
+    this.notify();
+    return q;
   }
 
   public updateQuoteStatus(

@@ -10,6 +10,8 @@ export const quotes = pgTable('quotes', {
   organizationId: uuid('organization_id').notNull().references(() => organizations.id),
   branchId: uuid('branch_id').notNull().references(() => branches.id),
   patientId: uuid('patient_id').notNull().references(() => patients.id),
+  planId: uuid('plan_id'),
+  planName: varchar('plan_name', { length: 200 }),
   odontologistId: uuid('odontologist_id').references(() => users.id),
   quoteNumber: varchar('quote_number', { length: 50 }).notNull(),
   totalAmount: bigint('total_amount', { mode: 'number' }).notNull(), // En PYG (Guaraníes)
