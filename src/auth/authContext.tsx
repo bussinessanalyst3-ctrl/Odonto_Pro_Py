@@ -44,7 +44,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Sincronización reactiva inmediata de cambios de permisos, revocación y versionado
   useEffect(() => {
-    if (!session) return;
+    if (!session) {
+      dbStore.setSessionToken(null);
+      dbStore.setBackendActorContext(null);
+      return;
+    }
+
+    dbStore.setSessionToken(session.sessionToken || null);
+    dbStore.setBackendActorContext({
+      userId: session.userId,
+      role: session.role,
+      organizationId: session.organizationId,
+      allowedBranchIds: session.allowedBranchIds,
+      customPermissions: session.customPermissions,
+      revokedPermissions: session.revokedPermissions,
+      assignedRestrictions: session.assignedRestrictions,
+      allowedNavTabs: session.allowedNavTabs,
+      permissionsVersion: session.permissionsVersion,
+    });
 
     // Verificación periódica de expiración y revocación
     const interval = setInterval(() => {
@@ -72,7 +89,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const sessionPermVersion = session.permissionsVersion || 1;
       const roleChanged = userInDb.roleId !== session.role;
       const activeOrg = dbStore.getActiveOrganization();
-      const orgNameChanged = activeOrg && (session.organizationName !== activeOrg.name || session.organizationTaxId !== activeOrg.taxId);
+      const orgMissing = !dbStore.getOrganizations().some((o) => o.id === session.organizationId);
+      const orgNameChanged =
+        activeOrg &&
+        (orgMissing ||
+          session.organizationName !== activeOrg.name ||
+          session.organizationTaxId !== activeOrg.taxId);
 
       if (dbPermVersion !== sessionPermVersion || roleChanged || orgNameChanged) {
         const effective = dbStore.getUserEffectivePermissions(userInDb.id);
@@ -82,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...session,
           role: userInDb.roleId as any,
           roleName: roleObj?.name || userInDb.roleId,
+          organizationId: orgMissing && activeOrg ? activeOrg.id : session.organizationId,
           organizationName: activeOrg?.name || session.organizationName,
           organizationTaxId: activeOrg?.taxId || session.organizationTaxId,
           effectivePermissions: effective.effectivePermissions,
@@ -110,6 +133,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const result = await authService.login(credentials);
       if (result.success && result.session) {
+        dbStore.setSessionToken(result.session.sessionToken || null);
+        dbStore.setBackendActorContext({
+          userId: result.session.userId,
+          role: result.session.role,
+          organizationId: result.session.organizationId,
+          allowedBranchIds: result.session.allowedBranchIds,
+          customPermissions: result.session.customPermissions,
+          revokedPermissions: result.session.revokedPermissions,
+          assignedRestrictions: result.session.assignedRestrictions,
+          allowedNavTabs: result.session.allowedNavTabs,
+          permissionsVersion: result.session.permissionsVersion,
+        });
         setSession(result.session);
         localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(result.session));
       }
@@ -121,6 +156,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     authService.logout(session);
+    dbStore.setSessionToken(null);
+    dbStore.setBackendActorContext(null);
     setSession(null);
     try {
       localStorage.removeItem(SESSION_STORAGE_KEY);

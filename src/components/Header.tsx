@@ -26,6 +26,7 @@ import { dbStore } from '../db/inMemoryStore.ts';
 import { UserSessionMenu } from './auth/UserSessionMenu.tsx';
 import { useAuth } from '../auth/authContext.tsx';
 import { UserRole } from '../auth/types.ts';
+import { isSuperAdminRole } from '../security/rbacHierarchy.ts';
 
 export type TabType =
   | 'dashboard'
@@ -286,16 +287,50 @@ export const Header: React.FC<HeaderProps> = ({
     localStorage.setItem('odontopro_dev_tools', String(nextVal));
   };
 
-  const handleResetData = () => {
-    if (window.confirm('¿Desea restaurar los datos iniciales de prueba de Paraguay?')) {
-      dbStore.resetToSeed();
+  const [isResettingSeed, setIsResettingSeed] = useState(false);
+
+  const isSuperAdmin = Boolean(
+    session &&
+      session.userId &&
+      session.role === 'SUPER_ADMIN' &&
+      isSuperAdminRole(session.role)
+  );
+
+  const handleResetData = async () => {
+    if (!isSuperAdmin || !session) return;
+    if (!window.confirm('¿Desea restaurar los datos iniciales de prueba de Paraguay?')) {
+      return;
+    }
+
+    setIsResettingSeed(true);
+    try {
+      await dbStore.resetToSeedFromServer(session.sessionToken, {
+        userId: session.userId,
+        role: session.role,
+        organizationId: session.organizationId,
+      });
+    } catch (err: any) {
+      if (err instanceof TypeError) {
+        try {
+          dbStore.resetToSeed({
+            userId: session.userId,
+            role: session.role,
+            organizationId: session.organizationId,
+          });
+        } catch {
+          // Bloqueado por RBAC
+        }
+      }
+    } finally {
+      setIsResettingSeed(false);
     }
   };
 
-  const userRole: UserRole = session?.role || 'SUPER_ADMIN';
+  const userRole: UserRole | null = session?.role || null;
 
   // Filtrado de pestañas según el ROL del usuario y la preferencia de herramientas
   const visibleTabs = ALL_NAV_ITEMS.filter((item) => {
+    if (!userRole) return false;
     // 1. Verificar si el rol del usuario tiene permiso para este módulo
     const hasRolePermission = item.allowedRoles.includes(userRole);
     if (!hasRolePermission) return false;
@@ -377,7 +412,7 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
 
             {/* Toggle Herramientas de Desarrollo (solo para SUPER_ADMIN) */}
-            {userRole === 'SUPER_ADMIN' && (
+            {isSuperAdmin && (
               <button
                 onClick={handleToggleDevTools}
                 title={
@@ -396,15 +431,19 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Reset Button */}
-            <button
-              onClick={handleResetData}
-              title="Restaurar datos iniciales de prueba"
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-xs"
-            >
-              <RefreshCw className="h-3.5 w-3.5 text-slate-400" />
-              <span className="hidden sm:inline">Seed</span>
-            </button>
+            {/* Reset Button (EXCLUSIVO SUPER_ADMIN) */}
+            {isSuperAdmin && (
+              <button
+                onClick={handleResetData}
+                disabled={isResettingSeed}
+                title="Restaurar datos iniciales de prueba"
+                data-testid="reset-seed-button"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-xs disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 text-slate-400 ${isResettingSeed ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Seed</span>
+              </button>
+            )}
 
             {/* User Session Menu */}
             <UserSessionMenu />

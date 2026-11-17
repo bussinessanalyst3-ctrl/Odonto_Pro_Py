@@ -89,8 +89,20 @@ class AuthService {
         };
       }
 
-      // Sincronizar contexto local del usuario
+      // Sincronizar contexto local del usuario y token de sesión autorizado
       if (data.session) {
+        dbStore.setSessionToken(data.session.sessionToken || null);
+        dbStore.setBackendActorContext({
+          userId: data.session.userId,
+          role: data.session.role,
+          organizationId: data.session.organizationId,
+          allowedBranchIds: data.session.allowedBranchIds,
+          customPermissions: data.session.customPermissions,
+          revokedPermissions: data.session.revokedPermissions,
+          assignedRestrictions: data.session.assignedRestrictions,
+          allowedNavTabs: data.session.allowedNavTabs,
+          permissionsVersion: data.session.permissionsVersion,
+        });
         dbStore.switchOrganization(data.session.organizationId);
       }
 
@@ -195,6 +207,18 @@ class AuthService {
           },
         };
 
+        dbStore.setSessionToken(localSession.sessionToken);
+        dbStore.setBackendActorContext({
+          userId: localSession.userId,
+          role: localSession.role,
+          organizationId: localSession.organizationId,
+          allowedBranchIds: localSession.allowedBranchIds,
+          customPermissions: localSession.customPermissions,
+          revokedPermissions: localSession.revokedPermissions,
+          assignedRestrictions: localSession.assignedRestrictions,
+          allowedNavTabs: localSession.allowedNavTabs,
+          permissionsVersion: localSession.permissionsVersion,
+        });
         dbStore.switchOrganization(user.organizationId);
 
         return {
@@ -234,6 +258,9 @@ class AuthService {
         `Cierre de sesión: ${session.firstName} ${session.lastName}`
       );
     }
+
+    dbStore.setSessionToken(null);
+    dbStore.setBackendActorContext(null);
   }
 
   /**

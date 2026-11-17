@@ -35,11 +35,35 @@ class DatabaseStore {
   private revokedUserSessions: Map<string, number> = new Map();
   private organizationsList: Array<any> = [];
   private currentBackendActor: BackendActorContext | null = null;
+  private currentSessionToken: string | null = null;
 
   constructor() {
     let loadedFromStorage = false;
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
+        try {
+          const authStored = localStorage.getItem('odontopro_auth_session');
+          if (authStored) {
+            const parsedAuth = JSON.parse(authStored);
+            if (parsedAuth?.sessionToken) {
+              this.currentSessionToken = parsedAuth.sessionToken;
+            }
+            if (parsedAuth?.userId && parsedAuth?.role && parsedAuth?.organizationId) {
+              this.currentBackendActor = {
+                userId: parsedAuth.userId,
+                role: parsedAuth.role,
+                organizationId: parsedAuth.organizationId,
+                allowedBranchIds: parsedAuth.allowedBranchIds,
+                customPermissions: parsedAuth.customPermissions,
+                revokedPermissions: parsedAuth.revokedPermissions,
+                assignedRestrictions: parsedAuth.assignedRestrictions,
+                allowedNavTabs: parsedAuth.allowedNavTabs,
+                permissionsVersion: parsedAuth.permissionsVersion,
+              };
+            }
+          }
+        } catch (authErr) {}
+
         const stored = localStorage.getItem(DB_STORAGE_KEY);
         if (stored) {
           const parsed = JSON.parse(stored);
@@ -188,6 +212,14 @@ class DatabaseStore {
     return this.currentBackendActor;
   }
 
+  public setSessionToken(token: string | null) {
+    this.currentSessionToken = token;
+  }
+
+  public getSessionToken(): string | null {
+    return this.currentSessionToken;
+  }
+
   private getEffectiveActor(actor?: BackendActorContext | null): BackendActorContext | null {
     const raw = actor || this.currentBackendActor;
     if (!raw) return null;
@@ -285,9 +317,13 @@ class DatabaseStore {
     if (typeof fetch !== 'undefined') {
       try {
         const baseUrl = getApiBaseUrl();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (this.currentSessionToken) {
+          headers.Authorization = `Bearer ${this.currentSessionToken}`;
+        }
         fetch(`${baseUrl}/api/db/sync`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({
             data: this.data,
             organizationsList: this.organizationsList,
@@ -349,28 +385,117 @@ class DatabaseStore {
     this.listeners.forEach(l => l());
   }
 
+  public applyServerSeedState(serverData: SeedDataResult, serverOrganizationsList: any[]) {
+    if (!serverData || !Array.isArray(serverOrganizationsList)) return;
+    this.data = serverData;
+    this.organizationsList = serverOrganizationsList;
+    this.revokedUserSessions.clear();
+    this.saveToLocalStorageOnly();
+    this.listeners.forEach((l) => l());
+  }
+
+  /**
+   * Restablecimiento remoto autorizado mediante el endpoint protegido del backend.
+   * Valida estrictamente el token Bearer y el rol real SUPER_ADMIN en el servidor.
+   */
+  public async resetToSeedFromServer(
+    sessionToken?: string | null,
+    actor?: BackendActorContext | null
+  ): Promise<{ success: boolean; error?: string }> {
+    const token = sessionToken || this.currentSessionToken;
+    if (!token) {
+      throw new Error('401 No autorizado: Se requiere sesión activa de Super Administrador.');
+    }
+
+    const baseUrl = getApiBaseUrl();
+    const res = await fetch(`${baseUrl}/api/db/reset-seed`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({}),
+    });
+
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok || !payload.success) {
+      throw new Error(
+        payload.error ||
+          (res.status === 401
+            ? '401 No autorizado: Sesión inválida o expirada.'
+            : '403 Prohibido: Solo el Super Administrador puede restaurar los datos iniciales de prueba.')
+      );
+    }
+
+    if (payload.data && Array.isArray(payload.organizationsList)) {
+      this.applyServerSeedState(payload.data, payload.organizationsList);
+    } else {
+      await this.syncFromServer();
+    }
+
+    return { success: true };
+  }
+
   /**
    * Restablecimiento protegido de base de datos a seed inicial.
-   * REGLA DE SEGURIDAD: Solo puede ser invocado por SUPER_ADMIN con confirmación explícita o en entorno de tests.
+   * REGLA DE SEGURIDAD: Verifica al usuario real en base de datos; jamás confía en un rol falsificado.
    */
-  public resetToSeed(actor?: BackendActorContext | null, allowUnrestrictedForTesting = false) {
-    const effectiveActor = this.getEffectiveActor(actor);
-    if (!allowUnrestrictedForTesting) {
-      if (!effectiveActor || effectiveActor.role !== 'SUPER_ADMIN') {
-        throw new Error('403 Prohibido: Solo el Super Administrador tiene autorización para reinicializar datos a semilla.');
-      }
+  public resetToSeed(actor?: BackendActorContext | null) {
+    const rawActor = actor || this.currentBackendActor;
+    if (!rawActor || !rawActor.userId) {
+      throw new Error('403 Prohibido: Solo el Super Administrador tiene autorización para reinicializar datos a semilla.');
+    }
+
+    const userInDb = this.data?.users?.find((u) => u.id === rawActor.userId);
+    if (!userInDb || userInDb.status === 'INACTIVE') {
+      throw new Error('403 Prohibido: Actor no verificado o inactivo para ejecutar restauración de semilla.');
+    }
+
+    const verifiedActor = {
+      userId: userInDb.id,
+      role: userInDb.roleId,
+      organizationId: userInDb.organizationId,
+      customPermissions: userInDb.customPermissions || [],
+      revokedPermissions: userInDb.revokedPermissions || [],
+      assignedRestrictions: userInDb.assignedRestrictions || [],
+    };
+
+    const authz = validateBackendAuthorization({
+      actor: verifiedActor,
+      resource: 'DATABASE',
+      action: 'SEED',
+      permission: 'database.seed',
+    });
+
+    if (!authz.authorized || !isSuperAdminRole(userInDb.roleId) || userInDb.roleId !== 'SUPER_ADMIN') {
+      this.data.auditLogs.unshift({
+        id: crypto.randomUUID(),
+        organizationId: userInDb.organizationId || this.data.organization.id,
+        branchId: null,
+        userId: userInDb.id,
+        action: 'ACCESS_DENIED_SECURITY',
+        entity: 'DATABASE',
+        entityId: 'RESET_SEED',
+        ipAddress: '190.52.144.12',
+        userAgent: 'OdontoPro Security Engine',
+        oldValues: null,
+        newValues: { attemptedRole: userInDb.roleId },
+        description: `Intento bloqueado de restaurar datos iniciales por rol no autorizado (${userInDb.roleId})`,
+        createdAt: new Date(),
+      });
+      this.notify();
+      throw new Error('403 Prohibido: Solo el Super Administrador tiene autorización para reinicializar datos a semilla.');
     }
 
     this.data = generateInitialSeedData();
     this.organizationsList = [this.data.organization];
     this.revokedUserSessions.clear();
-    this.saveToStorage();
 
     this.data.auditLogs.unshift({
       id: crypto.randomUUID(),
       organizationId: this.data.organization.id,
       branchId: null,
-      userId: effectiveActor?.userId || null,
+      userId: userInDb.id,
       action: 'SYSTEM_RESET_SEED',
       entity: 'DATABASE',
       entityId: 'ALL',

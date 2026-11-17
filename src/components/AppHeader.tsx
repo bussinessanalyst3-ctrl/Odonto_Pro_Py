@@ -24,6 +24,7 @@ import { useBranding } from '../branding/BrandingContext.tsx';
 import { TabType } from './Header.tsx';
 import { formatPYG } from '../db/seeds/paraguay-catalogs.ts';
 import { UserSessionMenu } from './auth/UserSessionMenu.tsx';
+import { isSuperAdminRole } from '../security/rbacHierarchy.ts';
 
 interface AppHeaderProps {
   selectedBranchId: string;
@@ -58,8 +59,17 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [isResettingSeed, setIsResettingSeed] = useState(false);
+  const [seedFeedback, setSeedFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
+
+  const isSuperAdmin = Boolean(
+    session &&
+      session.userId &&
+      session.role === 'SUPER_ADMIN' &&
+      isSuperAdminRole(session.role)
+  );
 
   // Selector de sucursal activa
   const activeBranch = branches.find((b) => b.id === selectedBranchId);
@@ -164,9 +174,51 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     onNavigateTab(result.tab, result.payload);
   };
 
-  const handleResetData = () => {
-    if (window.confirm('¿Desea restaurar los datos iniciales de prueba de Paraguay?')) {
-      dbStore.resetToSeed();
+  const handleResetData = async () => {
+    if (!isSuperAdmin || !session) return;
+    if (!window.confirm('¿Desea restaurar los datos iniciales de prueba de Paraguay?')) {
+      return;
+    }
+
+    setIsResettingSeed(true);
+    setSeedFeedback(null);
+    try {
+      await dbStore.resetToSeedFromServer(session.sessionToken, {
+        userId: session.userId,
+        role: session.role,
+        organizationId: session.organizationId,
+      });
+      setSeedFeedback({
+        type: 'success',
+        message: 'Datos iniciales de prueba de Paraguay restaurados correctamente.',
+      });
+    } catch (err: any) {
+      if (err instanceof TypeError) {
+        try {
+          dbStore.resetToSeed({
+            userId: session.userId,
+            role: session.role,
+            organizationId: session.organizationId,
+          });
+          setSeedFeedback({
+            type: 'success',
+            message: 'Datos iniciales restaurados en almacenamiento local.',
+          });
+        } catch (localErr: any) {
+          setSeedFeedback({
+            type: 'error',
+            message: localErr?.message || 'No autorizado para restaurar datos de prueba.',
+          });
+        }
+      } else {
+        setSeedFeedback({
+          type: 'error',
+          message: err?.message || 'Error al restaurar los datos de prueba.',
+        });
+      }
+    } finally {
+      setIsResettingSeed(false);
+      setTimeout(() => setSeedFeedback(null), 4500);
     }
   };
 
@@ -366,19 +418,35 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               <span>₲ PYG</span>
             </div>
 
-            {/* Botón de Restaurar Seed inicial de prueba (visible en desktop/tablet) */}
-            <button
-              onClick={handleResetData}
-              title="Restaurar datos iniciales de prueba de Paraguay"
-              className="hidden sm:flex p-2 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors shadow-2xs min-h-[40px] min-w-[40px] items-center justify-center shrink-0 cursor-pointer"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
+            {/* Botón de Restaurar Seed inicial de prueba (EXCLUSIVO SUPER_ADMIN) */}
+            {isSuperAdmin && (
+              <button
+                onClick={handleResetData}
+                disabled={isResettingSeed}
+                title="Restaurar datos iniciales de prueba de Paraguay"
+                data-testid="reset-seed-button"
+                className="hidden sm:flex p-2 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors shadow-2xs min-h-[40px] min-w-[40px] items-center justify-center shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${isResettingSeed ? 'animate-spin' : ''}`} />
+              </button>
+            )}
 
             {/* Menú de Usuario con perfil y cambio de contraseña */}
             <UserSessionMenu />
           </div>
         </>
+      )}
+
+      {seedFeedback && (
+        <div
+          className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl text-xs font-semibold shadow-xl border ${
+            seedFeedback.type === 'success'
+              ? 'bg-emerald-600 text-white border-emerald-500'
+              : 'bg-rose-600 text-white border-rose-500'
+          }`}
+        >
+          {seedFeedback.message}
+        </div>
       )}
     </header>
   );

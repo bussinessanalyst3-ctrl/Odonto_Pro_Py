@@ -6,13 +6,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
 import { generateInitialSeedData } from './src/db/seeds/initial-seed.ts';
-import { canManageRole, isSuperAdminRole } from './src/security/rbacHierarchy.ts';
+import { canManageRole, isSuperAdminRole, validateBackendAuthorization } from './src/security/rbacHierarchy.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db_store.json');
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -51,7 +52,7 @@ const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutos
 const failedAttemptsMap = new Map<string, { count: number; lockedUntil: number | null }>();
 
-// Security: Server Session Registry
+// Security: Server Session Registry (persisted across dev/prod server restarts)
 const activeServerSessions = new Map<string, {
   userId: string;
   role: string;
@@ -61,6 +62,149 @@ const activeServerSessions = new Map<string, {
   expiresAt: string;
   permissionsVersion: number;
 }>();
+
+function loadServerSessions() {
+  try {
+    if (fs.existsSync(SESSIONS_FILE)) {
+      const raw = fs.readFileSync(SESSIONS_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        const now = Date.now();
+        for (const [token, sess] of Object.entries<any>(parsed)) {
+          if (sess && sess.userId && sess.expiresAt && new Date(sess.expiresAt).getTime() > now) {
+            activeServerSessions.set(token, sess);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Auth Sessions] Error loading sessions.json:', err);
+  }
+}
+
+function saveServerSessions() {
+  try {
+    const obj: Record<string, any> = {};
+    const now = Date.now();
+    for (const [token, sess] of activeServerSessions.entries()) {
+      if (new Date(sess.expiresAt).getTime() > now) {
+        obj[token] = sess;
+      } else {
+        activeServerSessions.delete(token);
+      }
+    }
+    const tmpFile = `${SESSIONS_FILE}.tmp`;
+    fs.writeFileSync(tmpFile, JSON.stringify(obj, null, 2), 'utf-8');
+    fs.renameSync(tmpFile, SESSIONS_FILE);
+  } catch (err) {
+    console.error('[Auth Sessions] Error saving sessions.json:', err);
+  }
+}
+
+/**
+ * Autenticación confiable en backend a partir del token Bearer y del registro real del usuario en DB.
+ * NUNCA confía en roles o parámetros enviados libremente desde el frontend.
+ */
+function authenticateServerRequest(req: express.Request): {
+  authenticated: boolean;
+  statusCode: number;
+  error?: string;
+  token?: string;
+  sessionData?: {
+    userId: string;
+    role: string;
+    organizationId: string;
+    branchId: string;
+    issuedAt: string;
+    expiresAt: string;
+    permissionsVersion: number;
+  };
+  user?: any;
+  actor?: {
+    userId: string;
+    role: string;
+    organizationId: string;
+    allowedBranchIds: string[];
+    customPermissions: string[];
+    revokedPermissions: string[];
+    assignedRestrictions: string[];
+  };
+} {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : null;
+  if (!token) {
+    return {
+      authenticated: false,
+      statusCode: 401,
+      error: '401 No autorizado: Token de sesión requerido.',
+    };
+  }
+
+  const sessionData = activeServerSessions.get(token);
+  if (!sessionData) {
+    return {
+      authenticated: false,
+      statusCode: 401,
+      error: '401 No autorizado: Sesión inválida o inexistente.',
+    };
+  }
+
+  if (new Date(sessionData.expiresAt).getTime() <= Date.now()) {
+    activeServerSessions.delete(token);
+    saveServerSessions();
+    return {
+      authenticated: false,
+      statusCode: 401,
+      error: '401 No autorizado: Sesión expirada.',
+    };
+  }
+
+  const user = (serverDbState.data.users || []).find((u: any) => u.id === sessionData.userId);
+  if (!user || user.status === 'INACTIVE') {
+    activeServerSessions.delete(token);
+    saveServerSessions();
+    return {
+      authenticated: false,
+      statusCode: 401,
+      error: '401 No autorizado: Cuenta de usuario inexistente o inactiva.',
+    };
+  }
+
+  if (user.sessionRevokedAt && new Date(user.sessionRevokedAt).getTime() >= new Date(sessionData.issuedAt).getTime()) {
+    activeServerSessions.delete(token);
+    saveServerSessions();
+    return {
+      authenticated: false,
+      statusCode: 401,
+      error: '401 No autorizado: La sesión ha sido revocada por el administrador.',
+    };
+  }
+
+  const userBranches = (serverDbState.data.userBranches || [])
+    .filter((ub: any) => ub.userId === user.id)
+    .map((ub: any) => ub.branchId);
+
+  const allowedBranchIds = user.roleId === 'SUPER_ADMIN'
+    ? (serverDbState.data.branches || []).map((b: any) => b.id)
+    : userBranches;
+
+  return {
+    authenticated: true,
+    statusCode: 200,
+    token,
+    sessionData,
+    user,
+    actor: {
+      userId: user.id,
+      role: user.roleId,
+      organizationId: user.organizationId,
+      allowedBranchIds,
+      customPermissions: user.customPermissions || [],
+      revokedPermissions: user.revokedPermissions || [],
+      assignedRestrictions: user.assignedRestrictions || [],
+    },
+  };
+}
 
 // Security: One-time Password Recovery Tokens
 const passwordRecoveryTokens = new Map<string, {
@@ -218,8 +362,9 @@ function saveDatabaseState() {
 }
 
 async function startServer() {
-  // Initialize database on boot
+  // Initialize database & persisted sessions on boot
   await loadDatabaseState();
+  loadServerSessions();
 
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
@@ -265,48 +410,178 @@ async function startServer() {
     res.json(sanitizedState);
   });
 
-  // POST /api/db/sync - Receive changes from authorized client and persist
-  // CRÍTICO DE SEGURIDAD: Preserva los hashes de contraseñas existentes en el servidor
-  app.post('/api/db/sync', (req, res) => {
-    const { data, organizationsList } = req.body;
-    if (data && organizationsList && Array.isArray(organizationsList)) {
-      // Re-vincular hashes existentes si el cliente envió usuarios sanitizados
-      const existingUserMap = new Map<string, any>((serverDbState.data.users || []).map((u: any) => [u.id, u]));
-      const mergedUsers = (data.users || []).map((incomingUser: any) => {
-        const existing = existingUserMap.get(incomingUser.id);
-        if (existing) {
-          return {
-            ...incomingUser,
-            passwordHash: incomingUser.passwordHash || existing.passwordHash,
-            passwordSalt: incomingUser.passwordSalt || existing.passwordSalt,
-            passwordIterations: incomingUser.passwordIterations || existing.passwordIterations || 100000,
-          };
-        }
-        // Usuario nuevo creado desde cliente: si no tiene hash seguro, derivar uno
-        if (!incomingUser.passwordHash) {
-          const defaultRecord = createPbkdf2Hash(crypto.randomUUID().slice(0, 12));
-          return {
-            ...incomingUser,
-            passwordHash: defaultRecord.hash,
-            passwordSalt: defaultRecord.salt,
-            passwordIterations: defaultRecord.iterations,
-          };
-        }
-        return incomingUser;
+  // POST /api/db/reset-seed - Restauración de datos iniciales de prueba de Paraguay
+  // CRÍTICO DE SEGURIDAD: Exclusivo para el rol real SUPER_ADMIN autenticado en el servidor.
+  app.post('/api/db/reset-seed', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.user || !auth.actor) {
+      return res.status(auth.statusCode || 401).json({
+        error: auth.error || '401 No autorizado: Se requiere autenticación válida.',
       });
-
-      serverDbState = {
-        data: {
-          ...data,
-          users: mergedUsers,
-        },
-        organizationsList,
-      };
-      saveDatabaseState();
-      res.json({ success: true, timestamp: new Date().toISOString() });
-    } else {
-      res.status(400).json({ error: 'Payload inválido para sincronización de base de datos.' });
     }
+
+    const authz = validateBackendAuthorization({
+      actor: auth.actor,
+      resource: 'DATABASE',
+      action: 'SEED',
+      permission: 'database.seed',
+    });
+
+    // Doble verificación estricta: rol real en DB debe ser exactamente SUPER_ADMIN
+    if (!authz.authorized || !isSuperAdminRole(auth.user.roleId) || auth.user.roleId !== 'SUPER_ADMIN') {
+      serverDbState.data.auditLogs?.unshift({
+        id: crypto.randomUUID(),
+        organizationId: auth.user.organizationId || serverDbState.data.organization?.id,
+        branchId: null,
+        userId: auth.user.id,
+        action: 'ACCESS_DENIED_SECURITY',
+        entity: 'DATABASE',
+        entityId: 'RESET_SEED',
+        ipAddress: req.ip || '127.0.0.1',
+        userAgent: req.headers['user-agent'] || 'Backend API',
+        oldValues: null,
+        newValues: { attemptedRole: auth.user.roleId },
+        description: `Intento bloqueado de restaurar datos de prueba por rol no autorizado (${auth.user.roleId} - ${auth.user.email})`,
+        createdAt: new Date().toISOString(),
+      });
+      saveDatabaseState();
+
+      return res.status(403).json({
+        error: '403 Prohibido: Solo el Super Administrador tiene autorización para restaurar los datos iniciales de prueba de Paraguay.',
+      });
+    }
+
+    const initial = generateInitialSeedData();
+    initial.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: initial.organization.id,
+      branchId: null,
+      userId: auth.user.id,
+      action: 'SYSTEM_RESET_SEED',
+      entity: 'DATABASE',
+      entityId: 'ALL',
+      ipAddress: req.ip || '127.0.0.1',
+      userAgent: req.headers['user-agent'] || 'OdontoPro Security Engine',
+      oldValues: null,
+      newValues: { resetAt: new Date().toISOString(), executedBy: auth.user.email },
+      description: 'Restablecimiento de fábrica a catálogo inicial autorizado por Super Administrador',
+      createdAt: new Date().toISOString(),
+    });
+
+    serverDbState = {
+      data: initial,
+      organizationsList: [initial.organization],
+    };
+
+    // Invalidar sesiones de usuarios que ya no existen tras la restauración
+    const survivingUserIds = new Set((initial.users || []).map((u: any) => u.id));
+    for (const [sessToken, sess] of activeServerSessions.entries()) {
+      if (!survivingUserIds.has(sess.userId)) {
+        activeServerSessions.delete(sessToken);
+      }
+    }
+
+    saveDatabaseState();
+    saveServerSessions();
+
+    return res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      data: {
+        ...serverDbState.data,
+        users: sanitizeUsersForClient(serverDbState.data.users),
+      },
+      organizationsList: serverDbState.organizationsList,
+    });
+  });
+
+  // POST /api/db/sync - Receive changes from authorized client and persist
+  // CRÍTICO DE SEGURIDAD: Preserva los hashes de contraseñas y bloquea resets/escalamientos por usuarios no SUPER_ADMIN
+  app.post('/api/db/sync', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.user) {
+      return res.status(auth.statusCode || 401).json({
+        error: auth.error || '401 No autorizado: Se requiere sesión autenticada para sincronizar la base de datos.',
+      });
+    }
+
+    const { data, organizationsList } = req.body;
+    if (!data || !organizationsList || !Array.isArray(organizationsList)) {
+      return res.status(400).json({ error: 'Payload inválido para sincronización de base de datos.' });
+    }
+
+    const isSuperAdmin = isSuperAdminRole(auth.user.roleId) && auth.user.roleId === 'SUPER_ADMIN';
+
+    if (!isSuperAdmin) {
+      // Bloquear intento de ejecutar restauración de datos de prueba por vía indirecta (/api/db/sync)
+      const incomingTopAudit = Array.isArray(data.auditLogs) ? data.auditLogs[0] : null;
+      const currentTopAudit = Array.isArray(serverDbState.data.auditLogs) ? serverDbState.data.auditLogs[0] : null;
+      if (incomingTopAudit?.action === 'SYSTEM_RESET_SEED' && incomingTopAudit?.id !== currentTopAudit?.id) {
+        return res.status(403).json({
+          error: '403 Prohibido: Solo el Super Administrador puede ejecutar la restauración de datos iniciales.',
+        });
+      }
+
+      // Bloquear alteración de organizaciones por usuarios no SUPER_ADMIN
+      const currentOrgIds = (serverDbState.organizationsList || []).map((o: any) => o.id).sort().join(',');
+      const incomingOrgIds = organizationsList.map((o: any) => o.id).sort().join(',');
+      if (currentOrgIds !== incomingOrgIds) {
+        return res.status(403).json({
+          error: '403 Prohibido: Solo el Super Administrador puede crear o eliminar organizaciones.',
+        });
+      }
+
+      // Bloquear escalamiento a SUPER_ADMIN o alteración/eliminación de cuentas SUPER_ADMIN existentes
+      const existingSuperAdminIds = new Set(
+        (serverDbState.data.users || []).filter((u: any) => isSuperAdminRole(u.roleId)).map((u: any) => u.id)
+      );
+      const incomingUsers = Array.isArray(data.users) ? data.users : [];
+      const incomingSuperAdmins = incomingUsers.filter((u: any) => isSuperAdminRole(u.roleId));
+      const hasEscalationOrTamper =
+        incomingSuperAdmins.some((u: any) => !existingSuperAdminIds.has(u.id)) ||
+        Array.from(existingSuperAdminIds).some((id) => !incomingSuperAdmins.some((u: any) => u.id === id));
+
+      if (hasEscalationOrTamper) {
+        return res.status(403).json({
+          error: '403 Prohibido: No tiene autorización para crear, modificar o escalar cuentas SUPER_ADMIN.',
+        });
+      }
+    }
+
+    // Re-vincular hashes existentes si el cliente envió usuarios sanitizados
+    const existingUserMap = new Map<string, any>((serverDbState.data.users || []).map((u: any) => [u.id, u]));
+    const mergedUsers = (data.users || []).map((incomingUser: any) => {
+      const existing = existingUserMap.get(incomingUser.id);
+      if (existing) {
+        return {
+          ...incomingUser,
+          passwordHash: incomingUser.passwordHash || existing.passwordHash,
+          passwordSalt: incomingUser.passwordSalt || existing.passwordSalt,
+          passwordIterations: incomingUser.passwordIterations || existing.passwordIterations || 100000,
+        };
+      }
+      // Usuario nuevo creado desde cliente: si no tiene hash seguro, derivar uno
+      if (!incomingUser.passwordHash) {
+        const defaultRecord = createPbkdf2Hash(crypto.randomUUID().slice(0, 12));
+        return {
+          ...incomingUser,
+          passwordHash: defaultRecord.hash,
+          passwordSalt: defaultRecord.salt,
+          passwordIterations: defaultRecord.iterations,
+        };
+      }
+      return incomingUser;
+    });
+
+    serverDbState = {
+      data: {
+        ...data,
+        users: mergedUsers,
+      },
+      organizationsList,
+    };
+    saveDatabaseState();
+    res.json({ success: true, timestamp: new Date().toISOString() });
   });
 
   // =========================================================================
@@ -491,7 +766,7 @@ async function startServer() {
     const org = (serverDbState.organizationsList || []).find((o: any) => o.id === user.organizationId) ||
       serverDbState.data.organization;
 
-    // Registrar sesión activa en memoria del servidor
+    // Registrar sesión activa en memoria del servidor y persistir en disco
     activeServerSessions.set(sessionToken, {
       userId: user.id,
       role: user.roleId,
@@ -501,6 +776,7 @@ async function startServer() {
       expiresAt,
       permissionsVersion: user.permissionsVersion || 1,
     });
+    saveServerSessions();
 
     // Actualizar último inicio de sesión del usuario
     user.lastLoginAt = issuedAt;
@@ -546,6 +822,7 @@ async function startServer() {
     const token = req.body?.token || (authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null);
     if (token) {
       activeServerSessions.delete(token);
+      saveServerSessions();
     }
     res.json({ success: true, message: 'Sesión cerrada correctamente.' });
   });
@@ -672,6 +949,7 @@ async function startServer() {
       }
     }
 
+    saveServerSessions();
     saveDatabaseState();
 
     res.json({
