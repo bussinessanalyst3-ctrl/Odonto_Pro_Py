@@ -54,6 +54,10 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
 
   const insurancePlans = snapshot.insurancePlans || [];
   const assignedPlan = insurancePlans.find((ip) => ip.id === patient.insurancePlanId);
+  const assignedAdvisor = patient.assignedAdvisorId
+    ? (snapshot.employees || []).find((e: any) => e.id === patient.assignedAdvisorId)
+    : null;
+  const creatorDisplay = patient.createdByNameSnapshot || 'Origen histórico / Desconocido';
 
   // Relaciones integradas
   const patientAppointments = snapshot.appointments.filter((a) => a.patientId === patientId);
@@ -149,6 +153,18 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                 <span>Tel: {patient.phone}</span>
                 <span>•</span>
                 <span>{patient.email || 'Sin correo registrado'}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600 mt-1.5">
+                <span>
+                  Asesor designado:{' '}
+                  <strong className="text-slate-900">
+                    {assignedAdvisor ? `${assignedAdvisor.firstName} ${assignedAdvisor.lastName}` : 'Sin asignar'}
+                  </strong>
+                </span>
+                <span>
+                  Usuario de creación:{' '}
+                  <strong className="text-slate-700">{creatorDisplay}</strong>
+                </span>
               </div>
             </div>
           </div>

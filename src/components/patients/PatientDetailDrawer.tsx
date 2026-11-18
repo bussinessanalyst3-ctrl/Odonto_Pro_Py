@@ -50,6 +50,10 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
   const primaryBranch = snapshot.branches.find((b) => b.id === patient.primaryBranchId);
   const insurancePlans = snapshot.insurancePlans || [];
   const assignedPlan = insurancePlans.find((ip) => ip.id === patient.insurancePlanId);
+  const assignedAdvisor = patient.assignedAdvisorId
+    ? (snapshot.employees || []).find((e: any) => e.id === patient.assignedAdvisorId)
+    : null;
+  const creatorDisplay = patient.createdByNameSnapshot || 'Origen histórico / Desconocido';
 
   // Calculate age
   const birthYear = patient.birthDate ? new Date(patient.birthDate).getFullYear() : 1995;
@@ -121,6 +125,18 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                     <span>{age} años ({patient.birthDate})</span>
                     <span>•</span>
                     <span className="capitalize">{patient.gender?.toLowerCase()}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600 mt-1.5">
+                    <span>
+                      Asesor designado:{' '}
+                      <strong className="text-slate-900">
+                        {assignedAdvisor ? `${assignedAdvisor.firstName} ${assignedAdvisor.lastName}` : 'Sin asignar'}
+                      </strong>
+                    </span>
+                    <span>
+                      Usuario de creación:{' '}
+                      <strong className="text-slate-700">{creatorDisplay}</strong>
+                    </span>
                   </div>
                 </div>
               </div>

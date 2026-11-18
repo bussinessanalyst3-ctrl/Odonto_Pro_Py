@@ -6,3 +6,4 @@ export * from './appointments.ts';
 export * from './clinical.ts';
 export * from './financial.ts';
 export * from './audit.ts';
+export * from './payroll.ts';

@@ -19,9 +19,12 @@ import {
   ChevronRight,
   LayoutGrid,
   List,
-  MapPin
+  MapPin,
+  Briefcase,
+  UserCheck
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
+import { UNKNOWN_CREATOR_LABEL } from '../../db/payrollEngine.ts';
 import { useBranding } from '../../branding/BrandingContext.tsx';
 import { PatientModal } from './PatientModal.tsx';
 import { ComprehensivePatientModal } from './ComprehensivePatientModal.tsx';
@@ -39,6 +42,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   const [branchFilter, setBranchFilter] = useState('ALL');
   const [alertFilter, setAlertFilter] = useState('ALL');
   const [modalityFilter, setModalityFilter] = useState<'ALL' | 'PARTICULAR' | 'PLAN_SEGURO'>('ALL');
+  const [advisorFilter, setAdvisorFilter] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -56,6 +60,10 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   const patients = snapshot.patients;
   const branches = snapshot.branches;
   const insurancePlans = snapshot.insurancePlans || [];
+  const employees = snapshot.employees || [];
+  const advisors = dbStore.getAdvisorEmployees();
+  const actor = dbStore.getBackendActorContext();
+  const linkedEmployee = actor?.userId ? dbStore.getEmployeeLinkedToUser(actor.userId) : null;
 
   const handleOpenAdd = () => {
     setPatientToEdit(null);
@@ -104,9 +112,18 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
         matchesModality = p.modality === 'PLAN_SEGURO';
       }
 
-      return matchesSearch && matchesBranch && matchesAlert && matchesModality;
+      let matchesAdvisor = true;
+      if (advisorFilter === 'UNASSIGNED') {
+        matchesAdvisor = !p.assignedAdvisorId;
+      } else if (advisorFilter === 'MY_PORTFOLIO') {
+        matchesAdvisor = Boolean(linkedEmployee && p.assignedAdvisorId === linkedEmployee.id);
+      } else if (advisorFilter !== 'ALL') {
+        matchesAdvisor = p.assignedAdvisorId === advisorFilter;
+      }
+
+      return matchesSearch && matchesBranch && matchesAlert && matchesModality && matchesAdvisor;
     });
-  }, [patients, searchTerm, branchFilter, alertFilter, modalityFilter]);
+  }, [patients, searchTerm, branchFilter, alertFilter, modalityFilter, advisorFilter, linkedEmployee]);
 
   const totalPages = Math.ceil(filteredPatients.length / pageSize) || 1;
   const paginatedPatients = useMemo(() => {
@@ -117,7 +134,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   // Reset page when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, branchFilter, alertFilter, modalityFilter]);
+  }, [searchTerm, branchFilter, alertFilter, modalityFilter, advisorFilter]);
 
   const totalPatients = patients.length;
   const insuredPatientsCount = patients.filter((p) => p.modality === 'PLAN_SEGURO').length;
@@ -239,6 +256,40 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
             <option value="CONDITIONS">🩺 Con Patologías</option>
           </select>
 
+          <select
+            value={advisorFilter}
+            onChange={(e) => setAdvisorFilter(e.target.value)}
+            className="flex-1 sm:flex-none text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-700 min-h-[40px] cursor-pointer"
+          >
+            <option value="ALL">Todos los Asesores</option>
+            {linkedEmployee && (
+              <option value="MY_PORTFOLIO">Mi Cartera ({linkedEmployee.firstName})</option>
+            )}
+            <option value="UNASSIGNED">Sin Asesor Designado</option>
+            {advisors.map((adv: any) => (
+              <option key={adv.id} value={adv.id}>
+                Asesor: {adv.firstName} {adv.lastName}
+              </option>
+            ))}
+          </select>
+
+          {linkedEmployee && (
+            <button
+              type="button"
+              onClick={() =>
+                setAdvisorFilter((prev) => (prev === 'MY_PORTFOLIO' ? 'ALL' : 'MY_PORTFOLIO'))
+              }
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors min-h-[40px] cursor-pointer ${
+                advisorFilter === 'MY_PORTFOLIO'
+                  ? 'bg-teal-600 text-white border-teal-600'
+                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <Briefcase className="h-3.5 w-3.5" />
+              <span>Mi Cartera</span>
+            </button>
+          )}
+
           {/* Toggle Tarjetas / Tabla */}
           <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 shrink-0 ml-auto sm:ml-0">
             <button
@@ -352,6 +403,37 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                       <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                       <span className="truncate font-mono">{p.phone}</span>
                     </div>
+                    {(() => {
+                      const assignedAdvisor = p.assignedAdvisorId
+                        ? employees.find((e: any) => e.id === p.assignedAdvisorId)
+                        : null;
+                      const creatorUser = p.createdByUserId
+                        ? (snapshot.users || []).find((u: any) => u.id === p.createdByUserId)
+                        : null;
+                      const creatorLabel =
+                        p.createdByNameSnapshot ||
+                        (creatorUser ? `${creatorUser.firstName} ${creatorUser.lastName}` : UNKNOWN_CREATOR_LABEL);
+                      return (
+                        <div className="pt-1.5 mt-1.5 border-t border-slate-100 space-y-1 text-[11px]">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-slate-400 flex items-center gap-1">
+                              <Briefcase className="h-3 w-3 text-teal-600" />
+                              Asesor:
+                            </span>
+                            <span className={`font-semibold truncate ${assignedAdvisor ? 'text-teal-800' : 'text-slate-400'}`}>
+                              {assignedAdvisor ? `${assignedAdvisor.firstName} ${assignedAdvisor.lastName}` : 'No asignado'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-slate-400 flex items-center gap-1">
+                              <UserCheck className="h-3 w-3 text-slate-400" />
+                              Creado por:
+                            </span>
+                            <span className="text-slate-600 truncate">{creatorLabel}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -414,6 +496,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                 <th className="px-4 py-3">Modalidad / Cobertura</th>
                 <th className="px-4 py-3">Ubicación (PY)</th>
                 <th className="px-4 py-3">Contacto Directo</th>
+                <th className="px-4 py-3">Asesor & Creación</th>
                 <th className="px-4 py-3">Alertas Clínicas (Anamnesis)</th>
                 <th className="px-4 py-3">Sucursal Base</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
@@ -500,6 +583,30 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                           <span>WhatsApp</span>
                         </a>
                       </div>
+                    </td>
+
+                    <td className="px-4 py-3.5">
+                      {(() => {
+                        const assignedAdvisor = p.assignedAdvisorId
+                          ? employees.find((e: any) => e.id === p.assignedAdvisorId)
+                          : null;
+                        const creatorUser = p.createdByUserId
+                          ? (snapshot.users || []).find((u: any) => u.id === p.createdByUserId)
+                          : null;
+                        const creatorLabel =
+                          p.createdByNameSnapshot ||
+                          (creatorUser ? `${creatorUser.firstName} ${creatorUser.lastName}` : UNKNOWN_CREATOR_LABEL);
+                        return (
+                          <div className="space-y-0.5 text-[11px]">
+                            <div className={`font-semibold ${assignedAdvisor ? 'text-teal-800' : 'text-slate-400'}`}>
+                              {assignedAdvisor ? `${assignedAdvisor.firstName} ${assignedAdvisor.lastName}` : 'Sin asesor'}
+                            </div>
+                            <div className="text-[10px] text-slate-400 truncate max-w-[160px]" title={`Creado por: ${creatorLabel}`}>
+                              Reg: {creatorLabel}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     <td className="px-4 py-3.5">

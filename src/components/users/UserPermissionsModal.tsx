@@ -49,6 +49,7 @@ const ALL_SYSTEM_NAV_TABS = [
   { id: 'clinical', label: 'Historias Clínicas MSPBS & Evolución', category: 'Clínica' },
   { id: 'quotes', label: 'Presupuestos & Cotizaciones', category: 'Administración' },
   { id: 'cash', label: 'Caja Chica, Cobros & Facturación', category: 'Administración' },
+  { id: 'staff-payroll', label: 'Gestión Financiera del Personal', category: 'Administración' },
   { id: 'branches', label: 'Sucursales & Sillones Dentales', category: 'Configuración' },
   { id: 'users', label: 'Equipo, Roles & Accesos', category: 'Seguridad' },
   { id: 'organization', label: 'Empresa & Identidad Corporativa', category: 'Configuración' },

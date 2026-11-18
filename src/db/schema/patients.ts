@@ -27,6 +27,12 @@ export const patients = pgTable('patients', {
   modality: varchar('modality', { length: 30 }).default('PARTICULAR').notNull(), // PARTICULAR, PLAN_SEGURO
   insurancePlanId: uuid('insurance_plan_id'),
   insuranceMemberNumber: varchar('insurance_member_number', { length: 100 }),
+  // Trazabilidad Comercial e Inmutabilidad de Origen
+  assignedAdvisorId: uuid('assigned_advisor_id'), // FK lógica -> employees.id (Asesor designado)
+  assignedAt: timestamp('assigned_at', { withTimezone: true }),
+  assignedByUserId: uuid('assigned_by_user_id'),
+  createdByUserId: uuid('created_by_user_id'), // Inmutable tras creación; null para registros históricos sin dato
+  createdByNameSnapshot: varchar('created_by_name_snapshot', { length: 200 }).default('Origen histórico / Desconocido').notNull(),
   status: varchar('status', { length: 20 }).default('ACTIVE').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),

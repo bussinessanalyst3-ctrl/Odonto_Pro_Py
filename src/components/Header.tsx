@@ -21,6 +21,7 @@ import {
   Rocket,
   Code2,
   Sparkles,
+  Briefcase,
 } from 'lucide-react';
 import { dbStore } from '../db/inMemoryStore.ts';
 import { UserSessionMenu } from './auth/UserSessionMenu.tsx';
@@ -36,6 +37,7 @@ export type TabType =
   | 'audit'
   | 'quotes'
   | 'cash'
+  | 'staff-payroll'
   | 'odontogram'
   | 'treatments'
   | 'agenda'
@@ -127,6 +129,15 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     category: 'management',
     allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'RECEPCION', 'CAJA'],
     color: 'bg-emerald-600',
+  },
+  {
+    id: 'staff-payroll',
+    label: 'Finanzas Personal',
+    devLabel: 'Personal, Salarios & Comisiones',
+    icon: Briefcase,
+    category: 'management',
+    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR', 'VENDEDOR', 'ODONTOLOGO', 'CAJA'],
+    color: 'bg-teal-600',
   },
   {
     id: 'dashboard',

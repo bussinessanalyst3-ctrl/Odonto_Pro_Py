@@ -175,6 +175,7 @@
           "clinical",
           "quotes",
           "cash",
+          "staff-payroll",
           "branches",
           "organization",
           "users",
@@ -228,6 +229,7 @@
           "clinical",
           "quotes",
           "cash",
+          "staff-payroll",
           "branches",
           "users",
           "audit"
@@ -281,7 +283,21 @@
           "odontogram.manage",
           "prescriptions.create",
           "anamnesis.view",
-          "anamnesis.manage"
+          "anamnesis.manage",
+          "patients.assign_advisor",
+          "patients.view_own_portfolio",
+          "staff.view",
+          "staff.manage",
+          "salaries.view",
+          "salaries.manage",
+          "commissions.rules_manage",
+          "commissions.view_all",
+          "commissions.view_own",
+          "payroll.create",
+          "payroll.approve",
+          "payroll.pay",
+          "payroll.override_balance",
+          "payroll.export"
         ],
         "createdAt": "2026-01-10T08:00:00.000Z"
       },
@@ -299,6 +315,7 @@
           "clinical",
           "quotes",
           "cash",
+          "staff-payroll",
           "branches",
           "users",
           "audit"
@@ -316,8 +333,16 @@
           "cash.manage_own_branch",
           "appointments.manage_own_branch",
           "patients.manage",
+          "patients.assign_advisor",
           "plans.view",
-          "audit.view_own_branch"
+          "audit.view_own_branch",
+          "staff.view",
+          "staff.manage",
+          "salaries.view",
+          "commissions.view_all",
+          "payroll.create",
+          "payroll.pay",
+          "payroll.export"
         ],
         "createdAt": "2026-01-10T08:00:00.000Z"
       },
@@ -335,6 +360,7 @@
           "clinical",
           "quotes",
           "cash",
+          "staff-payroll",
           "branches",
           "users",
           "audit"
@@ -348,7 +374,12 @@
           "appointments.view",
           "patients.view",
           "plans.view",
-          "audit.view"
+          "audit.view",
+          "staff.view",
+          "salaries.view",
+          "commissions.view_all",
+          "payroll.approve",
+          "payroll.export"
         ],
         "createdAt": "2026-01-10T08:00:00.000Z"
       },
@@ -361,13 +392,16 @@
           "dashboard",
           "appointments",
           "patients",
-          "quotes"
+          "quotes",
+          "staff-payroll"
         ],
         "permissions": [
           "quotes.create",
           "quotes.view",
           "patients.view_basic",
-          "plans.view"
+          "patients.view_own_portfolio",
+          "plans.view",
+          "commissions.view_own"
         ],
         "createdAt": "2026-01-10T08:00:00.000Z"
       },
@@ -383,7 +417,8 @@
           "odontogram",
           "treatments",
           "clinical",
-          "quotes"
+          "quotes",
+          "staff-payroll"
         ],
         "permissions": [
           "clinical.view",
@@ -394,7 +429,8 @@
           "prescriptions.create",
           "appointments.view_own",
           "patients.view",
-          "quotes.create"
+          "quotes.create",
+          "commissions.view_own"
         ],
         "createdAt": "2026-01-10T08:00:00.000Z"
       },
@@ -427,7 +463,8 @@
         "allowedNavTabs": [
           "dashboard",
           "cash",
-          "quotes"
+          "quotes",
+          "staff-payroll"
         ],
         "permissions": [
           "cash.open_close",
@@ -436,7 +473,10 @@
           "payments.annul",
           "quotes.view",
           "patients.view_basic",
-          "plans.view"
+          "plans.view",
+          "staff.view",
+          "payroll.create",
+          "payroll.pay"
         ],
         "createdAt": "2026-01-10T08:00:00.000Z"
       },
@@ -475,7 +515,7 @@
         "professionalLicense": null,
         "specialty": "Dirección General & Auditoría Global",
         "status": "ACTIVE",
-        "lastLoginAt": "2026-11-17T17:25:07.787Z",
+        "lastLoginAt": "2026-11-18T00:55:55.862Z",
         "createdAt": "2026-01-08T08:00:00.000Z",
         "updatedAt": "2026-01-08T08:00:00.000Z"
       }
@@ -485,19 +525,19 @@
         "userId": "33333333-3333-4333-8333-333333333330",
         "branchId": "22222222-2222-4222-8222-222222222221",
         "isDefault": true,
-        "createdAt": "2026-11-17T17:25:07.787Z"
+        "createdAt": "2026-11-18T00:55:55.862Z"
       },
       {
         "userId": "33333333-3333-4333-8333-333333333330",
         "branchId": "22222222-2222-4222-8222-222222222222",
         "isDefault": false,
-        "createdAt": "2026-11-17T17:25:07.787Z"
+        "createdAt": "2026-11-18T00:55:55.862Z"
       },
       {
         "userId": "33333333-3333-4333-8333-333333333330",
         "branchId": "22222222-2222-4222-8222-222222222223",
         "isDefault": false,
-        "createdAt": "2026-11-17T17:25:07.787Z"
+        "createdAt": "2026-11-18T00:55:55.862Z"
       }
     ],
     "services": [
@@ -1118,6 +1158,11 @@
         "modality": "PLAN_SEGURO",
         "insurancePlanId": "66666666-6666-4666-8666-666666666661",
         "insuranceMemberNumber": "SDB-489201",
+        "assignedAdvisorId": "e1111111-1111-4111-8111-111111111102",
+        "assignedAt": "2026-02-10T09:00:00.000Z",
+        "assignedByUserId": "33333333-3333-4333-8333-333333333330",
+        "createdByUserId": null,
+        "createdByNameSnapshot": "Origen histórico / Desconocido",
         "status": "ACTIVE",
         "createdAt": "2026-02-10T09:00:00.000Z",
         "updatedAt": "2026-02-10T09:00:00.000Z"
@@ -1148,6 +1193,11 @@
         "modality": "PLAN_SEGURO",
         "insurancePlanId": "66666666-6666-4666-8666-666666666662",
         "insuranceMemberNumber": "VIP-773192",
+        "assignedAdvisorId": "e1111111-1111-4111-8111-111111111102",
+        "assignedAt": "2026-02-14T10:30:00.000Z",
+        "assignedByUserId": "33333333-3333-4333-8333-333333333330",
+        "createdByUserId": null,
+        "createdByNameSnapshot": "Origen histórico / Desconocido",
         "status": "ACTIVE",
         "createdAt": "2026-02-14T10:30:00.000Z",
         "updatedAt": "2026-02-14T10:30:00.000Z"
@@ -1178,6 +1228,11 @@
         "modality": "PARTICULAR",
         "insurancePlanId": null,
         "insuranceMemberNumber": null,
+        "assignedAdvisorId": null,
+        "assignedAt": null,
+        "assignedByUserId": null,
+        "createdByUserId": null,
+        "createdByNameSnapshot": "Origen histórico / Desconocido",
         "status": "ACTIVE",
         "createdAt": "2026-02-20T14:00:00.000Z",
         "updatedAt": "2026-02-20T14:00:00.000Z"
@@ -1208,6 +1263,11 @@
         "modality": "PARTICULAR",
         "insurancePlanId": null,
         "insuranceMemberNumber": null,
+        "assignedAdvisorId": null,
+        "assignedAt": null,
+        "assignedByUserId": null,
+        "createdByUserId": null,
+        "createdByNameSnapshot": "Origen histórico / Desconocido",
         "status": "ACTIVE",
         "createdAt": "2026-03-01T11:15:00.000Z",
         "updatedAt": "2026-03-01T11:15:00.000Z"
@@ -1341,7 +1401,7 @@
         "material": "Resina Compuesta",
         "notes": "Restauración en buen estado, márgenes sellados.",
         "colorCode": "#3B82F6",
-        "createdAt": "2026-11-17T17:25:07.787Z"
+        "createdAt": "2026-11-18T00:55:55.862Z"
       },
       {
         "id": "88888888-8888-4888-8888-888888888802",
@@ -1352,7 +1412,7 @@
         "material": "Resina Compuesta",
         "notes": "Buen estado clínico.",
         "colorCode": "#3B82F6",
-        "createdAt": "2026-11-17T17:25:07.787Z"
+        "createdAt": "2026-11-18T00:55:55.862Z"
       },
       {
         "id": "88888888-8888-4888-8888-888888888803",
@@ -1363,7 +1423,7 @@
         "material": null,
         "notes": "Exodoncia realizada previamente.",
         "colorCode": "#6B7280",
-        "createdAt": "2026-11-17T17:25:07.787Z"
+        "createdAt": "2026-11-18T00:55:55.862Z"
       },
       {
         "id": "88888888-8888-4888-8888-888888888804",
@@ -1374,7 +1434,7 @@
         "material": null,
         "notes": "Caries en esmalte superficial detectada.",
         "colorCode": "#EF4444",
-        "createdAt": "2026-11-17T17:25:07.787Z"
+        "createdAt": "2026-11-18T00:55:55.862Z"
       }
     ],
     "quotes": [
@@ -1497,21 +1557,22 @@
     ],
     "auditLogs": [
       {
-        "id": "d497c8ad-657e-4cf3-b4ee-8e624626cfc6",
+        "id": "7ceb87b8-7b8f-4589-abed-596b51e0eb79",
         "organizationId": "11111111-1111-4111-8111-111111111111",
         "branchId": null,
         "userId": "33333333-3333-4333-8333-333333333330",
         "action": "SYSTEM_RESET_SEED",
         "entity": "DATABASE",
         "entityId": "ALL",
-        "ipAddress": "190.52.144.12",
-        "userAgent": "OdontoPro Security Engine",
+        "ipAddress": "127.0.0.1",
+        "userAgent": "node",
         "oldValues": null,
         "newValues": {
-          "resetAt": "2026-11-17T17:25:07.787Z"
+          "resetAt": "2026-11-18T00:55:55.862Z",
+          "executedBy": "bussinessanalyst3@gmail.com"
         },
         "description": "Restablecimiento de fábrica a catálogo inicial autorizado por Super Administrador",
-        "createdAt": "2026-11-17T17:25:07.787Z"
+        "createdAt": "2026-11-18T00:55:55.862Z"
       },
       {
         "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1",
@@ -1652,6 +1713,320 @@
         },
         "description": "Inicio de sesión exitoso con credenciales de Super Administrador",
         "createdAt": "2026-09-21T07:15:00.000Z"
+      }
+    ],
+    "employees": [
+      {
+        "id": "e1111111-1111-4111-8111-111111111101",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "branchId": "22222222-2222-4222-8222-222222222221",
+        "userId": "33333333-3333-4333-8333-333333333330",
+        "employeeCode": "EMP-0001",
+        "firstName": "Business Analyst",
+        "lastName": "Director Clínico",
+        "documentType": "CI",
+        "documentNumber": "3.950.112",
+        "phone": "+595 981 100 200",
+        "email": "bussinessanalyst3@gmail.com",
+        "area": "CLINICA",
+        "position": "Director Odontológico / Especialista",
+        "hireDate": "2026-01-10",
+        "status": "ACTIVE",
+        "remunerationModality": "MIXTO",
+        "isAdvisor": false,
+        "observations": "Vinculado a usuario principal sin duplicar credenciales.",
+        "createdAt": "2026-01-10T08:00:00.000Z",
+        "updatedAt": "2026-01-10T08:00:00.000Z"
+      },
+      {
+        "id": "e1111111-1111-4111-8111-111111111102",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "branchId": "22222222-2222-4222-8222-222222222221",
+        "userId": null,
+        "employeeCode": "EMP-0002",
+        "firstName": "Sofía Belén",
+        "lastName": "Benítez Galeano",
+        "documentType": "CI",
+        "documentNumber": "4.612.890",
+        "phone": "+595 981 740 310",
+        "email": "sofia.benitez@odontosol.com.py",
+        "area": "COMERCIAL",
+        "position": "Asesora Comercial Senior",
+        "hireDate": "2026-01-20",
+        "status": "ACTIVE",
+        "remunerationModality": "MIXTO",
+        "isAdvisor": true,
+        "observations": "Personal comercial sin usuario obligatorio de acceso clínico.",
+        "createdAt": "2026-01-20T08:00:00.000Z",
+        "updatedAt": "2026-01-20T08:00:00.000Z"
+      },
+      {
+        "id": "e1111111-1111-4111-8111-111111111103",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "branchId": "22222222-2222-4222-8222-222222222222",
+        "userId": null,
+        "employeeCode": "EMP-0003",
+        "firstName": "Marcos Antonio",
+        "lastName": "Villalba Aquino",
+        "documentType": "CI",
+        "documentNumber": "4.920.514",
+        "phone": "+595 971 334 890",
+        "email": "marcos.villalba@odontosol.com.py",
+        "area": "OPERATIVA",
+        "position": "Encargado Operativo de Sucursal",
+        "hireDate": "2026-02-01",
+        "status": "ACTIVE",
+        "remunerationModality": "SALARIO_FIJO",
+        "isAdvisor": false,
+        "observations": "Operación de recepción, insumos y esterilización en San Lorenzo.",
+        "createdAt": "2026-02-01T08:00:00.000Z",
+        "updatedAt": "2026-02-01T08:00:00.000Z"
+      }
+    ],
+    "employeeSalaries": [
+      {
+        "id": "e2222222-2222-4222-8222-222222222201",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "employeeId": "e1111111-1111-4111-8111-111111111101",
+        "area": "CLINICA",
+        "baseSalary": 6500000,
+        "paymentFrequency": "MENSUAL",
+        "effectiveDate": "2026-01-10",
+        "endDate": null,
+        "currency": "PYG",
+        "status": "VIGENTE",
+        "observations": "Honorario base mensual dirección clínica",
+        "createdBy": "33333333-3333-4333-8333-333333333330",
+        "createdAt": "2026-01-10T08:00:00.000Z"
+      },
+      {
+        "id": "e2222222-2222-4222-8222-222222222202",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "employeeId": "e1111111-1111-4111-8111-111111111102",
+        "area": "COMERCIAL",
+        "baseSalary": 2899048,
+        "paymentFrequency": "MENSUAL",
+        "effectiveDate": "2026-01-20",
+        "endDate": null,
+        "currency": "PYG",
+        "status": "VIGENTE",
+        "observations": "Salario base mínimo vigente + comisiones por cobro efectivo",
+        "createdBy": "33333333-3333-4333-8333-333333333330",
+        "createdAt": "2026-01-20T08:00:00.000Z"
+      },
+      {
+        "id": "e2222222-2222-4222-8222-222222222203",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "employeeId": "e1111111-1111-4111-8111-111111111103",
+        "area": "OPERATIVA",
+        "baseSalary": 3100000,
+        "paymentFrequency": "MENSUAL",
+        "effectiveDate": "2026-02-01",
+        "endDate": null,
+        "currency": "PYG",
+        "status": "VIGENTE",
+        "observations": "Salario base operativo mensual",
+        "createdBy": "33333333-3333-4333-8333-333333333330",
+        "createdAt": "2026-02-01T08:00:00.000Z"
+      }
+    ],
+    "commissionRules": [
+      {
+        "id": "e3333333-3333-4333-8333-333333333301",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "branchId": null,
+        "name": "Comisión Comercial sobre Operaciones Cobradas",
+        "description": "Se devenga únicamente cuando el tratamiento/presupuesto registra cobro efectivo en caja para pacientes con asesor asignado.",
+        "area": "COMERCIAL",
+        "triggerType": "ON_PAYMENT_COLLECTED",
+        "calculationMode": "PERCENTAGE",
+        "ratePercentage": 10,
+        "fixedAmount": null,
+        "minThresholdAmount": null,
+        "serviceId": null,
+        "targetEmployeeId": null,
+        "requiresCollectedPayment": true,
+        "requiresCompletedTreatment": false,
+        "effectiveFrom": "2026-01-01",
+        "effectiveTo": null,
+        "status": "ACTIVE",
+        "createdBy": "33333333-3333-4333-8333-333333333330",
+        "createdAt": "2026-01-10T08:00:00.000Z",
+        "updatedAt": "2026-01-10T08:00:00.000Z"
+      },
+      {
+        "id": "e3333333-3333-4333-8333-333333333302",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "branchId": null,
+        "name": "Honorario Clínico por Tratamiento Finalizado",
+        "description": "Se acredita al odontólogo tratante cuando el tratamiento cambia formalmente a estado COMPLETADO.",
+        "area": "CLINICA",
+        "triggerType": "ON_TREATMENT_COMPLETED",
+        "calculationMode": "PERCENTAGE",
+        "ratePercentage": 30,
+        "fixedAmount": null,
+        "minThresholdAmount": null,
+        "serviceId": null,
+        "targetEmployeeId": null,
+        "requiresCollectedPayment": false,
+        "requiresCompletedTreatment": true,
+        "effectiveFrom": "2026-01-01",
+        "effectiveTo": null,
+        "status": "ACTIVE",
+        "createdBy": "33333333-3333-4333-8333-333333333330",
+        "createdAt": "2026-01-10T08:00:00.000Z",
+        "updatedAt": "2026-01-10T08:00:00.000Z"
+      },
+      {
+        "id": "e3333333-3333-4333-8333-333333333303",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "branchId": "22222222-2222-4222-8222-222222222222",
+        "name": "Bono Operativo Mensual de Cumplimiento",
+        "description": "Bono configurable de productividad operativa asignable por cumplimiento de meta mensual.",
+        "area": "OPERATIVA",
+        "triggerType": "ON_GOAL_ACHIEVED",
+        "calculationMode": "GOAL_BONUS",
+        "ratePercentage": null,
+        "fixedAmount": 250000,
+        "minThresholdAmount": null,
+        "serviceId": null,
+        "targetEmployeeId": "e1111111-1111-4111-8111-111111111103",
+        "requiresCollectedPayment": false,
+        "requiresCompletedTreatment": false,
+        "effectiveFrom": "2026-01-01",
+        "effectiveTo": null,
+        "status": "ACTIVE",
+        "createdBy": "33333333-3333-4333-8333-333333333330",
+        "createdAt": "2026-02-01T08:00:00.000Z",
+        "updatedAt": "2026-02-01T08:00:00.000Z"
+      }
+    ],
+    "generatedCommissions": [
+      {
+        "id": "e4444444-4444-4444-8444-444444444401",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "branchId": "22222222-2222-4222-8222-222222222221",
+        "employeeId": "e1111111-1111-4111-8111-111111111102",
+        "ruleId": "e3333333-3333-4333-8333-333333333301",
+        "settlementId": null,
+        "area": "COMERCIAL",
+        "triggerType": "ON_PAYMENT_COLLECTED",
+        "sourceType": "PAYMENT",
+        "sourceId": "dddddddd-dddd-4ddd-8ddd-ddddddddddd1",
+        "dedupKey": "e3333333-3333-4333-8333-333333333301::PAYMENT::dddddddd-dddd-4ddd-8ddd-ddddddddddd1",
+        "patientId": "55555555-5555-4555-8555-555555555551",
+        "quoteId": "99999999-9999-4999-8999-999999999991",
+        "treatmentId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        "paymentId": "dddddddd-dddd-4ddd-8ddd-ddddddddddd1",
+        "serviceId": null,
+        "advisorSnapshotId": "e1111111-1111-4111-8111-111111111102",
+        "advisorSnapshotName": "Sofía Belén Benítez Galeano",
+        "baseAmount": 180000,
+        "appliedRate": 10,
+        "commissionAmount": 18000,
+        "currency": "PYG",
+        "periodYear": 2026,
+        "periodMonth": 9,
+        "status": "PENDIENTE",
+        "concept": "Comisión Comercial sobre Operaciones Cobradas — Gustavo Adolfo Caballero Paredes",
+        "notes": "Generado sobre Recibo REC-001-001-0004120 (₲ 180.000)",
+        "earnedAt": "2026-09-21T09:30:00.000Z",
+        "createdBy": "33333333-3333-4333-8333-333333333330",
+        "createdAt": "2026-09-21T09:30:00.000Z"
+      }
+    ],
+    "payrollSettlements": [
+      {
+        "id": "e5555555-5555-4555-8555-555555555501",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "branchId": "22222222-2222-4222-8222-222222222222",
+        "employeeId": "e1111111-1111-4111-8111-111111111103",
+        "settlementNumber": "LIQ-PER-2026-0001",
+        "periodYear": 2026,
+        "periodMonth": 9,
+        "periodLabel": "Septiembre 2026",
+        "baseSalarySnapshot": 3100000,
+        "commissionsTotal": 0,
+        "bonusesTotal": 250000,
+        "advancesTotal": 300000,
+        "deductionsTotal": 0,
+        "adjustmentsTotal": 0,
+        "grossTotal": 3350000,
+        "netPayable": 3050000,
+        "paidAmount": 1500000,
+        "balanceDue": 1550000,
+        "currency": "PYG",
+        "status": "APROBADA",
+        "notes": "Liquidación mensual con anticipo descontado y bono operativo aprobado.",
+        "createdBy": "33333333-3333-4333-8333-333333333330",
+        "submittedAt": "2026-09-20T10:00:00.000Z",
+        "approvedBy": "33333333-3333-4333-8333-333333333330",
+        "approvedAt": "2026-09-20T12:00:00.000Z",
+        "annulledBy": null,
+        "annulledAt": null,
+        "annulledReason": null,
+        "createdAt": "2026-09-20T10:00:00.000Z",
+        "updatedAt": "2026-09-21T09:00:00.000Z"
+      }
+    ],
+    "payrollSettlementItems": [
+      {
+        "id": "e6666666-6666-4666-8666-666666666601",
+        "settlementId": "e5555555-5555-4555-8555-555555555501",
+        "itemType": "SALARIO_BASE",
+        "commissionId": null,
+        "concept": "Salario base vigente (MENSUAL)",
+        "sign": "CREDIT",
+        "amount": 3100000,
+        "notes": "Vigente desde 2026-02-01",
+        "createdAt": "2026-09-20T10:00:00.000Z"
+      },
+      {
+        "id": "e6666666-6666-4666-8666-666666666602",
+        "settlementId": "e5555555-5555-4555-8555-555555555501",
+        "itemType": "BONO",
+        "commissionId": null,
+        "concept": "Bono por cumplimiento operativo sucursal San Lorenzo",
+        "sign": "CREDIT",
+        "amount": 250000,
+        "notes": "Meta operativa cumplida",
+        "createdAt": "2026-09-20T10:00:00.000Z"
+      },
+      {
+        "id": "e6666666-6666-4666-8666-666666666603",
+        "settlementId": "e5555555-5555-4555-8555-555555555501",
+        "itemType": "ANTICIPO",
+        "commissionId": null,
+        "concept": "Anticipo quincenal solicitado",
+        "sign": "DEBIT",
+        "amount": 300000,
+        "notes": "Descuento acordado",
+        "createdAt": "2026-09-20T10:00:00.000Z"
+      }
+    ],
+    "staffPayments": [
+      {
+        "id": "e7777777-7777-4777-8777-777777777701",
+        "organizationId": "11111111-1111-4111-8111-111111111111",
+        "branchId": "22222222-2222-4222-8222-222222222222",
+        "settlementId": "e5555555-5555-4555-8555-555555555501",
+        "employeeId": "e1111111-1111-4111-8111-111111111103",
+        "operationNumber": "PAG-PER-2026-0001",
+        "paymentDate": "2026-09-21",
+        "amount": 1500000,
+        "currency": "PYG",
+        "paymentMethod": "TRANSFERENCIA_SIPAP",
+        "referenceNumber": "SIPAP-RRHH-20260921",
+        "overpaymentOverride": false,
+        "overpaymentOverrideReason": null,
+        "status": "COMPLETADO",
+        "notes": "Pago parcial inicial de haberes septiembre 2026",
+        "responsibleUserId": "33333333-3333-4333-8333-333333333330",
+        "responsibleUserName": "Business Analyst Administrador Principal",
+        "annulledBy": null,
+        "annulledAt": null,
+        "annulledReason": null,
+        "createdAt": "2026-09-21T09:00:00.000Z"
       }
     ]
   },

@@ -21,6 +21,7 @@ import { OdontogramView } from './components/odontogram/OdontogramView.tsx';
 import { TreatmentsManagementView } from './components/treatments/TreatmentsManagementView.tsx';
 import { QuotesManagementView } from './components/quotes/QuotesManagementView.tsx';
 import { CashRegisterManagementView } from './components/cash/CashRegisterManagementView.tsx';
+import { StaffPayrollManagementView } from './components/payroll/StaffPayrollManagementView.tsx';
 import { AdaptiveDashboardView } from './components/reports/AdaptiveDashboardView.tsx';
 import { AuditLogsView } from './components/audit/AuditLogsView.tsx';
 import { SecurityHardeningView } from './components/security/SecurityHardeningView.tsx';
@@ -176,6 +177,7 @@ function MainApplication() {
                 <QuotesManagementView onNavigateToTreatments={handleNavigateToTreatments} />
               )}
               {activeTab === 'cash' && <CashRegisterManagementView />}
+              {activeTab === 'staff-payroll' && <StaffPayrollManagementView />}
               {activeTab === 'odontogram' && (
                 <OdontogramView
                   onNavigateToTreatments={handleNavigateToTreatments}

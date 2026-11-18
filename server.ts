@@ -6,7 +6,33 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
 import { generateInitialSeedData } from './src/db/seeds/initial-seed.ts';
-import { canManageRole, isSuperAdminRole, validateBackendAuthorization } from './src/security/rbacHierarchy.ts';
+import {
+  canManageRole,
+  hasPermission,
+  isSuperAdminRole,
+  validateBackendAuthorization,
+} from './src/security/rbacHierarchy.ts';
+import {
+  ensurePayrollIntegrity,
+  listAdvisorEmployees,
+  createEmployeeRecord,
+  updateEmployeeRecord,
+  toggleEmployeeStatusRecord,
+  upsertEmployeeSalaryRecord,
+  createCommissionRuleRecord,
+  updateCommissionRuleRecord,
+  evaluateCommissionsForEvent,
+  createManualCommissionAdjustment,
+  createPayrollSettlementRecord,
+  submitSettlementForApprovalRecord,
+  approvePayrollSettlementRecord,
+  annulPayrollSettlementRecord,
+  recordStaffPaymentRecord,
+  annulStaffPaymentRecord,
+  computePayrollDashboardMetrics,
+  getUserDisplayName,
+  UNKNOWN_CREATOR_LABEL,
+} from './src/db/payrollEngine.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -268,6 +294,7 @@ function ensureInsuranceIntegrity(state: any) {
       }
     });
   }
+  ensurePayrollIntegrity(state.data);
 }
 
 async function loadDatabaseState() {
@@ -573,6 +600,42 @@ async function startServer() {
       return incomingUser;
     });
 
+    // Proteger inmutabilidad del creador en pacientes existentes
+    const existingPatientsMap = new Map<string, any>(
+      (serverDbState.data.patients || []).map((p: any) => [p.id, p])
+    );
+    if (Array.isArray(data.patients)) {
+      data.patients = data.patients.map((incomingPatient: any) => {
+        const existingPat = existingPatientsMap.get(incomingPatient.id);
+        if (existingPat) {
+          return {
+            ...incomingPatient,
+            createdByUserId: existingPat.createdByUserId ?? null,
+            createdByNameSnapshot: existingPat.createdByNameSnapshot || UNKNOWN_CREATOR_LABEL,
+          };
+        }
+        return incomingPatient;
+      });
+    }
+
+    // Impedir borrado físico de liquidaciones confirmadas o pagos al personal
+    const existingSettlements = (serverDbState.data.payrollSettlements || []).filter(
+      (s: any) => s.status !== 'BORRADOR'
+    );
+    const incomingSettlementIds = new Set((data.payrollSettlements || []).map((s: any) => s.id));
+    if (existingSettlements.some((s: any) => !incomingSettlementIds.has(s.id))) {
+      return res.status(403).json({
+        error: '403 Prohibido: No se permite eliminar físicamente liquidaciones confirmadas; use anulación lógica.',
+      });
+    }
+    const existingStaffPayments = serverDbState.data.staffPayments || [];
+    const incomingStaffPaymentIds = new Set((data.staffPayments || []).map((p: any) => p.id));
+    if (existingStaffPayments.some((p: any) => !incomingStaffPaymentIds.has(p.id))) {
+      return res.status(403).json({
+        error: '403 Prohibido: No se permite eliminar físicamente pagos al personal; use anulación lógica.',
+      });
+    }
+
     serverDbState = {
       data: {
         ...data,
@@ -580,6 +643,7 @@ async function startServer() {
       },
       organizationsList,
     };
+    ensurePayrollIntegrity(serverDbState.data);
     saveDatabaseState();
     res.json({ success: true, timestamp: new Date().toISOString() });
   });
@@ -1234,6 +1298,677 @@ async function startServer() {
 
     saveDatabaseState();
     res.json({ success: true, revokedAt: now });
+  });
+
+  // =========================================================================
+  // ENDPOINTS PACIENTES (TRAZABILIDAD COMERCIAL & INMUTABILIDAD DE CREADOR)
+  // =========================================================================
+
+  app.get('/api/patients', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    ensurePayrollIntegrity(serverDbState.data);
+    const orgId = auth.actor.role === 'SUPER_ADMIN'
+      ? String(req.query.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId)
+      : auth.actor.organizationId;
+
+    const canViewAll =
+      auth.actor.role === 'SUPER_ADMIN' ||
+      hasPermission(auth.actor, 'patients.view') ||
+      hasPermission(auth.actor, 'patients.view_basic') ||
+      hasPermission(auth.actor, 'patients.manage');
+    const canViewOwnPortfolio = hasPermission(auth.actor, 'patients.view_own_portfolio');
+
+    if (!canViewAll && !canViewOwnPortfolio) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permisos para consultar pacientes.' });
+    }
+
+    let list = (serverDbState.data.patients || []).filter((p: any) => p.organizationId === orgId);
+
+    // Si solo tiene vista de cartera propia, restringir al empleado vinculado
+    if (!canViewAll && canViewOwnPortfolio) {
+      const ownEmp = (serverDbState.data.employees || []).find(
+        (e: any) => e.organizationId === orgId && e.userId === auth.user.id
+      );
+      list = ownEmp ? list.filter((p: any) => p.assignedAdvisorId === ownEmp.id) : [];
+    }
+
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    if (branchId) list = list.filter((p: any) => p.primaryBranchId === branchId);
+
+    const assignedAdvisorId = req.query.assignedAdvisorId ? String(req.query.assignedAdvisorId) : null;
+    if (assignedAdvisorId === 'UNASSIGNED') {
+      list = list.filter((p: any) => !p.assignedAdvisorId);
+    } else if (assignedAdvisorId) {
+      list = list.filter((p: any) => p.assignedAdvisorId === assignedAdvisorId);
+    }
+
+    const search = req.query.search ? String(req.query.search).trim().toLowerCase() : '';
+    if (search) {
+      list = list.filter(
+        (p: any) =>
+          `${p.firstName} ${p.lastName}`.toLowerCase().includes(search) ||
+          (p.documentNumber || '').toLowerCase().includes(search) ||
+          (p.phone || '').toLowerCase().includes(search)
+      );
+    }
+
+    res.json({ patients: list });
+  });
+
+  app.post('/api/patients', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'patients.manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso para registrar pacientes.' });
+    }
+
+    const body = req.body || {};
+    if (!body.firstName?.trim() || !body.lastName?.trim() || !body.documentNumber?.trim() || !body.phone?.trim()) {
+      return res.status(400).json({ error: 'Nombre, apellido, documento y teléfono son obligatorios.' });
+    }
+
+    let assignedAdvisorId: string | null = body.assignedAdvisorId ? String(body.assignedAdvisorId) : null;
+    if (assignedAdvisorId && !hasPermission(auth.actor, 'patients.assign_advisor')) {
+      return res.status(403).json({ error: '403 Prohibido: No tiene permiso para designar asesor comercial.' });
+    }
+
+    ensurePayrollIntegrity(serverDbState.data);
+    const orgId = auth.actor.role === 'SUPER_ADMIN'
+      ? (body.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId)
+      : auth.actor.organizationId;
+
+    if (assignedAdvisorId) {
+      const advisor = (serverDbState.data.employees || []).find(
+        (e: any) => e.id === assignedAdvisorId && e.organizationId === orgId && e.status === 'ACTIVE' && e.isAdvisor
+      );
+      if (!advisor) {
+        return res.status(400).json({ error: 'El asesor comercial seleccionado no existe o está inactivo.' });
+      }
+    }
+
+    // Regla estricta: Usuario de creación SIEMPRE capturado desde el usuario autenticado en el servidor
+    const createdByUserId = auth.user.id;
+    const createdByNameSnapshot = getUserDisplayName(auth.user);
+    const patientId = crypto.randomUUID();
+    const branchId = body.primaryBranchId || serverDbState.data.branches?.[0]?.id;
+
+    const record = {
+      id: patientId,
+      organizationId: orgId,
+      primaryBranchId: branchId,
+      documentType: body.documentType || 'CI',
+      documentNumber: String(body.documentNumber).trim(),
+      firstName: String(body.firstName).trim(),
+      lastName: String(body.lastName).trim(),
+      birthDate: body.birthDate || null,
+      gender: body.gender || 'NO_ESPECIFICA',
+      phone: String(body.phone).trim(),
+      whatsapp: body.whatsapp || String(body.phone).trim(),
+      email: body.email || null,
+      department: body.department || 'Central',
+      city: body.city || 'Asunción',
+      neighborhood: body.neighborhood || 'Centro',
+      address: body.address || null,
+      emergencyContactName: body.emergencyContactName || null,
+      emergencyContactPhone: body.emergencyContactPhone || null,
+      bloodType: body.bloodType || null,
+      allergies: body.allergies || 'Ninguna conocida',
+      medicalConditions: body.medicalConditions || 'Ninguna',
+      medications: body.medications || 'Ninguna',
+      modality: body.modality || 'PARTICULAR',
+      insurancePlanId: body.insurancePlanId || null,
+      insuranceMemberNumber: body.insuranceMemberNumber || null,
+      assignedAdvisorId,
+      assignedAt: assignedAdvisorId ? new Date().toISOString() : null,
+      assignedByUserId: assignedAdvisorId ? auth.user.id : null,
+      createdByUserId,
+      createdByNameSnapshot,
+      status: 'ACTIVE',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    serverDbState.data.patients.unshift(record);
+    serverDbState.data.patientBranches.push({
+      patientId,
+      branchId,
+      firstVisitDate: new Date().toISOString().split('T')[0],
+      lastVisitDate: new Date().toISOString().split('T')[0],
+    });
+
+    if (assignedAdvisorId) {
+      evaluateCommissionsForEvent(serverDbState.data, {
+        eventType: 'PATIENT_ACQUISITION',
+        organizationId: orgId,
+        branchId,
+        patientId,
+        amount: 0,
+        actorUserId: auth.user.id,
+      });
+    }
+
+    serverDbState.data.auditLogs.unshift({
+      id: crypto.randomUUID(),
+      organizationId: orgId,
+      branchId,
+      userId: auth.user.id,
+      action: 'CREATE',
+      entity: 'PATIENT',
+      entityId: patientId,
+      ipAddress: req.ip || '127.0.0.1',
+      userAgent: req.headers['user-agent'] || 'Backend API',
+      oldValues: null,
+      newValues: { createdByUserId, assignedAdvisorId, documentNumber: record.documentNumber },
+      description: `Alta de paciente ${record.firstName} ${record.lastName} por ${createdByNameSnapshot}`,
+      createdAt: new Date().toISOString(),
+    });
+
+    saveDatabaseState();
+    res.status(201).json({ patient: record });
+  });
+
+  app.put('/api/patients/:id', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    ensurePayrollIntegrity(serverDbState.data);
+
+    const { id } = req.params;
+    const idx = (serverDbState.data.patients || []).findIndex((p: any) => p.id === id);
+    if (idx === -1) return res.status(404).json({ error: 'Paciente no encontrado.' });
+
+    const current = serverDbState.data.patients[idx];
+    if (auth.actor.role !== 'SUPER_ADMIN' && current.organizationId !== auth.actor.organizationId) {
+      return res.status(403).json({ error: '403 Prohibido: Violación de aislamiento multiempresa.' });
+    }
+
+    const body = { ...(req.body || {}) };
+    const canManagePatients = hasPermission(auth.actor, 'patients.manage');
+    const canAssignAdvisor = hasPermission(auth.actor, 'patients.assign_advisor');
+
+    const advisorChanged =
+      body.assignedAdvisorId !== undefined && body.assignedAdvisorId !== current.assignedAdvisorId;
+
+    if (!canManagePatients && !(advisorChanged && canAssignAdvisor)) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permisos para modificar esta ficha.' });
+    }
+    if (advisorChanged && !canAssignAdvisor) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso para modificar el asesor comercial designado.' });
+    }
+
+    // Inmutabilidad estricta en backend: bloquear intento de modificar createdByUserId o createdByNameSnapshot
+    delete body.createdByUserId;
+    delete body.createdByNameSnapshot;
+    delete body.id;
+    delete body.organizationId;
+
+    if (advisorChanged) {
+      if (body.assignedAdvisorId) {
+        const advisor = (serverDbState.data.employees || []).find(
+          (e: any) =>
+            e.id === body.assignedAdvisorId &&
+            e.organizationId === current.organizationId &&
+            e.status === 'ACTIVE' &&
+            e.isAdvisor
+        );
+        if (!advisor) {
+          return res.status(400).json({ error: 'El asesor comercial designado no existe o está inactivo.' });
+        }
+      }
+      body.assignedAdvisorId = body.assignedAdvisorId || null;
+      body.assignedAt = body.assignedAdvisorId ? new Date().toISOString() : null;
+      body.assignedByUserId = body.assignedAdvisorId ? auth.user.id : null;
+    }
+
+    const updated = {
+      ...current,
+      ...body,
+      createdByUserId: current.createdByUserId ?? null,
+      createdByNameSnapshot: current.createdByNameSnapshot || UNKNOWN_CREATOR_LABEL,
+      updatedAt: new Date().toISOString(),
+    };
+    serverDbState.data.patients[idx] = updated;
+
+    if (advisorChanged) {
+      serverDbState.data.auditLogs.unshift({
+        id: crypto.randomUUID(),
+        organizationId: current.organizationId,
+        branchId: updated.primaryBranchId,
+        userId: auth.user.id,
+        action: 'PATIENT_ADVISOR_CHANGED',
+        entity: 'PATIENT',
+        entityId: id,
+        ipAddress: req.ip || '127.0.0.1',
+        userAgent: req.headers['user-agent'] || 'Backend API',
+        oldValues: { assignedAdvisorId: current.assignedAdvisorId || null },
+        newValues: { assignedAdvisorId: updated.assignedAdvisorId },
+        description: `Cambio de asesor comercial en ficha de ${updated.firstName} ${updated.lastName} sin alterar comisiones históricas.`,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    saveDatabaseState();
+    res.json({ patient: updated });
+  });
+
+  // =========================================================================
+  // ENDPOINTS MÓDULO: GESTIÓN FINANCIERA DEL PERSONAL, SALARIOS Y COMISIONES
+  // =========================================================================
+
+  app.get('/api/payroll/advisors', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    const orgId = auth.actor.role === 'SUPER_ADMIN'
+      ? String(req.query.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId)
+      : auth.actor.organizationId;
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    res.json({ advisors: listAdvisorEmployees(serverDbState.data, orgId, branchId) });
+  });
+
+  app.get('/api/payroll/overview', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    ensurePayrollIntegrity(serverDbState.data);
+
+    const orgId = auth.actor.role === 'SUPER_ADMIN'
+      ? String(req.query.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId)
+      : auth.actor.organizationId;
+
+    const canViewAllStaff = auth.actor.role === 'SUPER_ADMIN' || hasPermission(auth.actor, 'staff.view') || hasPermission(auth.actor, 'commissions.view_all');
+    const canViewOwn = hasPermission(auth.actor, 'commissions.view_own');
+
+    if (!canViewAllStaff && !canViewOwn) {
+      return res.status(403).json({
+        error: '403 Prohibido: No tiene autorización para consultar información financiera del personal.',
+      });
+    }
+
+    const ownEmp = (serverDbState.data.employees || []).find(
+      (e: any) => e.organizationId === orgId && e.userId === auth.user.id
+    );
+
+    const employees = (serverDbState.data.employees || []).filter((e: any) => {
+      if (e.organizationId !== orgId) return false;
+      if (!canViewAllStaff && canViewOwn) return ownEmp ? e.id === ownEmp.id : false;
+      return true;
+    });
+    const allowedEmpIds = new Set(employees.map((e: any) => e.id));
+
+    const canViewSalaries = auth.actor.role === 'SUPER_ADMIN' || hasPermission(auth.actor, 'salaries.view') || canViewOwn;
+    const salaries = canViewSalaries
+      ? (serverDbState.data.employeeSalaries || []).filter((s: any) => allowedEmpIds.has(s.employeeId))
+      : [];
+
+    const commissionRules = canViewAllStaff
+      ? (serverDbState.data.commissionRules || []).filter((r: any) => r.organizationId === orgId)
+      : [];
+
+    const generatedCommissions = (serverDbState.data.generatedCommissions || []).filter((c: any) =>
+      allowedEmpIds.has(c.employeeId)
+    );
+    const payrollSettlements = (serverDbState.data.payrollSettlements || []).filter((s: any) =>
+      allowedEmpIds.has(s.employeeId)
+    );
+    const settlementIds = new Set(payrollSettlements.map((s: any) => s.id));
+    const payrollSettlementItems = (serverDbState.data.payrollSettlementItems || []).filter((i: any) =>
+      settlementIds.has(i.settlementId)
+    );
+    const staffPayments = (serverDbState.data.staffPayments || []).filter((p: any) =>
+      allowedEmpIds.has(p.employeeId)
+    );
+
+    const metrics = computePayrollDashboardMetrics(serverDbState.data, {
+      organizationId: orgId,
+      employeeId: !canViewAllStaff && canViewOwn ? (ownEmp?.id || '__none__') : null,
+    });
+
+    res.json({
+      scope: canViewAllStaff ? 'ORGANIZATION' : 'OWN',
+      employees,
+      salaries,
+      commissionRules,
+      generatedCommissions,
+      payrollSettlements,
+      payrollSettlementItems,
+      staffPayments,
+      metrics,
+    });
+  });
+
+  app.post('/api/payroll/employees', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'staff.manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso staff.manage.' });
+    }
+    try {
+      const orgId = auth.actor.role === 'SUPER_ADMIN'
+        ? (req.body?.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId)
+        : auth.actor.organizationId;
+      const employee = createEmployeeRecord(
+        serverDbState.data,
+        { ...req.body, organizationId: orgId },
+        auth.user.id
+      );
+      if (req.body?.initialSalary && Number(req.body.initialSalary) > 0) {
+        if (!hasPermission(auth.actor, 'salaries.manage')) {
+          return res.status(403).json({ error: '403 Prohibido: No posee permiso salaries.manage.' });
+        }
+        upsertEmployeeSalaryRecord(
+          serverDbState.data,
+          {
+            employeeId: employee.id,
+            baseSalary: Number(req.body.initialSalary),
+            paymentFrequency: req.body.paymentFrequency || 'MENSUAL',
+            effectiveDate: employee.hireDate,
+            observations: 'Salario inicial al crear ficha de empleado',
+          },
+          auth.user.id
+        );
+      }
+      saveDatabaseState();
+      res.status(201).json({ employee });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.put('/api/payroll/employees/:id', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'staff.manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso staff.manage.' });
+    }
+    try {
+      const emp = (serverDbState.data.employees || []).find((e: any) => e.id === req.params.id);
+      if (!emp) return res.status(404).json({ error: 'Empleado no encontrado.' });
+      if (auth.actor.role !== 'SUPER_ADMIN' && emp.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación multiempresa.' });
+      }
+      const updated = updateEmployeeRecord(serverDbState.data, req.params.id, req.body || {}, auth.user.id);
+      saveDatabaseState();
+      res.json({ employee: updated });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.patch('/api/payroll/employees/:id/status', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'staff.manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso staff.manage.' });
+    }
+    try {
+      const updated = toggleEmployeeStatusRecord(serverDbState.data, req.params.id, req.body?.status, auth.user.id);
+      saveDatabaseState();
+      res.json({ employee: updated });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/payroll/salaries', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'salaries.manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso salaries.manage.' });
+    }
+    try {
+      const salary = upsertEmployeeSalaryRecord(serverDbState.data, req.body || {}, auth.user.id);
+      saveDatabaseState();
+      res.status(201).json({ salary });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/payroll/commission-rules', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'commissions.rules_manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso commissions.rules_manage.' });
+    }
+    try {
+      const orgId = auth.actor.role === 'SUPER_ADMIN'
+        ? (req.body?.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId)
+        : auth.actor.organizationId;
+      const rule = createCommissionRuleRecord(
+        serverDbState.data,
+        { ...req.body, organizationId: orgId },
+        auth.user.id
+      );
+      saveDatabaseState();
+      res.status(201).json({ rule });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.put('/api/payroll/commission-rules/:id', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'commissions.rules_manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso commissions.rules_manage.' });
+    }
+    try {
+      const rule = updateCommissionRuleRecord(serverDbState.data, req.params.id, req.body || {}, auth.user.id);
+      saveDatabaseState();
+      res.json({ rule });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.patch('/api/payroll/commission-rules/:id/status', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'commissions.rules_manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso commissions.rules_manage.' });
+    }
+    try {
+      const rule = updateCommissionRuleRecord(
+        serverDbState.data,
+        req.params.id,
+        { status: req.body?.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE' },
+        auth.user.id
+      );
+      saveDatabaseState();
+      res.json({ rule });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/payroll/commissions/evaluate', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.create') && !hasPermission(auth.actor, 'commissions.rules_manage')) {
+      return res.status(403).json({ error: '403 Prohibido: Permiso insuficiente para evaluar comisiones.' });
+    }
+    try {
+      const orgId = auth.actor.role === 'SUPER_ADMIN'
+        ? (req.body?.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId)
+        : auth.actor.organizationId;
+      const generated = evaluateCommissionsForEvent(serverDbState.data, {
+        ...req.body,
+        organizationId: orgId,
+        actorUserId: auth.user.id,
+      });
+      saveDatabaseState();
+      res.json({ generated });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/payroll/commissions/manual', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.create') && !hasPermission(auth.actor, 'commissions.rules_manage')) {
+      return res.status(403).json({ error: '403 Prohibido: Permiso insuficiente para bonos o comisiones manuales.' });
+    }
+    try {
+      const commission = createManualCommissionAdjustment(serverDbState.data, req.body || {}, auth.user.id);
+      saveDatabaseState();
+      res.status(201).json({ commission });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/payroll/settlements', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.create')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso payroll.create.' });
+    }
+    try {
+      const result = createPayrollSettlementRecord(serverDbState.data, req.body || {}, auth.user.id);
+      saveDatabaseState();
+      res.status(201).json(result);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/payroll/settlements/:id/submit', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.create')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso payroll.create.' });
+    }
+    try {
+      const settlement = submitSettlementForApprovalRecord(serverDbState.data, req.params.id, auth.user.id);
+      saveDatabaseState();
+      res.json({ settlement });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/payroll/settlements/:id/approve', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.approve')) {
+      return res.status(403).json({ error: '403 Prohibido: Solo usuarios con permiso payroll.approve pueden aprobar liquidaciones.' });
+    }
+    try {
+      const settlement = approvePayrollSettlementRecord(serverDbState.data, req.params.id, auth.user.id);
+      saveDatabaseState();
+      res.json({ settlement });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/payroll/settlements/:id/annul', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.approve') && !hasPermission(auth.actor, 'payroll.create')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso para anular liquidaciones.' });
+    }
+    try {
+      const settlement = annulPayrollSettlementRecord(
+        serverDbState.data,
+        req.params.id,
+        req.body?.reason || '',
+        auth.user.id
+      );
+      saveDatabaseState();
+      res.json({ settlement });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/payroll/payments', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.pay')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso payroll.pay.' });
+    }
+    try {
+      const canOverrideBalance = hasPermission(auth.actor, 'payroll.override_balance');
+      if (req.body?.overpaymentOverride && !canOverrideBalance) {
+        return res.status(403).json({
+          error: '403 Prohibido: No posee permiso payroll.override_balance para autorizar excedentes.',
+        });
+      }
+      const result = recordStaffPaymentRecord(
+        serverDbState.data,
+        {
+          ...req.body,
+          canOverrideBalance,
+          responsibleUserName: getUserDisplayName(auth.user),
+        },
+        auth.user.id
+      );
+      saveDatabaseState();
+      res.status(201).json(result);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/payroll/payments/:id/annul', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.pay') && !hasPermission(auth.actor, 'payroll.approve')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso para anular pagos al personal.' });
+    }
+    try {
+      const result = annulStaffPaymentRecord(
+        serverDbState.data,
+        req.params.id,
+        req.body?.reason || '',
+        auth.user.id
+      );
+      saveDatabaseState();
+      res.json(result);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
   });
 
   // Vite Integration: middleware mode

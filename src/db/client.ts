@@ -31,9 +31,9 @@ export function getDatabaseConfig(): DatabaseConfig {
 }
 
 export const DB_MIGRATION_META = {
-  version: '0000_init_schema',
-  appliedAt: '2026-09-21T08:30:00.000Z',
-  tablesCount: 16,
+  version: '202611180001_staff_payroll_and_patient_traceability',
+  appliedAt: '2026-11-18T00:00:00.000Z',
+  tablesCount: 28,
   dialects: ['PostgreSQL 16+', 'Neon Serverless', 'Supabase'],
   tables: [
     'organizations',
@@ -56,6 +56,13 @@ export const DB_MIGRATION_META = {
     'cash_registers',
     'cash_movements',
     'payments',
-    'audit_logs'
+    'audit_logs',
+    'employees',
+    'employee_salaries',
+    'commission_rules',
+    'generated_commissions',
+    'payroll_settlements',
+    'payroll_settlement_items',
+    'staff_payments',
   ],
 };

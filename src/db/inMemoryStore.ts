@@ -14,6 +14,35 @@ import {
   getUserEffectivePermissions,
   validateBackendAuthorization,
 } from '../security/rbacHierarchy.ts';
+import {
+  ensurePayrollIntegrity,
+  listAdvisorEmployees,
+  createEmployeeRecord,
+  updateEmployeeRecord,
+  toggleEmployeeStatusRecord,
+  getActiveSalaryForEmployee,
+  getSalaryHistoryForEmployee,
+  upsertEmployeeSalaryRecord,
+  createCommissionRuleRecord,
+  updateCommissionRuleRecord,
+  evaluateCommissionsForEvent,
+  createManualCommissionAdjustment,
+  reverseCommissionsForAnnulledPayment,
+  createPayrollSettlementRecord,
+  submitSettlementForApprovalRecord,
+  approvePayrollSettlementRecord,
+  annulPayrollSettlementRecord,
+  recordStaffPaymentRecord,
+  annulStaffPaymentRecord,
+  computePayrollDashboardMetrics,
+  getUserDisplayName,
+  UNKNOWN_CREATOR_LABEL,
+  StaffArea,
+  RemunerationModality,
+  PaymentFrequency,
+  CommissionTriggerType,
+  CommissionCalculationMode,
+} from './payrollEngine.ts';
 
 export interface BackendActorContext {
   userId: string;
@@ -129,6 +158,7 @@ class DatabaseStore {
           }
         });
       }
+      ensurePayrollIntegrity(this.data);
     } catch (e) {
       // Ignorar
     }
@@ -185,6 +215,7 @@ class DatabaseStore {
               }
             });
           }
+          ensurePayrollIntegrity(this.data);
           // Mantener consistente la organización activa con la lista actualizada
           const currentActiveId = this.data.organization?.id;
           const matched = this.organizationsList.find((o) => o.id === currentActiveId);
@@ -1006,11 +1037,18 @@ class DatabaseStore {
     return this.data.users.find((u) => u.id === id) || null;
   }
 
-  public getPatients(branchId?: string) {
+  public getPatients(branchId?: string, advisorId?: string | null) {
     const orgId = this.data.organization.id;
-    const orgPatients = this.data.patients.filter(p => p.organizationId === orgId);
-    if (!branchId) return orgPatients;
-    return orgPatients.filter(p => p.primaryBranchId === branchId);
+    let orgPatients = this.data.patients.filter((p) => p.organizationId === orgId);
+    if (branchId) {
+      orgPatients = orgPatients.filter((p) => p.primaryBranchId === branchId);
+    }
+    if (advisorId === 'UNASSIGNED') {
+      orgPatients = orgPatients.filter((p) => !p.assignedAdvisorId);
+    } else if (advisorId) {
+      orgPatients = orgPatients.filter((p) => p.assignedAdvisorId === advisorId);
+    }
+    return orgPatients;
   }
 
   public getDentalChairs(branchId?: string) {
@@ -2627,29 +2665,75 @@ class DatabaseStore {
   }
 
   // --- FASE 6: GESTIÓN DE PACIENTES (FICHA CLÍNICA ÚNICA) ---
-  public updatePatient(patientId: string, updates: Partial<(typeof this.data.patients)[0]>) {
+  public updatePatient(
+    patientId: string,
+    updates: Partial<(typeof this.data.patients)[0]>,
+    actorUserId?: string | null
+  ) {
     const idx = this.data.patients.findIndex((p) => p.id === patientId);
     if (idx === -1) return null;
 
     const old = { ...this.data.patients[idx] };
+    const effectiveActor = this.getEffectiveActor();
+    const resolvedActorId = actorUserId || effectiveActor?.userId || this.data.users[0]?.id || null;
+
+    // Regla de inmutabilidad absoluta: NUNCA sobrescribir usuario de creación ni su snapshot
+    const sanitizedUpdates: any = { ...updates };
+    delete sanitizedUpdates.createdByUserId;
+    delete sanitizedUpdates.createdByNameSnapshot;
+    delete sanitizedUpdates.id;
+    delete sanitizedUpdates.organizationId;
+
+    const advisorChanged =
+      sanitizedUpdates.assignedAdvisorId !== undefined &&
+      sanitizedUpdates.assignedAdvisorId !== old.assignedAdvisorId;
+
+    if (advisorChanged && effectiveActor && !hasPermission(effectiveActor, 'patients.assign_advisor')) {
+      throw new Error('403 Prohibido: No posee permiso para asignar o reasignar el asesor comercial del paciente.');
+    }
+
+    if (advisorChanged) {
+      sanitizedUpdates.assignedAdvisorId = sanitizedUpdates.assignedAdvisorId || null;
+      sanitizedUpdates.assignedAt = sanitizedUpdates.assignedAdvisorId ? new Date() : null;
+      sanitizedUpdates.assignedByUserId = sanitizedUpdates.assignedAdvisorId ? resolvedActorId : null;
+    }
+
     this.data.patients[idx] = {
       ...old,
-      ...updates,
+      ...sanitizedUpdates,
       updatedAt: new Date(),
     };
+
+    if (advisorChanged) {
+      this.data.auditLogs.unshift({
+        id: crypto.randomUUID(),
+        organizationId: this.data.organization.id,
+        branchId: this.data.patients[idx].primaryBranchId,
+        userId: resolvedActorId,
+        action: 'PATIENT_ADVISOR_CHANGED',
+        entity: 'PATIENT',
+        entityId: patientId,
+        ipAddress: '190.52.144.12',
+        userAgent: 'OdontoPro Web Client',
+        oldValues: { assignedAdvisorId: old.assignedAdvisorId || null },
+        newValues: { assignedAdvisorId: this.data.patients[idx].assignedAdvisorId },
+        description: `Cambio de Asesor Designado en paciente ${this.data.patients[idx].firstName} ${this.data.patients[idx].lastName}. No afecta comisiones históricas previas.`,
+        createdAt: new Date(),
+      });
+    }
 
     this.data.auditLogs.unshift({
       id: crypto.randomUUID(),
       organizationId: this.data.organization.id,
       branchId: this.data.patients[idx].primaryBranchId,
-      userId: this.data.users[0]?.id || null,
+      userId: resolvedActorId,
       action: 'UPDATE',
       entity: 'PATIENT',
       entityId: patientId,
       ipAddress: '190.52.144.12',
       userAgent: 'OdontoPro Web Client',
       oldValues: old,
-      newValues: updates,
+      newValues: sanitizedUpdates,
       description: `Actualización de Ficha Clínica del paciente ${this.data.patients[idx].firstName} ${this.data.patients[idx].lastName} (C.I. ${this.data.patients[idx].documentNumber})`,
       createdAt: new Date(),
     });
@@ -2717,7 +2801,19 @@ class DatabaseStore {
     modality?: 'PARTICULAR' | 'PLAN_SEGURO';
     insurancePlanId?: string | null;
     insuranceMemberNumber?: string | null;
+    assignedAdvisorId?: string | null;
+    actorUserId?: string | null;
   }) {
+    const effectiveActor = this.getEffectiveActor();
+    const creatorUserId = newPatient.actorUserId || effectiveActor?.userId || this.data.users[0]?.id || null;
+    const creatorUser = creatorUserId ? this.data.users.find((u) => u.id === creatorUserId) : null;
+    const creatorNameSnapshot = creatorUser ? getUserDisplayName(creatorUser) : UNKNOWN_CREATOR_LABEL;
+
+    let assignedAdvisorId: string | null = newPatient.assignedAdvisorId || null;
+    if (assignedAdvisorId && effectiveActor && !hasPermission(effectiveActor, 'patients.assign_advisor')) {
+      throw new Error('403 Prohibido: No posee permiso para designar un asesor comercial al paciente.');
+    }
+
     const id = crypto.randomUUID();
     const patientRecord = {
       id,
@@ -2745,6 +2841,11 @@ class DatabaseStore {
       modality: newPatient.modality || 'PARTICULAR',
       insurancePlanId: newPatient.insurancePlanId || null,
       insuranceMemberNumber: newPatient.insuranceMemberNumber || null,
+      assignedAdvisorId,
+      assignedAt: assignedAdvisorId ? new Date() : null,
+      assignedByUserId: assignedAdvisorId ? creatorUserId : null,
+      createdByUserId: creatorUserId,
+      createdByNameSnapshot: creatorNameSnapshot,
       status: 'ACTIVE',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -2758,20 +2859,38 @@ class DatabaseStore {
       lastVisitDate: new Date().toISOString().split('T')[0],
     });
 
+    // Evaluar reglas comerciales de captación de paciente si existe asesor asignado
+    if (assignedAdvisorId) {
+      evaluateCommissionsForEvent(this.data, {
+        eventType: 'PATIENT_ACQUISITION',
+        organizationId: this.data.organization.id,
+        branchId: newPatient.primaryBranchId,
+        patientId: id,
+        amount: 0,
+        actorUserId: creatorUserId,
+      });
+    }
+
     // Auditoría
     this.data.auditLogs.unshift({
       id: crypto.randomUUID(),
       organizationId: this.data.organization.id,
       branchId: newPatient.primaryBranchId,
-      userId: this.data.users[0]?.id,
+      userId: creatorUserId,
       action: 'CREATE',
       entity: 'PATIENT',
       entityId: id,
       ipAddress: '190.52.144.12',
       userAgent: 'OdontoPro Web Client',
       oldValues: null,
-      newValues: { firstName: newPatient.firstName, lastName: newPatient.lastName, doc: newPatient.documentNumber },
-      description: `Registro de nuevo paciente ${newPatient.firstName} ${newPatient.lastName} (CI: ${newPatient.documentNumber})`,
+      newValues: {
+        firstName: newPatient.firstName,
+        lastName: newPatient.lastName,
+        doc: newPatient.documentNumber,
+        createdByUserId: creatorUserId,
+        assignedAdvisorId,
+      },
+      description: `Registro de nuevo paciente ${newPatient.firstName} ${newPatient.lastName} (CI: ${newPatient.documentNumber}) por ${creatorNameSnapshot}`,
       createdAt: new Date(),
     });
 
@@ -3341,6 +3460,23 @@ class DatabaseStore {
       createdAt: new Date(),
     });
 
+    if (status === 'COMPLETADO') {
+      const linkedQuote = treat.quoteId
+        ? (this.data.quotes || []).find((q) => q.id === treat.quoteId)
+        : null;
+      evaluateCommissionsForEvent(this.data, {
+        eventType: 'TREATMENT_COMPLETED',
+        organizationId: this.data.organization.id,
+        branchId: treat.branchId,
+        patientId: treat.patientId,
+        quoteId: treat.quoteId || null,
+        treatmentId: treat.id,
+        odontologistUserId: linkedQuote?.odontologistId || actorUserId || null,
+        amount: treat.totalAmount,
+        actorUserId: actorUserId || this.data.users[0]?.id || null,
+      });
+    }
+
     this.notify();
     return treat;
   }
@@ -3429,6 +3565,23 @@ class DatabaseStore {
       paymentRecord.cashMovementId = movementId;
     }
 
+    // Evaluar reglas de comisión asociadas a cobro efectivo
+    const linkedQuote = treat.quoteId
+      ? (this.data.quotes || []).find((q) => q.id === treat.quoteId)
+      : null;
+    evaluateCommissionsForEvent(this.data, {
+      eventType: 'PAYMENT_COLLECTED',
+      organizationId: this.data.organization.id,
+      branchId: treat.branchId,
+      patientId: treat.patientId,
+      quoteId: treat.quoteId || null,
+      treatmentId: treat.id,
+      paymentId: paymentRecord.id,
+      odontologistUserId: linkedQuote?.odontologistId || null,
+      amount,
+      actorUserId: actorUserId || this.data.users[0]?.id || null,
+    });
+
     this.notify();
     return treat;
   }
@@ -3491,7 +3644,15 @@ class DatabaseStore {
       this.data.cashMovements.unshift(counterMovement);
     }
 
-    // 3. Bitácora forense de auditoría
+    // 3. Reversión automática de comisiones pendientes asociadas al pago anulado
+    reverseCommissionsForAnnulledPayment(
+      this.data,
+      params.paymentId,
+      params.reason,
+      params.actorUserId
+    );
+
+    // 4. Bitácora forense de auditoría
     this.data.auditLogs.unshift({
       id: crypto.randomUUID(),
       organizationId: this.data.organization.id,
@@ -4575,11 +4736,13 @@ class DatabaseStore {
       if (!this.data.payments) {
         this.data.payments = [];
       }
+      const payId = crypto.randomUUID();
+      const patientIdResolved = params.patientId || this.data.patients[0]?.id;
       this.data.payments.unshift({
-        id: crypto.randomUUID(),
+        id: payId,
         organizationId: this.data.organization.id,
         branchId: register.branchId,
-        patientId: params.patientId || this.data.patients[0]?.id,
+        patientId: patientIdResolved,
         treatmentId: params.treatmentId || null,
         appointmentId: params.appointmentId || null,
         cashMovementId: id,
@@ -4592,6 +4755,27 @@ class DatabaseStore {
         receivedBy: params.actorUserId,
         createdAt: new Date(),
       });
+
+      if (params.movementType === 'INGRESO' && params.amount > 0) {
+        const treat = params.treatmentId
+          ? (this.data.treatments || []).find((t) => t.id === params.treatmentId)
+          : null;
+        const linkedQuote = treat?.quoteId
+          ? (this.data.quotes || []).find((q) => q.id === treat.quoteId)
+          : null;
+        evaluateCommissionsForEvent(this.data, {
+          eventType: 'PAYMENT_COLLECTED',
+          organizationId: this.data.organization.id,
+          branchId: register.branchId,
+          patientId: patientIdResolved,
+          quoteId: treat?.quoteId || null,
+          treatmentId: params.treatmentId || null,
+          paymentId: payId,
+          odontologistUserId: linkedQuote?.odontologistId || null,
+          amount: params.amount,
+          actorUserId: params.actorUserId,
+        });
+      }
     }
 
     this.data.auditLogs.unshift({
@@ -4677,6 +4861,401 @@ class DatabaseStore {
 
     this.notify();
     return register;
+  }
+
+  // ============================================================================
+  // FASE 13: GESTIÓN FINANCIERA DEL PERSONAL, SALARIOS, COMISIONES Y PAGOS
+  // ============================================================================
+
+  public getEmployeeLinkedToUser(userId?: string | null) {
+    if (!userId) return null;
+    ensurePayrollIntegrity(this.data);
+    const orgId = this.data.organization?.id;
+    return (this.data.employees || []).find(
+      (e: any) => e.organizationId === orgId && e.userId === userId
+    ) || null;
+  }
+
+  public getEmployees(filters?: { branchId?: string | null; area?: StaffArea | 'ALL'; status?: 'ACTIVE' | 'INACTIVE' | 'ALL'; search?: string }) {
+    ensurePayrollIntegrity(this.data);
+    const orgId = this.data.organization?.id;
+    let list = (this.data.employees || []).filter((e: any) => e.organizationId === orgId);
+    if (filters?.branchId) {
+      list = list.filter((e: any) => e.branchId === filters.branchId || !e.branchId);
+    }
+    if (filters?.area && filters.area !== 'ALL') {
+      list = list.filter((e: any) => e.area === filters.area);
+    }
+    if (filters?.status && filters.status !== 'ALL') {
+      list = list.filter((e: any) => e.status === filters.status);
+    }
+    if (filters?.search?.trim()) {
+      const q = filters.search.trim().toLowerCase();
+      list = list.filter(
+        (e: any) =>
+          `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
+          (e.documentNumber || '').toLowerCase().includes(q) ||
+          (e.employeeCode || '').toLowerCase().includes(q) ||
+          (e.position || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }
+
+  public getAdvisorEmployees(branchId?: string | null) {
+    return listAdvisorEmployees(this.data, this.data.organization?.id, branchId);
+  }
+
+  public createEmployee(payload: {
+    branchId?: string | null;
+    userId?: string | null;
+    employeeCode?: string;
+    firstName: string;
+    lastName: string;
+    documentType?: string;
+    documentNumber: string;
+    phone?: string | null;
+    email?: string | null;
+    area: StaffArea;
+    position: string;
+    hireDate?: string;
+    status?: 'ACTIVE' | 'INACTIVE';
+    remunerationModality: RemunerationModality;
+    isAdvisor?: boolean;
+    observations?: string | null;
+    initialSalary?: number | null;
+    paymentFrequency?: PaymentFrequency;
+    actorUserId?: string | null;
+  }) {
+    const actor = this.getEffectiveActor();
+    if (actor && !hasPermission(actor, 'staff.manage')) {
+      throw new Error('403 Prohibido: No posee autorización para registrar personal.');
+    }
+    const resolvedActorId = payload.actorUserId || actor?.userId || this.data.users[0]?.id || null;
+    const created = createEmployeeRecord(this.data, { ...payload, organizationId: this.data.organization.id }, resolvedActorId);
+    if (payload.initialSalary && payload.initialSalary > 0) {
+      upsertEmployeeSalaryRecord(
+        this.data,
+        {
+          employeeId: created.id,
+          baseSalary: payload.initialSalary,
+          paymentFrequency: payload.paymentFrequency || 'MENSUAL',
+          effectiveDate: created.hireDate,
+          observations: 'Salario inicial registrado al dar de alta al colaborador',
+        },
+        resolvedActorId
+      );
+    }
+    this.notify();
+    return created;
+  }
+
+  public updateEmployee(employeeId: string, updates: any, actorUserId?: string | null) {
+    const actor = this.getEffectiveActor();
+    if (actor && !hasPermission(actor, 'staff.manage')) {
+      throw new Error('403 Prohibido: No posee autorización para modificar fichas de personal.');
+    }
+    const resolvedActorId = actorUserId || actor?.userId || this.data.users[0]?.id || null;
+    const updated = updateEmployeeRecord(this.data, employeeId, updates, resolvedActorId);
+    this.notify();
+    return updated;
+  }
+
+  public toggleEmployeeStatus(employeeId: string, status?: 'ACTIVE' | 'INACTIVE', actorUserId?: string | null) {
+    const actor = this.getEffectiveActor();
+    if (actor && !hasPermission(actor, 'staff.manage')) {
+      throw new Error('403 Prohibido: No posee autorización para cambiar el estado del personal.');
+    }
+    const resolvedActorId = actorUserId || actor?.userId || this.data.users[0]?.id || null;
+    const updated = toggleEmployeeStatusRecord(this.data, employeeId, status, resolvedActorId);
+    this.notify();
+    return updated;
+  }
+
+  public getEmployeeSalaries(employeeId?: string) {
+    ensurePayrollIntegrity(this.data);
+    const orgId = this.data.organization?.id;
+    if (employeeId) {
+      return getSalaryHistoryForEmployee(this.data, employeeId);
+    }
+    return (this.data.employeeSalaries || []).filter((s: any) => s.organizationId === orgId);
+  }
+
+  public getActiveSalary(employeeId: string) {
+    return getActiveSalaryForEmployee(this.data, employeeId);
+  }
+
+  public registerEmployeeSalary(payload: {
+    employeeId: string;
+    baseSalary: number;
+    paymentFrequency: PaymentFrequency;
+    effectiveDate: string;
+    observations?: string | null;
+    actorUserId?: string | null;
+  }) {
+    const actor = this.getEffectiveActor();
+    if (actor && !hasPermission(actor, 'salaries.manage')) {
+      throw new Error('403 Prohibido: No posee autorización para registrar o actualizar salarios.');
+    }
+    const resolvedActorId = payload.actorUserId || actor?.userId || this.data.users[0]?.id || null;
+    const salary = upsertEmployeeSalaryRecord(this.data, payload, resolvedActorId);
+    this.notify();
+    return salary;
+  }
+
+  public getCommissionRules(filters?: { area?: StaffArea | 'ALL'; status?: 'ACTIVE' | 'INACTIVE' | 'ALL' }) {
+    ensurePayrollIntegrity(this.data);
+    const orgId = this.data.organization?.id;
+    let rules = (this.data.commissionRules || []).filter((r: any) => r.organizationId === orgId);
+    if (filters?.area && filters.area !== 'ALL') {
+      rules = rules.filter((r: any) => r.area === filters.area);
+    }
+    if (filters?.status && filters.status !== 'ALL') {
+      rules = rules.filter((r: any) => r.status === filters.status);
+    }
+    return rules;
+  }
+
+  public createCommissionRule(payload: {
+    branchId?: string | null;
+    name: string;
+    description?: string | null;
+    area: StaffArea;
+    triggerType: CommissionTriggerType;
+    calculationMode: CommissionCalculationMode;
+    ratePercentage?: number | null;
+    fixedAmount?: number | null;
+    minThresholdAmount?: number | null;
+    serviceId?: string | null;
+    targetEmployeeId?: string | null;
+    requiresCollectedPayment?: boolean;
+    requiresCompletedTreatment?: boolean;
+    effectiveFrom?: string | null;
+    effectiveTo?: string | null;
+    actorUserId?: string | null;
+  }) {
+    const actor = this.getEffectiveActor();
+    if (actor && !hasPermission(actor, 'commissions.rules_manage')) {
+      throw new Error('403 Prohibido: No posee autorización para configurar reglas de comisiones.');
+    }
+    const resolvedActorId = payload.actorUserId || actor?.userId || this.data.users[0]?.id || null;
+    const rule = createCommissionRuleRecord(this.data, { ...payload, organizationId: this.data.organization.id }, resolvedActorId);
+    this.notify();
+    return rule;
+  }
+
+  public updateCommissionRule(ruleId: string, updates: any, actorUserId?: string | null) {
+    const actor = this.getEffectiveActor();
+    if (actor && !hasPermission(actor, 'commissions.rules_manage')) {
+      throw new Error('403 Prohibido: No posee autorización para modificar reglas de comisiones.');
+    }
+    const resolvedActorId = actorUserId || actor?.userId || this.data.users[0]?.id || null;
+    const updated = updateCommissionRuleRecord(this.data, ruleId, updates, resolvedActorId);
+    this.notify();
+    return updated;
+  }
+
+  public getGeneratedCommissions(filters?: {
+    employeeId?: string | null;
+    area?: StaffArea | 'ALL';
+    status?: string | 'ALL';
+    periodYear?: number | 'ALL';
+    periodMonth?: number | 'ALL';
+  }) {
+    ensurePayrollIntegrity(this.data);
+    const orgId = this.data.organization?.id;
+    let list = (this.data.generatedCommissions || []).filter((c: any) => c.organizationId === orgId);
+    if (filters?.employeeId) {
+      list = list.filter((c: any) => c.employeeId === filters.employeeId);
+    }
+    if (filters?.area && filters.area !== 'ALL') {
+      list = list.filter((c: any) => c.area === filters.area);
+    }
+    if (filters?.status && filters.status !== 'ALL') {
+      list = list.filter((c: any) => c.status === filters.status);
+    }
+    if (filters?.periodYear && filters.periodYear !== 'ALL') {
+      list = list.filter((c: any) => c.periodYear === filters.periodYear);
+    }
+    if (filters?.periodMonth && filters.periodMonth !== 'ALL') {
+      list = list.filter((c: any) => c.periodMonth === filters.periodMonth);
+    }
+    return list;
+  }
+
+  public createManualCommission(payload: {
+    employeeId: string;
+    concept: string;
+    commissionAmount: number;
+    periodYear?: number;
+    periodMonth?: number;
+    notes?: string | null;
+    ruleId?: string | null;
+    actorUserId?: string | null;
+  }) {
+    const actor = this.getEffectiveActor();
+    if (actor && !hasPermission(actor, 'payroll.create') && !hasPermission(actor, 'commissions.rules_manage')) {
+      throw new Error('403 Prohibido: No posee autorización para asignar bonos o comisiones manuales.');
+    }
+    const resolvedActorId = payload.actorUserId || actor?.userId || this.data.users[0]?.id || null;
+    const rec = createManualCommissionAdjustment(this.data, payload, resolvedActorId);
+    this.notify();
+    return rec;
+  }
+
+  public getPayrollSettlements(filters?: {
+    employeeId?: string | null;
+    status?: string | 'ALL';
+    periodYear?: number | 'ALL';
+    periodMonth?: number | 'ALL';
+    branchId?: string | null;
+    area?: StaffArea | 'ALL';
+  }) {
+    ensurePayrollIntegrity(this.data);
+    const orgId = this.data.organization?.id;
+    const employees = this.data.employees || [];
+    let list = (this.data.payrollSettlements || []).filter((s: any) => s.organizationId === orgId);
+    if (filters?.employeeId) {
+      list = list.filter((s: any) => s.employeeId === filters.employeeId);
+    }
+    if (filters?.status && filters.status !== 'ALL') {
+      list = list.filter((s: any) => s.status === filters.status);
+    }
+    if (filters?.periodYear && filters.periodYear !== 'ALL') {
+      list = list.filter((s: any) => s.periodYear === filters.periodYear);
+    }
+    if (filters?.periodMonth && filters.periodMonth !== 'ALL') {
+      list = list.filter((s: any) => s.periodMonth === filters.periodMonth);
+    }
+    if (filters?.branchId) {
+      list = list.filter((s: any) => s.branchId === filters.branchId);
+    }
+    if (filters?.area && filters.area !== 'ALL') {
+      list = list.filter((s: any) => {
+        const emp = employees.find((e: any) => e.id === s.employeeId);
+        return emp?.area === filters.area;
+      });
+    }
+    return list;
+  }
+
+  public getPayrollSettlementItems(settlementId: string) {
+    ensurePayrollIntegrity(this.data);
+    return (this.data.payrollSettlementItems || []).filter((i: any) => i.settlementId === settlementId);
+  }
+
+  public createPayrollSettlement(payload: Parameters<typeof createPayrollSettlementRecord>[1] & { actorUserId?: string | null }) {
+    const actor = this.getEffectiveActor();
+    if (actor && !hasPermission(actor, 'payroll.create')) {
+      throw new Error('403 Prohibido: No posee autorización para generar liquidaciones de personal.');
+    }
+    const resolvedActorId = payload.actorUserId || actor?.userId || this.data.users[0]?.id || null;
+    const res = createPayrollSettlementRecord(this.data, payload, resolvedActorId);
+    this.notify();
+    return res;
+  }
+
+  public submitPayrollSettlement(settlementId: string, actorUserId?: string | null) {
+    const actor = this.getEffectiveActor();
+    if (actor && !hasPermission(actor, 'payroll.create')) {
+      throw new Error('403 Prohibido: No posee autorización para enviar liquidaciones a aprobación.');
+    }
+    const resolvedActorId = actorUserId || actor?.userId || this.data.users[0]?.id || null;
+    const res = submitSettlementForApprovalRecord(this.data, settlementId, resolvedActorId);
+    this.notify();
+    return res;
+  }
+
+  public approvePayrollSettlement(settlementId: string, actorUserId?: string | null) {
+    const actor = this.getEffectiveActor();
+    if (actor && !hasPermission(actor, 'payroll.approve')) {
+      throw new Error('403 Prohibido: No posee autorización para aprobar liquidaciones de haberes.');
+    }
+    const resolvedActorId = actorUserId || actor?.userId || this.data.users[0]?.id || null;
+    const res = approvePayrollSettlementRecord(this.data, settlementId, resolvedActorId);
+    this.notify();
+    return res;
+  }
+
+  public annulPayrollSettlement(settlementId: string, reason: string, actorUserId?: string | null) {
+    const actor = this.getEffectiveActor();
+    if (actor && !hasPermission(actor, 'payroll.approve') && !hasPermission(actor, 'payroll.create')) {
+      throw new Error('403 Prohibido: No posee autorización para anular liquidaciones.');
+    }
+    const resolvedActorId = actorUserId || actor?.userId || this.data.users[0]?.id || null;
+    const res = annulPayrollSettlementRecord(this.data, settlementId, reason, resolvedActorId);
+    this.notify();
+    return res;
+  }
+
+  public getStaffPayments(filters?: { employeeId?: string | null; settlementId?: string | null; status?: string | 'ALL' }) {
+    ensurePayrollIntegrity(this.data);
+    const orgId = this.data.organization?.id;
+    let list = (this.data.staffPayments || []).filter((p: any) => p.organizationId === orgId);
+    if (filters?.employeeId) {
+      list = list.filter((p: any) => p.employeeId === filters.employeeId);
+    }
+    if (filters?.settlementId) {
+      list = list.filter((p: any) => p.settlementId === filters.settlementId);
+    }
+    if (filters?.status && filters.status !== 'ALL') {
+      list = list.filter((p: any) => p.status === filters.status);
+    }
+    return list;
+  }
+
+  public recordStaffPayment(payload: {
+    settlementId: string;
+    amount: number;
+    paymentMethod: string;
+    paymentDate?: string;
+    referenceNumber?: string | null;
+    notes?: string | null;
+    overpaymentOverride?: boolean;
+    overpaymentOverrideReason?: string | null;
+    actorUserId?: string | null;
+  }) {
+    const actor = this.getEffectiveActor();
+    if (actor && !hasPermission(actor, 'payroll.pay')) {
+      throw new Error('403 Prohibido: No posee autorización para registrar pagos al personal.');
+    }
+    const resolvedActorId = payload.actorUserId || actor?.userId || this.data.users[0]?.id || null;
+    const canOverrideBalance = actor ? hasPermission(actor, 'payroll.override_balance') : true;
+    const res = recordStaffPaymentRecord(
+      this.data,
+      {
+        ...payload,
+        canOverrideBalance,
+      },
+      resolvedActorId
+    );
+    this.notify();
+    return res;
+  }
+
+  public annulStaffPayment(paymentId: string, reason: string, actorUserId?: string | null) {
+    const actor = this.getEffectiveActor();
+    if (actor && !hasPermission(actor, 'payroll.pay') && !hasPermission(actor, 'payroll.approve')) {
+      throw new Error('403 Prohibido: No posee autorización para anular pagos al personal.');
+    }
+    const resolvedActorId = actorUserId || actor?.userId || this.data.users[0]?.id || null;
+    const res = annulStaffPaymentRecord(this.data, paymentId, reason, resolvedActorId);
+    this.notify();
+    return res;
+  }
+
+  public getPayrollDashboardMetrics(filters?: {
+    branchId?: string | null;
+    area?: StaffArea | 'ALL';
+    employeeId?: string | null;
+    periodYear?: number | 'ALL';
+    periodMonth?: number | 'ALL';
+    status?: string | 'ALL';
+  }) {
+    return computePayrollDashboardMetrics(this.data, {
+      organizationId: this.data.organization?.id,
+      ...filters,
+    });
   }
 }
 

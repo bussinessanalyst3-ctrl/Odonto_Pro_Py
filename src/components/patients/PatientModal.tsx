@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserCheck, HeartPulse, AlertTriangle, ShieldCheck, MapPin, Phone, Mail, Building2 } from 'lucide-react';
+import { X, UserCheck, HeartPulse, AlertTriangle, ShieldCheck, Briefcase, Lock } from 'lucide-react';
 import { PARAGUAY_DEPARTMENTS } from '../../db/seeds/paraguay-catalogs.ts';
 import { dbStore } from '../../db/inMemoryStore.ts';
+import { hasPermission } from '../../security/rbacHierarchy.ts';
+import { UNKNOWN_CREATOR_LABEL } from '../../db/payrollEngine.ts';
 
 interface PatientModalProps {
   isOpen: boolean;
@@ -40,6 +42,22 @@ export const PatientModal: React.FC<PatientModalProps> = ({
   const [modality, setModality] = useState<'PARTICULAR' | 'PLAN_SEGURO'>('PARTICULAR');
   const [insurancePlanId, setInsurancePlanId] = useState('');
   const [insuranceMemberNumber, setInsuranceMemberNumber] = useState('');
+  const [assignedAdvisorId, setAssignedAdvisorId] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const actor = dbStore.getBackendActorContext();
+  const canAssignAdvisor = !actor || hasPermission(actor, 'patients.assign_advisor');
+  const currentActorUser = actor?.userId ? dbStore.findUserById(actor.userId) : snapshot.users?.[0];
+  const currentActorDisplay = currentActorUser
+    ? `${currentActorUser.firstName || ''} ${currentActorUser.lastName || ''}`.trim() || currentActorUser.email
+    : 'Usuario en sesión';
+
+  const activeAdvisors = dbStore.getAdvisorEmployees();
+  const allEmployees = dbStore.getEmployees({ status: 'ALL' });
+  const assignedHistoricalEmp =
+    patientToEdit?.assignedAdvisorId && !activeAdvisors.some((a) => a.id === patientToEdit.assignedAdvisorId)
+      ? allEmployees.find((e) => e.id === patientToEdit.assignedAdvisorId)
+      : null;
 
   const allInsurancePlans = dbStore.getInsurancePlans(true);
   const availablePlans = allInsurancePlans.filter(
@@ -71,6 +89,8 @@ export const PatientModal: React.FC<PatientModalProps> = ({
       setModality(patientToEdit.modality === 'PLAN_SEGURO' ? 'PLAN_SEGURO' : 'PARTICULAR');
       setInsurancePlanId(patientToEdit.insurancePlanId || (availablePlans[0]?.id || ''));
       setInsuranceMemberNumber(patientToEdit.insuranceMemberNumber || '');
+      setAssignedAdvisorId(patientToEdit.assignedAdvisorId || '');
+      setFormError(null);
     } else {
       setDocumentType('CI');
       setDocumentNumber('');
@@ -95,6 +115,8 @@ export const PatientModal: React.FC<PatientModalProps> = ({
       setModality('PARTICULAR');
       setInsurancePlanId(availablePlans[0]?.id || '');
       setInsuranceMemberNumber('');
+      setAssignedAdvisorId('');
+      setFormError(null);
     }
   }, [patientToEdit, isOpen]);
 
@@ -105,56 +127,67 @@ export const PatientModal: React.FC<PatientModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
 
     if (!documentNumber || !firstName || !lastName || !phone) {
-      alert('Por favor complete los campos obligatorios (*).');
+      setFormError('Por favor complete todos los campos obligatorios (*).');
       return;
     }
 
-    if (patientToEdit) {
-      dbStore.updatePatient(patientToEdit.id, {
-        documentType,
-        documentNumber,
-        firstName,
-        lastName,
-        birthDate,
-        gender,
-        bloodType,
-        phone,
-        whatsapp,
-        email: email || `${firstName.toLowerCase().replace(/\s+/g, '')}@gmail.com`,
-        department,
-        city,
-        neighborhood,
-        address,
-        emergencyContactName: emergencyName,
-        emergencyContactPhone: emergencyPhone,
-        allergies,
-        medicalConditions,
-        medications,
-        primaryBranchId,
-        modality,
-        insurancePlanId: modality === 'PLAN_SEGURO' ? (insurancePlanId || null) : null,
-        insuranceMemberNumber: modality === 'PLAN_SEGURO' ? (insuranceMemberNumber.trim() || null) : null,
-      });
-    } else {
-      dbStore.addPatient({
-        documentType,
-        documentNumber,
-        firstName,
-        lastName,
-        phone,
-        primaryBranchId: primaryBranchId || branches[0]?.id,
-        department,
-        city,
-        allergies,
-        modality,
-        insurancePlanId: modality === 'PLAN_SEGURO' ? (insurancePlanId || null) : null,
-        insuranceMemberNumber: modality === 'PLAN_SEGURO' ? (insuranceMemberNumber.trim() || null) : null,
-      });
-    }
+    try {
+      if (patientToEdit) {
+        const updatePayload: any = {
+          documentType,
+          documentNumber,
+          firstName,
+          lastName,
+          birthDate,
+          gender,
+          bloodType,
+          phone,
+          whatsapp,
+          email: email || `${firstName.toLowerCase().replace(/\s+/g, '')}@gmail.com`,
+          department,
+          city,
+          neighborhood,
+          address,
+          emergencyContactName: emergencyName,
+          emergencyContactPhone: emergencyPhone,
+          allergies,
+          medicalConditions,
+          medications,
+          primaryBranchId,
+          modality,
+          insurancePlanId: modality === 'PLAN_SEGURO' ? (insurancePlanId || null) : null,
+          insuranceMemberNumber: modality === 'PLAN_SEGURO' ? (insuranceMemberNumber.trim() || null) : null,
+        };
+        if (canAssignAdvisor) {
+          updatePayload.assignedAdvisorId = assignedAdvisorId || null;
+        }
+        dbStore.updatePatient(patientToEdit.id, updatePayload, actor?.userId);
+      } else {
+        dbStore.addPatient({
+          documentType,
+          documentNumber,
+          firstName,
+          lastName,
+          phone,
+          primaryBranchId: primaryBranchId || branches[0]?.id,
+          department,
+          city,
+          allergies,
+          modality,
+          insurancePlanId: modality === 'PLAN_SEGURO' ? (insurancePlanId || null) : null,
+          insuranceMemberNumber: modality === 'PLAN_SEGURO' ? (insuranceMemberNumber.trim() || null) : null,
+          assignedAdvisorId: canAssignAdvisor ? (assignedAdvisorId || null) : null,
+          actorUserId: actor?.userId || null,
+        });
+      }
 
-    onClose();
+      onClose();
+    } catch (err: any) {
+      setFormError(err.message || 'No se pudo guardar la ficha del paciente.');
+    }
   };
 
   return (
@@ -543,6 +576,71 @@ export const PatientModal: React.FC<PatientModalProps> = ({
             )}
           </div>
 
+          {/* Trazabilidad Comercial & Origen de Registro */}
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5 uppercase tracking-wide">
+                <Briefcase className="h-4 w-4 text-teal-600" />
+                <span>Trazabilidad Comercial & Origen del Registro</span>
+              </span>
+              <span className="text-[11px] font-medium text-slate-500">
+                Campos independientes entre sí
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Asesor Designado (Comercial)
+                </label>
+                <select
+                  value={assignedAdvisorId}
+                  onChange={(e) => setAssignedAdvisorId(e.target.value)}
+                  disabled={!canAssignAdvisor}
+                  className="w-full text-xs bg-white border border-slate-300 rounded-xl px-3 py-2.5 font-medium text-slate-900 focus:ring-2 focus:ring-teal-500 min-h-[42px] disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                >
+                  <option value="">Sin asesor designado</option>
+                  {activeAdvisors.map((adv) => (
+                    <option key={adv.id} value={adv.id}>
+                      {adv.firstName} {adv.lastName} — {adv.position}
+                    </option>
+                  ))}
+                  {assignedHistoricalEmp && (
+                    <option value={assignedHistoricalEmp.id}>
+                      {assignedHistoricalEmp.firstName} {assignedHistoricalEmp.lastName} (Inactivo)
+                    </option>
+                  )}
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  {canAssignAdvisor
+                    ? 'Determina la cartera y comisiones comerciales futuras sin alterar liquidaciones previas.'
+                    : 'Solo lectura: su rol no posee permiso para reasignar asesores.'}
+                </p>
+              </div>
+
+              <div>
+                <label className="flex items-center gap-1 text-xs font-semibold text-slate-700 mb-1">
+                  <Lock className="h-3 w-3 text-slate-400" />
+                  <span>Usuario de Creación (Inmutable)</span>
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  disabled
+                  value={
+                    patientToEdit
+                      ? (patientToEdit.createdByNameSnapshot || UNKNOWN_CREATOR_LABEL)
+                      : `${currentActorDisplay} (Automático al guardar)`
+                  }
+                  className="w-full text-xs bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5 font-medium text-slate-600 cursor-not-allowed min-h-[42px]"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Se captura automáticamente en el alta y no puede modificarse ni copiarse como asesor.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Primary branch */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -560,6 +658,12 @@ export const PatientModal: React.FC<PatientModalProps> = ({
               ))}
             </select>
           </div>
+
+          {formError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-medium text-rose-800">
+              {formError}
+            </div>
+          )}
 
           {/* Footer buttons */}
           <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-3 border-t border-slate-100">

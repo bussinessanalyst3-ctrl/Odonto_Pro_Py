@@ -28,7 +28,8 @@ import {
   Settings,
   HelpCircle,
   Menu,
-  X
+  X,
+  Briefcase
 } from 'lucide-react';
 import { useAuth } from '../auth/authContext.tsx';
 import { useBranding } from '../branding/BrandingContext.tsx';
@@ -157,6 +158,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Caja & Facturación',
           icon: DollarSign,
           allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'RECEPCION', 'CAJA'],
+        },
+        {
+          id: 'staff-payroll',
+          label: 'Finanzas del Personal',
+          icon: Briefcase,
+          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR', 'VENDEDOR', 'ODONTOLOGO', 'CAJA'],
         },
       ],
     },
