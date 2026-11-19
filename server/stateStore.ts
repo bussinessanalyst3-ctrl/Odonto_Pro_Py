@@ -31,11 +31,26 @@ if (!fs.existsSync(DATA_DIR)) {
 let pgPool: pg.Pool | null = null;
 if (process.env.DATABASE_URL) {
   try {
+    let dbUrl = process.env.DATABASE_URL;
+    try {
+      const parsed = new URL(dbUrl);
+      const sslMode = parsed.searchParams.get('sslmode');
+      if (
+        (sslMode === 'require' || sslMode === 'prefer') &&
+        !parsed.searchParams.has('uselibpqcompat') &&
+        !parsed.searchParams.has('sslrootcert')
+      ) {
+        parsed.searchParams.set('uselibpqcompat', 'true');
+        dbUrl = parsed.toString();
+      }
+    } catch {
+      // Keep original connection string if not standard URL
+    }
     const isLocalhost =
-      process.env.DATABASE_URL.includes('localhost') ||
-      process.env.DATABASE_URL.includes('127.0.0.1');
+      dbUrl.includes('localhost') ||
+      dbUrl.includes('127.0.0.1');
     pgPool = new pg.Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString: dbUrl,
       ssl: isLocalhost ? false : { rejectUnauthorized: false },
       max: 10,
       connectionTimeoutMillis: 10000,

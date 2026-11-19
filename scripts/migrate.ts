@@ -135,8 +135,8 @@ async function runCli() {
   const allowMissingDb = args.has('--if-configured');
   const statusOnly = args.has('--status');
 
-  const dbUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
-  if (!dbUrl) {
+  const rawDbUrl = process.env.DIRECT_URL || process.env.DATABASE_URL;
+  if (!rawDbUrl) {
     const entries = listMigrationFiles();
     if (allowMissingDb) {
       console.log(
@@ -145,6 +145,22 @@ async function runCli() {
       return;
     }
     throw new Error('DIRECT_URL o DATABASE_URL no están configurados para ejecutar migraciones.');
+  }
+
+  let dbUrl = rawDbUrl;
+  try {
+    const parsed = new URL(rawDbUrl);
+    const sslMode = parsed.searchParams.get('sslmode');
+    if (
+      (sslMode === 'require' || sslMode === 'prefer') &&
+      !parsed.searchParams.has('uselibpqcompat') &&
+      !parsed.searchParams.has('sslrootcert')
+    ) {
+      parsed.searchParams.set('uselibpqcompat', 'true');
+      dbUrl = parsed.toString();
+    }
+  } catch {
+    // Keep original connection string if not standard URL
   }
 
   const isLocalhost = dbUrl.includes('localhost') || dbUrl.includes('127.0.0.1');
