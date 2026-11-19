@@ -116,10 +116,10 @@ export const UserSessionMenu: React.FC = () => {
           <div className="p-2.5 bg-teal-50/60 rounded-lg text-[10px] text-teal-900 space-y-0.5">
             <div className="font-semibold flex items-center gap-1">
               <ShieldCheck className="h-3 w-3 text-teal-600" />
-              <span>Protección Anti-IDOR Activa</span>
+              <span>Cookie HttpOnly & Anti-IDOR Activos</span>
             </div>
             <div className="text-slate-500 font-mono truncate">
-              Token: {session.sessionToken.slice(0, 16)}...
+              Ref: {session.sessionToken || 'httpOnly_protected'}
             </div>
           </div>
 

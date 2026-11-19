@@ -35,23 +35,8 @@ async function resetDatabase() {
   console.log(`   - Usuarios: ${seedData.users.length} con roles institucionales`);
   console.log(`   - Servicios odontológicos: ${seedData.services.length} en Guaraníes (PYG)`);
 
-  // Si el servidor Express está activo, sincronizar inmediatamente en caliente
-  try {
-    const res = await fetch('http://localhost:3000/api/db/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (res.ok) {
-      console.log('⚡ Servidor en vivo sincronizado en caliente sin necesidad de reinicio.');
-    }
-  } catch (err) {
-    // Servidor no activo en este momento; se cargará automáticamente al arrancar
-  }
-
-  console.log('\n✨ Restablecimiento completado. Puede ingresar con las credenciales maestras:');
-  console.log('   👤 Usuario: admin@odontosol.com.py');
-  console.log('   🔑 Contraseña: Admin2026! (o OdontoSol2026!)');
+  console.log('\n✨ Restablecimiento local completado.');
+  console.log('   ℹ️  El servidor cargará el estado desde PostgreSQL (si DATABASE_URL está configurado) o desde data/db_store.json.');
 }
 
 resetDatabase().catch((err) => {

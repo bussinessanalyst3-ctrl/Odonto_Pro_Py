@@ -1,33 +1,29 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ShieldAlert,
-  ShieldCheck,
   Search,
-  Filter,
   Download,
   Printer,
-  Clock,
-  User,
   Globe,
-  Building2,
   Lock,
   FileText,
-  AlertTriangle,
   CheckCircle2,
   RefreshCw,
   Eye,
-  PlusCircle,
   Stethoscope,
-  Sparkles
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
-import { useAuth } from '../../auth/authContext.tsx';
+import { getApiBaseUrl } from '../../config/apiConfig.ts';
 import { AuditLogDetailModal } from './AuditLogDetailModal.tsx';
 
+const PAGE_SIZE = 25;
+
 export const AuditLogsView: React.FC = () => {
-  const { session } = useAuth();
   const snapshot = dbStore.getSnapshot();
-  const logs = snapshot.auditLogs || [];
+  const localLogs = snapshot.auditLogs || [];
   const users = snapshot.users || [];
   const branches = snapshot.branches || [];
 
@@ -35,11 +31,84 @@ export const AuditLogsView: React.FC = () => {
   const [selectedAction, setSelectedAction] = useState<string>('ALL');
   const [selectedEntity, setSelectedEntity] = useState<string>('ALL');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
-  const [selectedUserId, setSelectedUserId] = useState<string>('');
+  const [selectedUserId] = useState<string>('');
   const [selectedLogForDetail, setSelectedLogForDetail] = useState<any>(null);
+  const [offset, setOffset] = useState<number>(0);
 
-  // Filter logs
-  const filteredLogs = logs.filter((log) => {
+  const [serverLogs, setServerLogs] = useState<any[] | null>(null);
+  const [serverTotal, setServerTotal] = useState<number | null>(null);
+  const [serverStats, setServerStats] = useState<{
+    sensitiveAccessesCount: number;
+    financialOperationsCount: number;
+    uniqueIpsCount: number;
+  } | null>(null);
+  const [isLoadingServer, setIsLoadingServer] = useState<boolean>(false);
+
+  const fetchAuditPage = useCallback(async () => {
+    const token = dbStore.getSessionToken();
+    const actor = dbStore.getBackendActorContext();
+    if (typeof fetch === 'undefined' || (!token && !actor)) {
+      setServerLogs(null);
+      setServerTotal(null);
+      setServerStats(null);
+      return;
+    }
+
+    setIsLoadingServer(true);
+    try {
+      const params = new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+      });
+      if (selectedAction !== 'ALL') params.set('action', selectedAction);
+      if (selectedEntity !== 'ALL') params.set('entity', selectedEntity);
+      if (selectedBranchId) params.set('branchId', selectedBranchId);
+      if (selectedUserId) params.set('userId', selectedUserId);
+      if (searchTerm.trim()) params.set('search', searchTerm.trim());
+
+      const headers: Record<string, string> = {};
+      if (token && !token.startsWith('httpOnly_')) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      const res = await fetch(`${getApiBaseUrl()}/api/audit-logs?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers,
+      });
+      if (res.ok) {
+        const payload = await res.json();
+        if (Array.isArray(payload?.logs)) {
+          setServerLogs(payload.logs);
+          setServerTotal(typeof payload.total === 'number' ? payload.total : payload.logs.length);
+          setServerStats(payload.stats || null);
+          return;
+        }
+      }
+      setServerLogs(null);
+      setServerTotal(null);
+      setServerStats(null);
+    } catch {
+      setServerLogs(null);
+      setServerTotal(null);
+      setServerStats(null);
+    } finally {
+      setIsLoadingServer(false);
+    }
+  }, [offset, selectedAction, selectedEntity, selectedBranchId, selectedUserId, searchTerm]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchAuditPage();
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [fetchAuditPage, localLogs.length]);
+
+  useEffect(() => {
+    setOffset(0);
+  }, [searchTerm, selectedAction, selectedEntity, selectedBranchId, selectedUserId]);
+
+  // Local fallback filtering
+  const localFilteredLogs = localLogs.filter((log) => {
     if (selectedAction !== 'ALL' && log.action !== selectedAction) return false;
     if (selectedEntity !== 'ALL' && log.entity !== selectedEntity) return false;
     if (selectedBranchId && log.branchId !== selectedBranchId) return false;
@@ -48,10 +117,11 @@ export const AuditLogsView: React.FC = () => {
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       const user = users.find((u) => u.id === log.userId);
-      const userMatch = user && (
-        `${user.firstName} ${user.lastName}`.toLowerCase().includes(term) ||
-        user.documentNumber.includes(term)
-      );
+      const userMatch =
+        user &&
+        (`${user.firstName} ${user.lastName}`.toLowerCase().includes(term) ||
+          String((user as any).documentNumber || '').includes(term) ||
+          user.email.toLowerCase().includes(term));
       const ipMatch = log.ipAddress?.toLowerCase().includes(term);
       const descMatch = log.description?.toLowerCase().includes(term);
       const entityMatch = log.entity?.toLowerCase().includes(term);
@@ -61,10 +131,23 @@ export const AuditLogsView: React.FC = () => {
     return true;
   });
 
+  const isServerPaginated = serverLogs !== null && serverTotal !== null;
+  const totalMatching = isServerPaginated ? serverTotal! : localFilteredLogs.length;
+  const displayedLogs = isServerPaginated
+    ? serverLogs!
+    : localFilteredLogs.slice(offset, offset + PAGE_SIZE);
+
+  const logs = localLogs;
+
   // Tally stats
-  const sensitiveAccessesCount = logs.filter((l) => l.action === 'READ_SENSITIVE' || l.entity === 'CLINICAL_RECORD').length;
-  const financialOperationsCount = logs.filter((l) => l.action === 'CASH_MOVEMENT' || l.action === 'CLOSE_CASH_REGISTER' || l.entity === 'PAYMENT').length;
-  const uniqueIpsCount = new Set(logs.map((l) => l.ipAddress).filter(Boolean)).size;
+  const sensitiveAccessesCount =
+    serverStats?.sensitiveAccessesCount ??
+    logs.filter((l) => l.action === 'READ_SENSITIVE' || l.entity === 'CLINICAL_RECORD').length;
+  const financialOperationsCount =
+    serverStats?.financialOperationsCount ??
+    logs.filter((l) => l.action === 'CASH_MOVEMENT' || l.action === 'CLOSE_CASH_REGISTER' || l.entity === 'PAYMENT').length;
+  const uniqueIpsCount =
+    serverStats?.uniqueIpsCount ?? new Set(logs.map((l) => l.ipAddress).filter(Boolean)).size;
 
   // Simulator helper: Trigger a new live audit log of sensitive medical access
   const handleSimulateSensitiveAccess = () => {
@@ -83,8 +166,9 @@ export const AuditLogsView: React.FC = () => {
 
   // Export CSV
   const handleExportCSV = () => {
+    const exportSource = isServerPaginated ? displayedLogs : localFilteredLogs;
     const headers = ['Timestamp', 'Accion', 'Entidad', 'Descripcion', 'Operador', 'Rol', 'Sucursal', 'IP_Address'];
-    const rows = filteredLogs.map((l) => {
+    const rows = exportSource.map((l) => {
       const u = users.find((usr) => usr.id === l.userId);
       const b = branches.find((br) => br.id === l.branchId);
       return [
@@ -270,7 +354,7 @@ export const AuditLogsView: React.FC = () => {
               <FileText className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-slate-900">{logs.length}</div>
+          <div className="text-2xl font-bold text-slate-900">{isServerPaginated ? totalMatching : logs.length}</div>
           <div className="text-[11px] text-slate-500 mt-1">Con firma inmutable y timestamp</div>
         </div>
 
@@ -320,12 +404,24 @@ export const AuditLogsView: React.FC = () => {
               Libro Cronológico de Auditoría
             </h4>
             <p className="text-xs text-slate-500 mt-0.5">
-              Mostrando {filteredLogs.length} de {logs.length} registros
+              Mostrando {displayedLogs.length} de {totalMatching} registros
+              {isServerPaginated ? ' (consulta paginada en servidor)' : ''}
             </p>
           </div>
-          <span className="self-start sm:self-auto px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-semibold">
-            {selectedAction === 'ALL' ? 'Todos los tipos' : selectedAction}
-          </span>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <button
+              onClick={fetchAuditPage}
+              disabled={isLoadingServer}
+              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition-colors"
+              title="Actualizar registros desde el servidor"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isLoadingServer ? 'animate-spin' : ''}`} />
+              <span>Actualizar</span>
+            </button>
+            <span className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-semibold">
+              {selectedAction === 'ALL' ? 'Todos los tipos' : selectedAction}
+            </span>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -342,14 +438,14 @@ export const AuditLogsView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredLogs.length === 0 ? (
+              {displayedLogs.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
                     No se encontraron registros de auditoría que coincidan con los filtros aplicados.
                   </td>
                 </tr>
               ) : (
-                filteredLogs.map((log) => {
+                displayedLogs.map((log) => {
                   const user = users.find((u) => u.id === log.userId);
                   const branch = branches.find((b) => b.id === log.branchId);
                   const isSensitive = log.action === 'READ_SENSITIVE' || log.entity === 'CLINICAL_RECORD';
@@ -426,6 +522,33 @@ export const AuditLogsView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {totalMatching > PAGE_SIZE && (
+          <div className="px-4 sm:px-6 py-3.5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between text-xs text-slate-600">
+            <span>
+              Página {Math.floor(offset / PAGE_SIZE) + 1} de {Math.max(1, Math.ceil(totalMatching / PAGE_SIZE))}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setOffset((prev) => Math.max(0, prev - PAGE_SIZE))}
+                disabled={offset === 0 || isLoadingServer}
+                className="px-2.5 py-1.5 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-200 rounded-lg font-semibold inline-flex items-center gap-1 transition-colors"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                <span>Anterior</span>
+              </button>
+              <button
+                onClick={() => setOffset((prev) => prev + PAGE_SIZE)}
+                disabled={offset + PAGE_SIZE >= totalMatching || isLoadingServer}
+                className="px-2.5 py-1.5 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-200 rounded-lg font-semibold inline-flex items-center gap-1 transition-colors"
+              >
+                <span>Siguiente</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Inspector Detail Modal */}

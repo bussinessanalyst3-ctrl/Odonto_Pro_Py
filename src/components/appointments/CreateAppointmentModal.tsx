@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 
 interface CreateAppointmentModalProps {
   initialDate?: string;
@@ -42,6 +43,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
   const [reason, setReason] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Available chairs for chosen branch
   const availableChairs = (snapshot.dentalChairs || []).filter(
@@ -66,8 +68,9 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
     return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage(null);
 
     if (!patientId || !odontologistId || !branchId || !serviceId) {
@@ -76,9 +79,10 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
     }
 
     const calculatedEndTime = computeEndTime(startTime, durationMin);
+    setIsSubmitting(true);
 
     try {
-      dbStore.addAppointment({
+      const payload = {
         branchId,
         dentalChairId: dentalChairId || (availableChairs[0]?.id),
         patientId,
@@ -90,12 +94,29 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
         durationMin,
         reason: reason || 'Consulta clínica dental programada',
         notes,
-        actorUserId: session?.userId,
-      });
+      };
+
+      if (hasBackendSession()) {
+        const result = await postAuthoritativeAction('/api/appointments', payload);
+        dbStore.applyAuthoritativeSync(
+          {
+            appointments: [result.appointment],
+            ...(result.patientBranch ? { patientBranches: [result.patientBranch] } : {}),
+            ...(result.auditLogs?.length ? { auditLogs: result.auditLogs } : {}),
+          },
+          result.stateVersion
+        );
+      } else {
+        dbStore.addAppointment({
+          ...payload,
+          actorUserId: session?.userId,
+        });
+      }
 
       onClose();
     } catch (err: any) {
       setErrorMessage(err.message || 'Error al validar conflicto de reserva.');
+      setIsSubmitting(false);
     }
   };
 
@@ -302,18 +323,20 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
           <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
             <button
               type="button"
+              disabled={isSubmitting}
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
             >
               Cancelar
             </button>
 
             <button
               type="submit"
-              className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md shadow-teal-700/20 transition-all flex items-center gap-1.5"
+              disabled={isSubmitting}
+              className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md shadow-teal-700/20 transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CheckCircle2 className="h-4 w-4" />
-              <span>Confirmar y Agendar</span>
+              <span>{isSubmitting ? 'Validando...' : 'Confirmar y Agendar'}</span>
             </button>
           </div>
         </form>

@@ -5,6 +5,8 @@ import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { canManageRole, isSuperAdminRole } from '../../security/rbacHierarchy.ts';
 
+import { getApiBaseUrl } from '../../config/apiConfig.ts';
+
 interface ResetPasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -76,18 +78,42 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
 
     setIsProcessing(true);
     try {
-      // 1. Hashear con PBKDF2 + SHA-256 + Salt aleatorio único
-      const hashRecord = await hashPassword(newPassword);
+      let persistedInBackend = false;
+      try {
+        const baseUrl = getApiBaseUrl();
+        const token = dbStore.getSessionToken() || session?.sessionToken;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token && !token.startsWith('httpOnly_')) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+        const res = await fetch(`${baseUrl}/api/users/${encodeURIComponent(user.id)}/reset-password`, {
+          method: 'POST',
+          credentials: 'include',
+          headers,
+          body: JSON.stringify({ newPassword }),
+        });
+        if (res.ok) {
+          persistedInBackend = true;
+          await dbStore.syncFromServer();
+        } else if (res.status !== 404) {
+          const payload = await res.json().catch(() => ({}));
+          throw new Error(payload.error || 'No se pudo restablecer la contraseña en el servidor.');
+        }
+      } catch (apiErr: any) {
+        if (!(apiErr instanceof TypeError)) {
+          throw apiErr;
+        }
+      }
 
-      // 2. Guardar en el store con hash criptográfico PBKDF2
-      dbStore.setUserPasswordHash(user.id, {
-        hash: hashRecord.hash,
-        salt: hashRecord.salt,
-        iterations: hashRecord.iterations,
-      });
-
-      // 3. Revocar sesiones activas previas por seguridad
-      dbStore.revokeUserSessions(user.id, session?.userId);
+      if (!persistedInBackend) {
+        const hashRecord = await hashPassword(newPassword);
+        dbStore.setUserPasswordHash(user.id, {
+          hash: hashRecord.hash,
+          salt: hashRecord.salt,
+          iterations: hashRecord.iterations,
+        });
+        dbStore.revokeUserSessions(user.id, session?.userId);
+      }
 
       onSuccess(`Contraseña actualizada y protegida con éxito para ${user.firstName} ${user.lastName} (${user.email}). Se han revocado sesiones anteriores.`);
       onClose();

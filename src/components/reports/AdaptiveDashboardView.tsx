@@ -35,7 +35,7 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
   selectedBranchId: externalBranchId,
 }) => {
   const { session } = useAuth();
-  const userRole = session?.role || 'SUPER_ADMIN';
+  const userRole = session?.role || '';
 
   // Perspective inicial
   const [activePerspective, setActivePerspective] = useState<DashboardPerspective>('EXECUTIVE');

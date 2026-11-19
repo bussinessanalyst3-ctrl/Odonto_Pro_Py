@@ -133,6 +133,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const baseUrl = getApiBaseUrl();
         await fetch(`${baseUrl}/api/organizations/${activeOrg.id}`, {
           method: 'PUT',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(orgPayload),
         });

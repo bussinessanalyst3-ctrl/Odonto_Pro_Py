@@ -25,6 +25,7 @@ import { TabType } from './Header.tsx';
 import { formatPYG } from '../db/seeds/paraguay-catalogs.ts';
 import { UserSessionMenu } from './auth/UserSessionMenu.tsx';
 import { isSuperAdminRole } from '../security/rbacHierarchy.ts';
+import { ConfirmDialog } from './common/ConfirmDialog.tsx';
 
 interface AppHeaderProps {
   selectedBranchId: string;
@@ -60,6 +61,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isResettingSeed, setIsResettingSeed] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [seedFeedback, setSeedFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
@@ -174,12 +176,14 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     onNavigateTab(result.tab, result.payload);
   };
 
-  const handleResetData = async () => {
+  const handleResetData = () => {
     if (!isSuperAdmin || !session) return;
-    if (!window.confirm('¿Desea restaurar los datos iniciales de prueba de Paraguay?')) {
-      return;
-    }
+    setIsResetConfirmOpen(true);
+  };
 
+  const executeResetData = async () => {
+    if (!isSuperAdmin || !session) return;
+    setIsResetConfirmOpen(false);
     setIsResettingSeed(true);
     setSeedFeedback(null);
     try {
@@ -448,6 +452,17 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           {seedFeedback.message}
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={isResetConfirmOpen}
+        title="Restaurar datos iniciales de prueba"
+        message="¿Desea restaurar los datos iniciales de prueba de Paraguay? Esta acción reemplazará los registros de demostración actuales."
+        confirmLabel="Restaurar datos"
+        variant="warning"
+        isLoading={isResettingSeed}
+        onConfirm={executeResetData}
+        onCancel={() => setIsResetConfirmOpen(false)}
+      />
     </header>
   );
 };

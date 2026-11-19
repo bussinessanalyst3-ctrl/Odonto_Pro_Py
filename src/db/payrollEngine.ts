@@ -771,17 +771,19 @@ export function evaluateCommissionsForEvent(
   const periodMonth = eventDateObj.getUTCMonth() + 1;
 
   const patient = event.patientId
-    ? (data.patients || []).find((p: any) => p.id === event.patientId)
+    ? (data.patients || []).find((p: any) => p.id === event.patientId && p.organizationId === event.organizationId)
     : null;
   const treatment = event.treatmentId
-    ? (data.treatments || []).find((t: any) => t.id === event.treatmentId)
+    ? (data.treatments || []).find((t: any) => t.id === event.treatmentId && t.organizationId === event.organizationId)
     : null;
   const payment = event.paymentId
-    ? (data.payments || []).find((p: any) => p.id === event.paymentId)
+    ? (data.payments || []).find((p: any) => p.id === event.paymentId && p.organizationId === event.organizationId)
     : null;
   const quoteId = event.quoteId || treatment?.quoteId || null;
-  const quote = quoteId ? (data.quotes || []).find((q: any) => q.id === quoteId) : null;
-  const quoteItems = quoteId ? (data.quoteItems || []).filter((qi: any) => qi.quoteId === quoteId) : [];
+  const quote = quoteId
+    ? (data.quotes || []).find((q: any) => q.id === quoteId && q.organizationId === event.organizationId)
+    : null;
+  const quoteItems = quote ? (data.quoteItems || []).filter((qi: any) => qi.quoteId === quote.id) : [];
 
   // Regla de integridad por tipo de evento
   if (event.eventType === 'PAYMENT_COLLECTED') {

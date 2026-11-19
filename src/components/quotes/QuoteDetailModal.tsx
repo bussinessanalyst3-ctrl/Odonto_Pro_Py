@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 import {
   X,
   Printer,
@@ -13,6 +14,7 @@ import {
   User,
   Stethoscope,
   Send,
+  AlertCircle,
 } from 'lucide-react';
 
 interface QuoteDetailModalProps {
@@ -27,6 +29,10 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
   onStatusUpdated,
 }) => {
   const { session } = useAuth();
+  const [pendingAction, setPendingAction] = useState<'approve' | 'reject' | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
   if (!quoteId) return null;
 
   const quote = dbStore.getQuotes().find((q) => q.id === quoteId);
@@ -38,19 +44,49 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
   const odontologist = dbStore.getUsers().find((u) => u.id === quote.odontologistId);
   const organization = dbStore.getOrganization();
 
-  const handleApprove = () => {
-    if (confirm('¿Desea aprobar este presupuesto? Se generará automáticamente un Plan de Tratamiento activo vinculado al paciente.')) {
-      dbStore.updateQuoteStatus(quote.id, 'APROBADO', session?.userId, true);
-      if (onStatusUpdated) onStatusUpdated();
-      onClose();
-    }
-  };
+  const handleConfirmAction = async () => {
+    if (!pendingAction || isSubmitting) return;
+    setActionError(null);
+    setIsSubmitting(true);
 
-  const handleReject = () => {
-    if (confirm('¿Desea marcar este presupuesto como rechazado por el paciente?')) {
-      dbStore.updateQuoteStatus(quote.id, 'RECHAZADO', session?.userId, false);
+    try {
+      if (hasBackendSession()) {
+        const endpoint =
+          pendingAction === 'approve'
+            ? `/api/quotes/${quote.id}/approve`
+            : `/api/quotes/${quote.id}/reject`;
+        const res = await postAuthoritativeAction<{
+          quote?: any;
+          treatment?: any;
+          insuranceClaim?: any;
+          auditLogs?: any[];
+          stateVersion?: number;
+        }>(endpoint, pendingAction === 'approve' ? { autoCreateTreatment: true } : {});
+
+        dbStore.applyAuthoritativeSync(
+          {
+            ...(res.quote ? { quotes: [res.quote] } : {}),
+            ...(res.treatment ? { treatments: [res.treatment] } : {}),
+            ...(res.insuranceClaim ? { insuranceClaims: [res.insuranceClaim] } : {}),
+            ...(res.auditLogs?.length ? { auditLogs: res.auditLogs } : {}),
+          },
+          res.stateVersion
+        );
+      } else {
+        if (pendingAction === 'approve') {
+          dbStore.updateQuoteStatus(quote.id, 'APROBADO', session?.userId, true);
+        } else {
+          dbStore.updateQuoteStatus(quote.id, 'RECHAZADO', session?.userId, false);
+        }
+      }
+
+      setPendingAction(null);
       if (onStatusUpdated) onStatusUpdated();
       onClose();
+    } catch (err: any) {
+      setActionError(err.message || 'No se pudo actualizar el estado del presupuesto.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -330,39 +366,95 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
         </div>
 
         {/* Modal Footer Controls (Hidden when printing) */}
-        <div className="px-6 py-4 bg-slate-100 border-t border-slate-200 flex items-center justify-between print:hidden">
-          <div className="text-xs text-slate-500">
-            {quote.status === 'PENDIENTE' && (
-              <span>* Al aprobar, se creará el Plan de Tratamiento en el módulo clínico.</span>
-            )}
-          </div>
+        <div className="px-6 py-4 bg-slate-100 border-t border-slate-200 space-y-3 print:hidden">
+          {actionError && (
+            <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs text-red-700 font-medium">
+              <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+              <span>{actionError}</span>
+            </div>
+          )}
 
-          <div className="flex items-center gap-2">
-            {quote.status === 'PENDIENTE' && (
-              <>
+          {pendingAction && (
+            <div className="p-3 bg-white border border-slate-300 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-slate-800">
+                {pendingAction === 'approve'
+                  ? '¿Confirmar aprobación? Se creará automáticamente el Plan de Tratamiento activo.'
+                  : '¿Confirmar rechazo de este presupuesto?'}
+              </span>
+              <div className="flex items-center gap-2 shrink-0">
                 <button
-                  onClick={handleReject}
-                  className="inline-flex items-center gap-1 px-3 py-2 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 rounded-xl transition-colors border border-red-200"
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setPendingAction(null)}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
                 >
-                  <XCircle className="h-4 w-4" />
-                  Rechazar
+                  Volver
                 </button>
                 <button
-                  onClick={handleApprove}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm"
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={handleConfirmAction}
+                  className={`px-3 py-1.5 text-xs font-bold text-white rounded-lg transition-colors disabled:opacity-60 ${
+                    pendingAction === 'approve'
+                      ? 'bg-teal-600 hover:bg-teal-700'
+                      : 'bg-red-600 hover:bg-red-700'
+                  }`}
                 >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Aprobar y Crear Tratamiento
+                  {isSubmitting
+                    ? 'Procesando...'
+                    : pendingAction === 'approve'
+                      ? 'Sí, Aprobar y Crear Plan'
+                      : 'Sí, Rechazar'}
                 </button>
-              </>
-            )}
+              </div>
+            </div>
+          )}
 
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-xl transition-colors"
-            >
-              Cerrar
-            </button>
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-slate-500">
+              {quote.status === 'PENDIENTE' && (
+                <span>* Al aprobar, se creará el Plan de Tratamiento en el módulo clínico.</span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {quote.status === 'PENDIENTE' && !pendingAction && (
+                <>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      setActionError(null);
+                      setPendingAction('reject');
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-2 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 rounded-xl transition-colors border border-red-200 disabled:opacity-60"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Rechazar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      setActionError(null);
+                      setPendingAction('approve');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm disabled:opacity-60"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Aprobar y Crear Tratamiento
+                  </button>
+                </>
+              )}
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-xl transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       </div>

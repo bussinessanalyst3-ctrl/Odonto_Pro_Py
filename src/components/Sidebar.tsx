@@ -69,7 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { session, logout } = useAuth();
   const { branding } = useBranding();
   const org = dbStore.getActiveOrganization();
-  const userRole: UserRole = session?.role || 'SUPER_ADMIN';
+  const userRole: UserRole = session?.role || '';
 
   // Obtener rol actual y permisos dinámicos
   const currentRoleObj = dbStore.getRoles().find((r) => r.id === userRole);

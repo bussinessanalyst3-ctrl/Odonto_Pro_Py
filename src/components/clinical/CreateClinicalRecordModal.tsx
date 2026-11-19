@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 
 interface CreateClinicalRecordModalProps {
   initialPatientId?: string;
@@ -43,6 +44,7 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
   const [recommendations, setRecommendations] = useState<string>('');
   const [internalNotes, setInternalNotes] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const selectedPatient = patients.find((p) => p.id === patientId);
   const selectedDentist = snapshot.users.find((u) => u.id === odontologistId);
@@ -52,8 +54,9 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
     selectedPatient.allergies.toLowerCase() !== 'ninguna' &&
     selectedPatient.allergies.toLowerCase() !== 'ninguna conocida';
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage(null);
 
     if (!patientId || !branchId || !odontologistId || !diagnosis.trim() || !treatmentPerformed.trim()) {
@@ -61,23 +64,54 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
       return;
     }
 
+    setIsSubmitting(true);
     try {
-      dbStore.addClinicalRecord({
-        branchId,
-        patientId,
-        odontologistId,
-        reasonForConsultation: reasonForConsultation || 'Consulta odontológica programada',
-        diagnosis,
-        treatmentPerformed,
-        prescriptions,
-        recommendations,
-        internalNotes,
-        actorUserId: session?.userId,
-      });
+      if (hasBackendSession()) {
+        const res = await postAuthoritativeAction<{
+          clinicalRecord?: any;
+          patientBranch?: any;
+          auditLogs?: any[];
+          stateVersion?: number;
+        }>('/api/clinical-records', {
+          branchId,
+          patientId,
+          odontologistId,
+          reasonForConsultation: reasonForConsultation || 'Consulta odontológica programada',
+          diagnosis,
+          treatmentPerformed,
+          prescriptions,
+          recommendations,
+          internalNotes,
+        });
+
+        dbStore.applyAuthoritativeSync(
+          {
+            ...(res.clinicalRecord ? { clinicalRecords: [res.clinicalRecord] } : {}),
+            ...(res.patientBranch ? { patientBranches: [res.patientBranch] } : {}),
+            ...(res.auditLogs?.length ? { auditLogs: res.auditLogs } : {}),
+          },
+          res.stateVersion
+        );
+      } else {
+        dbStore.addClinicalRecord({
+          branchId,
+          patientId,
+          odontologistId,
+          reasonForConsultation: reasonForConsultation || 'Consulta odontológica programada',
+          diagnosis,
+          treatmentPerformed,
+          prescriptions,
+          recommendations,
+          internalNotes,
+          actorUserId: session?.userId,
+        });
+      }
 
       onClose();
     } catch (err: any) {
       setErrorMessage(err.message || 'Error al guardar la evolución clínica.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -287,6 +321,7 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
             <button
               type="button"
               onClick={onClose}
+              disabled={isSubmitting}
               className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors"
             >
               Cancelar
@@ -294,10 +329,11 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
 
             <button
               type="submit"
-              className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md shadow-teal-700/20 transition-all flex items-center gap-1.5"
+              disabled={isSubmitting}
+              className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white rounded-xl text-xs font-bold shadow-md shadow-teal-700/20 transition-all flex items-center gap-1.5"
             >
               <CheckCircle2 className="h-4 w-4" />
-              <span>Guardar y Firmar Ficha</span>
+              <span>{isSubmitting ? 'Guardando...' : 'Guardar y Firmar Ficha'}</span>
             </button>
           </div>
         </form>

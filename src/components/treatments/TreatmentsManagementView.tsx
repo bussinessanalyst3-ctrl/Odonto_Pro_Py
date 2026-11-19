@@ -31,6 +31,7 @@ import { CreateServiceModal } from './CreateServiceModal.tsx';
 import { InsurancePlansTab } from './InsurancePlansTab.tsx';
 import { InsuranceClaimsTab } from './InsuranceClaimsTab.tsx';
 import { useAuth } from '../../auth/authContext.tsx';
+import { hasBackendSession, patchAuthoritativeAction } from '../../services/authoritativeApi.ts';
 
 interface TreatmentsManagementViewProps {
   initialPatientId?: string;
@@ -68,6 +69,8 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
     serviceId: string;
     price: number;
   } | null>(null);
+  const [updatingTreatmentId, setUpdatingTreatmentId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Filtered treatments
   const filteredTreatments = useMemo(() => {
@@ -125,8 +128,38 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
     return Array.from(set);
   }, [snapshot.services]);
 
-  const handleStatusChange = (treatmentId: string, newStatus: any) => {
-    dbStore.updateTreatmentStatus(treatmentId, newStatus, undefined, session?.userId);
+  const handleStatusChange = async (treatmentId: string, newStatus: any) => {
+    if (updatingTreatmentId) return;
+    setActionError(null);
+    setUpdatingTreatmentId(treatmentId);
+
+    try {
+      if (hasBackendSession()) {
+        const res = await patchAuthoritativeAction<{
+          treatment?: any;
+          generatedCommissions?: any[];
+          auditLogs?: any[];
+          stateVersion?: number;
+        }>(`/api/treatments/${treatmentId}/status`, { status: newStatus });
+
+        dbStore.applyAuthoritativeSync(
+          {
+            ...(res.treatment ? { treatments: [res.treatment] } : {}),
+            ...(res.generatedCommissions?.length
+              ? { generatedCommissions: res.generatedCommissions }
+              : {}),
+            ...(res.auditLogs?.length ? { auditLogs: res.auditLogs } : {}),
+          },
+          res.stateVersion
+        );
+      } else {
+        dbStore.updateTreatmentStatus(treatmentId, newStatus, undefined, session?.userId);
+      }
+    } catch (err: any) {
+      setActionError(err.message || 'No se pudo actualizar el estado del tratamiento.');
+    } finally {
+      setUpdatingTreatmentId(null);
+    }
   };
 
   const handleSaveBranchPrice = (branchId: string, serviceId: string, customPrice: number) => {
@@ -354,6 +387,22 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
             </div>
           </div>
 
+          {actionError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between gap-2 text-xs text-rose-800">
+              <div className="flex items-center gap-2 font-medium">
+                <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                <span>{actionError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActionError(null)}
+                className="font-semibold text-rose-700 hover:text-rose-900"
+              >
+                Cerrar
+              </button>
+            </div>
+          )}
+
           {/* Treatments List */}
           <div className="space-y-3">
             {filteredTreatments.length === 0 ? (
@@ -483,8 +532,9 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
 
                         <select
                           value={t.status}
+                          disabled={updatingTreatmentId === t.id}
                           onChange={(e) => handleStatusChange(t.id, e.target.value)}
-                          className="text-xs p-1.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                          className="text-xs p-1.5 bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-teal-500 focus:outline-hidden disabled:opacity-60"
                         >
                           <option value="PLANIFICADO">PLANIFICADO</option>
                           <option value="EN_PROGRESO">EN PROGRESO</option>

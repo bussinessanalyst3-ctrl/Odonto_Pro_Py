@@ -28,6 +28,7 @@ import { UserSessionMenu } from './auth/UserSessionMenu.tsx';
 import { useAuth } from '../auth/authContext.tsx';
 import { UserRole } from '../auth/types.ts';
 import { isSuperAdminRole } from '../security/rbacHierarchy.ts';
+import { ConfirmDialog } from './common/ConfirmDialog.tsx';
 
 export type TabType =
   | 'dashboard'
@@ -299,6 +300,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   const [isResettingSeed, setIsResettingSeed] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   const isSuperAdmin = Boolean(
     session &&
@@ -307,12 +309,14 @@ export const Header: React.FC<HeaderProps> = ({
       isSuperAdminRole(session.role)
   );
 
-  const handleResetData = async () => {
+  const handleResetData = () => {
     if (!isSuperAdmin || !session) return;
-    if (!window.confirm('¿Desea restaurar los datos iniciales de prueba de Paraguay?')) {
-      return;
-    }
+    setIsResetConfirmOpen(true);
+  };
 
+  const executeResetData = async () => {
+    if (!isSuperAdmin || !session) return;
+    setIsResetConfirmOpen(false);
     setIsResettingSeed(true);
     try {
       await dbStore.resetToSeedFromServer(session.sessionToken, {
@@ -485,6 +489,17 @@ export const Header: React.FC<HeaderProps> = ({
           })}
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={isResetConfirmOpen}
+        title="Restaurar datos iniciales de prueba"
+        message="¿Desea restaurar los datos iniciales de prueba de Paraguay? Esta acción reemplazará los registros de demostración actuales."
+        confirmLabel="Restaurar datos"
+        variant="warning"
+        isLoading={isResettingSeed}
+        onConfirm={executeResetData}
+        onCancel={() => setIsResetConfirmOpen(false)}
+      />
     </header>
   );
 };

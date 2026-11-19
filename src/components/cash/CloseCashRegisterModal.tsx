@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 import {
   X,
   Lock,
@@ -62,25 +63,44 @@ export const CloseCashRegisterModal: React.FC<CloseCashRegisterModalProps> = ({
     'Arqueo conforme. Dinero en efectivo guardado en caja fuerte de sucursal.'
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const difference = realCashCount - expectedCash;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMsg(null);
+    setIsSubmitting(true);
 
     try {
-      dbStore.closeCashRegister({
-        cashRegisterId,
-        closingAmountReal: realCashCount,
-        observations: closingNotes,
-        actorUserId: session?.userId || dbStore.getUsers()[0]?.id,
-      });
+      if (hasBackendSession()) {
+        const result = await postAuthoritativeAction(`/api/cash-registers/${cashRegisterId}/close`, {
+          closingAmountReal: realCashCount,
+          observations: closingNotes,
+        });
+        dbStore.applyAuthoritativeSync(
+          {
+            cashRegisters: [result.cashRegister],
+            ...(result.auditLogs?.length ? { auditLogs: result.auditLogs } : {}),
+          },
+          result.stateVersion
+        );
+      } else {
+        dbStore.closeCashRegister({
+          cashRegisterId,
+          closingAmountReal: realCashCount,
+          observations: closingNotes,
+          actorUserId: session?.userId || dbStore.getUsers()[0]?.id,
+        });
+      }
 
       if (onClosed) onClosed();
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message || 'Error al cerrar la caja.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -249,17 +269,19 @@ export const CloseCashRegisterModal: React.FC<CloseCashRegisterModalProps> = ({
           <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
             <button
               type="button"
+              disabled={isSubmitting}
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-xl"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-xl disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors shadow-sm"
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Lock className="h-4 w-4" />
-              Confirmar Cierre de Turno
+              <span>{isSubmitting ? 'Cerrando...' : 'Confirmar Cierre de Turno'}</span>
             </button>
           </div>
         </form>

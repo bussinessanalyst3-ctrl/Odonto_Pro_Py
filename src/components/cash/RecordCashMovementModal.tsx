@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 import {
   X,
   ArrowUpRight,
@@ -40,7 +41,7 @@ export const RecordCashMovementModal: React.FC<RecordCashMovementModalProps> = (
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
     setErrorMsg(null);
@@ -57,19 +58,43 @@ export const RecordCashMovementModal: React.FC<RecordCashMovementModalProps> = (
           ? dbStore.getNextReceiptNumber()
           : undefined;
 
-      const mov = dbStore.addCashMovement({
-        cashRegisterId,
-        movementType,
-        amount,
-        paymentMethod,
-        concept,
-        referenceNumber: referenceNumber || undefined,
-        receiptNumber: receiptNum,
-        patientId: patientId || undefined,
-        actorUserId: session?.userId || dbStore.getUsers()[0]?.id,
-      });
+      let movementId: string;
+      if (hasBackendSession()) {
+        const result = await postAuthoritativeAction(`/api/cash-registers/${cashRegisterId}/movements`, {
+          movementType,
+          amount,
+          paymentMethod,
+          concept,
+          referenceNumber: referenceNumber || undefined,
+          receiptNumber: receiptNum,
+          patientId: patientId || undefined,
+        });
+        dbStore.applyAuthoritativeSync(
+          {
+            cashMovements: [result.cashMovement],
+            ...(result.payment ? { payments: [result.payment] } : {}),
+            ...(result.generatedCommissions?.length ? { generatedCommissions: result.generatedCommissions } : {}),
+            ...(result.auditLogs?.length ? { auditLogs: result.auditLogs } : {}),
+          },
+          result.stateVersion
+        );
+        movementId = result.cashMovement.id;
+      } else {
+        const mov = dbStore.addCashMovement({
+          cashRegisterId,
+          movementType,
+          amount,
+          paymentMethod,
+          concept,
+          referenceNumber: referenceNumber || undefined,
+          receiptNumber: receiptNum,
+          patientId: patientId || undefined,
+          actorUserId: session?.userId || dbStore.getUsers()[0]?.id,
+        });
+        movementId = mov.id;
+      }
 
-      if (onMovementAdded) onMovementAdded(mov.id);
+      if (onMovementAdded) onMovementAdded(movementId);
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message || 'Error al asentar movimiento.');

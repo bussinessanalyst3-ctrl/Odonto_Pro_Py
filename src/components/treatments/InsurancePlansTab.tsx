@@ -25,6 +25,7 @@ import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { hasPermission } from '../../security/rbacHierarchy.ts';
 import { InsurancePlanModal } from './InsurancePlanModal.tsx';
+import { ConfirmDialog } from '../common/ConfirmDialog.tsx';
 
 export const InsurancePlansTab: React.FC = () => {
   const { session } = useAuth();
@@ -51,6 +52,7 @@ export const InsurancePlansTab: React.FC = () => {
   // Modals
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [planToEdit, setPlanToEdit] = useState<any | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<'deactivate' | 'preventive100' | null>(null);
 
   // Edit states per row in matrix: { [serviceId]: { price: number; notes: string; isSaved?: boolean } }
   const [editingRows, setEditingRows] = useState<Record<string, { price: number; notes: string; savedFlash?: boolean }>>({});
@@ -190,12 +192,8 @@ export const InsurancePlansTab: React.FC = () => {
   const handleTogglePlanStatus = () => {
     if (!activePlan || !canManagePlans) return;
     const willDeactivate = activePlan.status === 'ACTIVO';
-    if (
-      willDeactivate &&
-      !window.confirm(
-        `¿Desea desactivar el plan "${activePlan.name}"? Los pacientes actuales mantendrán su historial, pero no podrá ser asignado a nuevos pacientes.`
-      )
-    ) {
+    if (willDeactivate) {
+      setConfirmDialog('deactivate');
       return;
     }
     dbStore.toggleInsurancePlanStatus(activePlan.id, session?.userId);
@@ -204,13 +202,19 @@ export const InsurancePlansTab: React.FC = () => {
   // Apply quick bulk template: 100% prevention (consultas y limpiezas gratis)
   const handleApplyPreventive100 = () => {
     if (!activePlan || !canManagePlans) return;
-    if (
-      !window.confirm(
-        `¿Desea fijar automáticamente todas las consultas y limpiezas al 100% de cobertura (₲ 0) para "${activePlan.name}"?`
-      )
-    ) {
+    setConfirmDialog('preventive100');
+  };
+
+  const executeConfirmDialog = () => {
+    if (!activePlan || !confirmDialog) return;
+    const action = confirmDialog;
+    setConfirmDialog(null);
+
+    if (action === 'deactivate') {
+      dbStore.toggleInsurancePlanStatus(activePlan.id, session?.userId);
       return;
     }
+
     services.forEach((s) => {
       if (
         s.category.toLowerCase().includes('diagnóstico') ||
@@ -664,6 +668,24 @@ export const InsurancePlansTab: React.FC = () => {
             }
           }
         }}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(confirmDialog)}
+        title={
+          confirmDialog === 'deactivate'
+            ? 'Desactivar plan odontológico'
+            : 'Aplicar cobertura preventiva al 100%'
+        }
+        message={
+          confirmDialog === 'deactivate'
+            ? `¿Desea desactivar el plan "${activePlan?.name || ''}"? Los pacientes actuales mantendrán su historial, pero no podrá ser asignado a nuevos pacientes.`
+            : `¿Desea fijar automáticamente todas las consultas y limpiezas al 100% de cobertura (₲ 0) para "${activePlan?.name || ''}"?`
+        }
+        confirmLabel={confirmDialog === 'deactivate' ? 'Desactivar plan' : 'Aplicar cobertura'}
+        variant={confirmDialog === 'deactivate' ? 'danger' : 'primary'}
+        onConfirm={executeConfirmDialog}
+        onCancel={() => setConfirmDialog(null)}
       />
     </div>
   );

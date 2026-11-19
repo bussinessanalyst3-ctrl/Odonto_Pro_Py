@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   ShieldCheck,
   Lock,
@@ -15,8 +15,7 @@ import { useAuth } from '../../auth/authContext.tsx';
 import { dbStore } from '../../db/inMemoryStore.ts';
 
 export const SessionInspector: React.FC = () => {
-  const { session, logout } = useAuth();
-  const [copied, setCopied] = useState(false);
+  const { session } = useAuth();
 
   const snapshot = dbStore.getSnapshot();
   const authAuditLogs = snapshot.auditLogs
@@ -26,12 +25,6 @@ export const SessionInspector: React.FC = () => {
   if (!session) return null;
 
   const currentBranch = snapshot.branches.find((b) => b.id === session.currentBranchId);
-
-  const handleCopyToken = () => {
-    navigator.clipboard.writeText(session.sessionToken);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const getRolePermissions = () => {
     switch (session.role) {
@@ -106,17 +99,14 @@ export const SessionInspector: React.FC = () => {
                 <Key className="h-4 w-4 text-teal-600" />
                 <h3 className="text-sm font-bold text-slate-900">Detalles de la Sesión Criptográfica</h3>
               </div>
-              <button
-                onClick={handleCopyToken}
-                className="text-xs font-medium text-teal-600 hover:text-teal-800"
-              >
-                {copied ? '¡Copiado!' : 'Copiar Token'}
-              </button>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Protegido (HttpOnly)
+              </span>
             </div>
 
             <div className="mt-4 space-y-3 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 font-mono text-[11px] space-y-1.5 break-all">
-                <div className="text-slate-400">// Token de Portador Seguro (UUID v4 Crypto)</div>
+                <div className="text-slate-400">// Identificador enmascarado (el token real reside exclusivamente en cookie HttpOnly y PostgreSQL)</div>
                 <div className="text-teal-800 font-bold">{session.sessionToken}</div>
               </div>
 

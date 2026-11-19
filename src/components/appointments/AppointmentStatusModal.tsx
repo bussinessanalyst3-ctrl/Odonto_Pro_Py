@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { hasBackendSession, patchAuthoritativeAction } from '../../services/authoritativeApi.ts';
 
 interface AppointmentStatusModalProps {
   appointment: any;
@@ -36,15 +37,51 @@ export const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
   const [cancellationReason, setCancellationReason] = useState<string>(
     appointment.cancellationReason || ''
   );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleUpdate = () => {
-    dbStore.updateAppointmentStatus(
-      appointment.id,
-      status,
-      status === 'CANCELADA' ? cancellationReason : undefined,
-      session?.userId
-    );
-    onClose();
+  const handleUpdate = async () => {
+    if (isSubmitting) return;
+    setErrorMsg(null);
+
+    if (status === 'CANCELADA' && cancellationReason.trim().length < 3) {
+      setErrorMsg('Debe indicar un motivo válido de cancelación (mínimo 3 caracteres).');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (hasBackendSession()) {
+        const res = await patchAuthoritativeAction<{
+          appointment?: any;
+          auditLogs?: any[];
+          stateVersion?: number;
+        }>(`/api/appointments/${appointment.id}/status`, {
+          status,
+          cancellationReason: status === 'CANCELADA' ? cancellationReason.trim() : undefined,
+        });
+
+        dbStore.applyAuthoritativeSync(
+          {
+            ...(res.appointment ? { appointments: [res.appointment] } : {}),
+            ...(res.auditLogs?.length ? { auditLogs: res.auditLogs } : {}),
+          },
+          res.stateVersion
+        );
+      } else {
+        dbStore.updateAppointmentStatus(
+          appointment.id,
+          status,
+          status === 'CANCELADA' ? cancellationReason.trim() : undefined,
+          session?.userId
+        );
+      }
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'No se pudo actualizar el estado del turno.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const statusOptions = [
@@ -191,20 +228,31 @@ export const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
             </div>
           )}
 
+          {errorMsg && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-700 font-medium">
+              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
             <button
+              type="button"
               onClick={onClose}
+              disabled={isSubmitting}
               className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors"
             >
               Cancelar
             </button>
 
             <button
+              type="button"
               onClick={handleUpdate}
-              className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md shadow-teal-700/20 transition-all"
+              disabled={isSubmitting}
+              className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white rounded-xl text-xs font-bold shadow-md shadow-teal-700/20 transition-all"
             >
-              Guardar Cambio
+              {isSubmitting ? 'Guardando...' : 'Guardar Cambio'}
             </button>
           </div>
         </div>

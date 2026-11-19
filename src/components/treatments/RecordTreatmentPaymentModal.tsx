@@ -3,6 +3,7 @@ import { X, Check, CreditCard, Receipt, AlertCircle, ShieldCheck } from 'lucide-
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 
 interface RecordTreatmentPaymentModalProps {
   treatment: any;
@@ -29,7 +30,7 @@ export const RecordTreatmentPaymentModal: React.FC<RecordTreatmentPaymentModalPr
 
   if (!isOpen || !treatment) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
     setError(null);
@@ -45,17 +46,35 @@ export const RecordTreatmentPaymentModal: React.FC<RecordTreatmentPaymentModalPr
 
     setIsSubmitting(true);
     try {
-      dbStore.recordTreatmentPayment(
-        treatment.id,
-        amount,
-        paymentMethod,
-        receiptNumber,
-        session?.userId
-      );
+      if (hasBackendSession()) {
+        const result = await postAuthoritativeAction(`/api/treatments/${treatment.id}/payments`, {
+          amount,
+          paymentMethod,
+          receiptNumber,
+          autoProgressIfPaid: amount >= treatment.balanceDue && treatment.status === 'PLANIFICADO',
+        });
+        dbStore.applyAuthoritativeSync(
+          {
+            treatments: [result.treatment],
+            payments: [result.payment],
+            ...(result.cashMovement ? { cashMovements: [result.cashMovement] } : {}),
+            ...(result.generatedCommissions?.length ? { generatedCommissions: result.generatedCommissions } : {}),
+            ...(result.auditLogs?.length ? { auditLogs: result.auditLogs } : {}),
+          },
+          result.stateVersion
+        );
+      } else {
+        dbStore.recordTreatmentPayment(
+          treatment.id,
+          amount,
+          paymentMethod,
+          receiptNumber,
+          session?.userId
+        );
 
-      // If fully paid, optionally update status if was planificado
-      if (amount >= treatment.balanceDue && treatment.status === 'PLANIFICADO') {
-        dbStore.updateTreatmentStatus(treatment.id, 'EN_PROGRESO', undefined, session?.userId);
+        if (amount >= treatment.balanceDue && treatment.status === 'PLANIFICADO') {
+          dbStore.updateTreatmentStatus(treatment.id, 'EN_PROGRESO', undefined, session?.userId);
+        }
       }
 
       onClose();

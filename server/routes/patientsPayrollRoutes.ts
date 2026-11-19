@@ -1,0 +1,992 @@
+import express from 'express';
+import crypto from 'crypto';
+import { hasPermission } from '../../src/security/rbacHierarchy.ts';
+import {
+  annulPayrollSettlementRecord,
+  annulStaffPaymentRecord,
+  approvePayrollSettlementRecord,
+  computePayrollDashboardMetrics,
+  createCommissionRuleRecord,
+  createEmployeeRecord,
+  createManualCommissionAdjustment,
+  createPayrollSettlementRecord,
+  ensurePayrollIntegrity,
+  evaluateCommissionsForEvent,
+  getUserDisplayName,
+  listAdvisorEmployees,
+  recordStaffPaymentRecord,
+  submitSettlementForApprovalRecord,
+  toggleEmployeeStatusRecord,
+  UNKNOWN_CREATOR_LABEL,
+  updateCommissionRuleRecord,
+  updateEmployeeRecord,
+  upsertEmployeeSalaryRecord,
+} from '../../src/db/payrollEngine.ts';
+import { getServerDbState, saveDatabaseState } from '../stateStore.ts';
+import { authenticateServerRequest } from '../security.ts';
+
+export function createPatientsPayrollRouter(): express.Router {
+  const router = express.Router();
+
+  // =========================================================================
+  // PACIENTES (TRAZABILIDAD COMERCIAL & INMUTABILIDAD DE CREADOR)
+  // =========================================================================
+
+  router.get('/patients', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    const serverDbState = getServerDbState();
+    ensurePayrollIntegrity(serverDbState.data);
+    const orgId =
+      auth.actor.role === 'SUPER_ADMIN'
+        ? String(req.query.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId)
+        : auth.actor.organizationId;
+
+    const canViewAll =
+      auth.actor.role === 'SUPER_ADMIN' ||
+      hasPermission(auth.actor, 'patients.view') ||
+      hasPermission(auth.actor, 'patients.view_basic') ||
+      hasPermission(auth.actor, 'patients.manage');
+    const canViewOwnPortfolio = hasPermission(auth.actor, 'patients.view_own_portfolio');
+
+    if (!canViewAll && !canViewOwnPortfolio) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permisos para consultar pacientes.' });
+    }
+
+    let list = (serverDbState.data.patients || []).filter((p: any) => p.organizationId === orgId);
+
+    if (!canViewAll && canViewOwnPortfolio) {
+      const ownEmp = (serverDbState.data.employees || []).find(
+        (e: any) => e.organizationId === orgId && e.userId === auth.user!.id
+      );
+      list = ownEmp ? list.filter((p: any) => p.assignedAdvisorId === ownEmp.id) : [];
+    }
+
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    if (branchId) list = list.filter((p: any) => p.primaryBranchId === branchId);
+
+    const assignedAdvisorId = req.query.assignedAdvisorId ? String(req.query.assignedAdvisorId) : null;
+    if (assignedAdvisorId === 'UNASSIGNED') {
+      list = list.filter((p: any) => !p.assignedAdvisorId);
+    } else if (assignedAdvisorId) {
+      list = list.filter((p: any) => p.assignedAdvisorId === assignedAdvisorId);
+    }
+
+    const search = req.query.search ? String(req.query.search).trim().toLowerCase() : '';
+    if (search) {
+      list = list.filter(
+        (p: any) =>
+          `${p.firstName} ${p.lastName}`.toLowerCase().includes(search) ||
+          (p.documentNumber || '').toLowerCase().includes(search) ||
+          (p.phone || '').toLowerCase().includes(search)
+      );
+    }
+
+    return res.json({ patients: list });
+  });
+
+  router.post('/patients', async (req, res, next) => {
+    try {
+      const auth = authenticateServerRequest(req);
+      if (!auth.authenticated || !auth.actor || !auth.user) {
+        return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+      }
+      if (!hasPermission(auth.actor, 'patients.manage')) {
+        return res.status(403).json({ error: '403 Prohibido: No posee permiso para registrar pacientes.' });
+      }
+
+      const body = req.body || {};
+      if (!body.firstName?.trim() || !body.lastName?.trim() || !body.documentNumber?.trim() || !body.phone?.trim()) {
+        return res.status(400).json({ error: 'Nombre, apellido, documento y teléfono son obligatorios.' });
+      }
+
+      let assignedAdvisorId: string | null = body.assignedAdvisorId ? String(body.assignedAdvisorId) : null;
+      if (assignedAdvisorId && !hasPermission(auth.actor, 'patients.assign_advisor')) {
+        return res.status(403).json({ error: '403 Prohibido: No tiene permiso para designar asesor comercial.' });
+      }
+
+      const serverDbState = getServerDbState();
+      ensurePayrollIntegrity(serverDbState.data);
+      const orgId =
+        auth.actor.role === 'SUPER_ADMIN'
+          ? body.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId
+          : auth.actor.organizationId;
+
+      if (assignedAdvisorId) {
+        const advisor = (serverDbState.data.employees || []).find(
+          (e: any) => e.id === assignedAdvisorId && e.organizationId === orgId && e.status === 'ACTIVE' && e.isAdvisor
+        );
+        if (!advisor) {
+          return res.status(400).json({ error: 'El asesor comercial seleccionado no existe o está inactivo.' });
+        }
+      }
+
+      const createdByUserId = auth.user.id;
+      const createdByNameSnapshot = getUserDisplayName(auth.user);
+      const patientId = crypto.randomUUID();
+      const branchId = body.primaryBranchId || serverDbState.data.branches?.[0]?.id;
+
+      const record = {
+        id: patientId,
+        organizationId: orgId,
+        primaryBranchId: branchId,
+        documentType: body.documentType || 'CI',
+        documentNumber: String(body.documentNumber).trim(),
+        firstName: String(body.firstName).trim(),
+        lastName: String(body.lastName).trim(),
+        birthDate: body.birthDate || null,
+        gender: body.gender || 'NO_ESPECIFICA',
+        phone: String(body.phone).trim(),
+        whatsapp: body.whatsapp || String(body.phone).trim(),
+        email: body.email || null,
+        department: body.department || 'Central',
+        city: body.city || 'Asunción',
+        neighborhood: body.neighborhood || 'Centro',
+        address: body.address || null,
+        emergencyContactName: body.emergencyContactName || null,
+        emergencyContactPhone: body.emergencyContactPhone || null,
+        bloodType: body.bloodType || null,
+        allergies: body.allergies || 'Ninguna conocida',
+        medicalConditions: body.medicalConditions || 'Ninguna',
+        medications: body.medications || 'Ninguna',
+        modality: body.modality || 'PARTICULAR',
+        insurancePlanId: body.insurancePlanId || null,
+        insuranceMemberNumber: body.insuranceMemberNumber || null,
+        assignedAdvisorId,
+        assignedAt: assignedAdvisorId ? new Date().toISOString() : null,
+        assignedByUserId: assignedAdvisorId ? auth.user.id : null,
+        createdByUserId,
+        createdByNameSnapshot,
+        status: 'ACTIVE',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const auditCountBefore = serverDbState.data.auditLogs.length;
+      const patientBranchRecord = {
+        patientId,
+        branchId,
+        firstVisitDate: new Date().toISOString().split('T')[0],
+        lastVisitDate: new Date().toISOString().split('T')[0],
+      };
+
+      serverDbState.data.patients.unshift(record);
+      serverDbState.data.patientBranches.push(patientBranchRecord);
+
+      let generatedComms: any[] = [];
+      if (assignedAdvisorId) {
+        generatedComms = evaluateCommissionsForEvent(serverDbState.data, {
+          eventType: 'PATIENT_ACQUISITION',
+          organizationId: orgId,
+          branchId,
+          patientId,
+          amount: 0,
+          actorUserId: auth.user.id,
+        });
+      }
+
+      serverDbState.data.auditLogs.unshift({
+        id: crypto.randomUUID(),
+        organizationId: orgId,
+        branchId,
+        userId: auth.user.id,
+        action: 'CREATE',
+        entity: 'PATIENT',
+        entityId: patientId,
+        ipAddress: req.ip || '127.0.0.1',
+        userAgent: req.headers['user-agent'] || 'Backend API',
+        oldValues: null,
+        newValues: { createdByUserId, assignedAdvisorId, documentNumber: record.documentNumber },
+        description: `Alta de paciente ${record.firstName} ${record.lastName} por ${createdByNameSnapshot}`,
+        createdAt: new Date().toISOString(),
+      });
+
+      const newAuditLogs = serverDbState.data.auditLogs.slice(0, serverDbState.data.auditLogs.length - auditCountBefore);
+      await saveDatabaseState({
+        upserts: {
+          patients: [record],
+          patientBranches: [patientBranchRecord],
+          ...(generatedComms.length > 0 ? { generatedCommissions: generatedComms } : {}),
+          auditLogs: newAuditLogs,
+        },
+      });
+      return res.status(201).json({ patient: record });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  router.put('/patients/:id', async (req, res, next) => {
+    try {
+      const auth = authenticateServerRequest(req);
+      if (!auth.authenticated || !auth.actor || !auth.user) {
+        return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+      }
+      const serverDbState = getServerDbState();
+      ensurePayrollIntegrity(serverDbState.data);
+
+      const { id } = req.params;
+      const idx = (serverDbState.data.patients || []).findIndex((p: any) => p.id === id);
+      if (idx === -1) return res.status(404).json({ error: 'Paciente no encontrado.' });
+
+      const current = serverDbState.data.patients[idx];
+      if (auth.actor.role !== 'SUPER_ADMIN' && current.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación de aislamiento multiempresa.' });
+      }
+
+      const body = { ...(req.body || {}) };
+      const canManagePatients = hasPermission(auth.actor, 'patients.manage');
+      const canAssignAdvisor = hasPermission(auth.actor, 'patients.assign_advisor');
+
+      const advisorChanged = body.assignedAdvisorId !== undefined && body.assignedAdvisorId !== current.assignedAdvisorId;
+
+      if (!canManagePatients && !(advisorChanged && canAssignAdvisor)) {
+        return res.status(403).json({ error: '403 Prohibido: No posee permisos para modificar esta ficha.' });
+      }
+      if (advisorChanged && !canAssignAdvisor) {
+        return res.status(403).json({
+          error: '403 Prohibido: No posee permiso para modificar el asesor comercial designado.',
+        });
+      }
+
+      delete body.createdByUserId;
+      delete body.createdByNameSnapshot;
+      delete body.id;
+      delete body.organizationId;
+
+      if (advisorChanged) {
+        if (body.assignedAdvisorId) {
+          const advisor = (serverDbState.data.employees || []).find(
+            (e: any) =>
+              e.id === body.assignedAdvisorId &&
+              e.organizationId === current.organizationId &&
+              e.status === 'ACTIVE' &&
+              e.isAdvisor
+          );
+          if (!advisor) {
+            return res.status(400).json({ error: 'El asesor comercial designado no existe o está inactivo.' });
+          }
+        }
+        body.assignedAdvisorId = body.assignedAdvisorId || null;
+        body.assignedAt = body.assignedAdvisorId ? new Date().toISOString() : null;
+        body.assignedByUserId = body.assignedAdvisorId ? auth.user.id : null;
+      }
+
+      const updated = {
+        ...current,
+        ...body,
+        createdByUserId: current.createdByUserId ?? null,
+        createdByNameSnapshot: current.createdByNameSnapshot || UNKNOWN_CREATOR_LABEL,
+        updatedAt: new Date().toISOString(),
+      };
+      serverDbState.data.patients[idx] = updated;
+
+      const newAuditLogs: any[] = [];
+      if (advisorChanged) {
+        const advisorLog = {
+          id: crypto.randomUUID(),
+          organizationId: current.organizationId,
+          branchId: updated.primaryBranchId,
+          userId: auth.user.id,
+          action: 'PATIENT_ADVISOR_CHANGED',
+          entity: 'PATIENT',
+          entityId: id,
+          ipAddress: req.ip || '127.0.0.1',
+          userAgent: req.headers['user-agent'] || 'Backend API',
+          oldValues: { assignedAdvisorId: current.assignedAdvisorId || null },
+          newValues: { assignedAdvisorId: updated.assignedAdvisorId },
+          description: `Cambio de asesor comercial en ficha de ${updated.firstName} ${updated.lastName} sin alterar comisiones históricas.`,
+          createdAt: new Date().toISOString(),
+        };
+        serverDbState.data.auditLogs.unshift(advisorLog);
+        newAuditLogs.push(advisorLog);
+      }
+
+      await saveDatabaseState({
+        upserts: {
+          patients: [updated],
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.json({ patient: updated });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
+  // =========================================================================
+  // MÓDULO: GESTIÓN FINANCIERA DEL PERSONAL, SALARIOS Y COMISIONES
+  // =========================================================================
+
+  router.get('/payroll/advisors', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    const serverDbState = getServerDbState();
+    const orgId =
+      auth.actor.role === 'SUPER_ADMIN'
+        ? String(req.query.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId)
+        : auth.actor.organizationId;
+    const branchId = req.query.branchId ? String(req.query.branchId) : null;
+    return res.json({ advisors: listAdvisorEmployees(serverDbState.data, orgId, branchId) });
+  });
+
+  router.get('/payroll/overview', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    const serverDbState = getServerDbState();
+    ensurePayrollIntegrity(serverDbState.data);
+
+    const orgId =
+      auth.actor.role === 'SUPER_ADMIN'
+        ? String(req.query.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId)
+        : auth.actor.organizationId;
+
+    const canViewAllStaff =
+      auth.actor.role === 'SUPER_ADMIN' ||
+      hasPermission(auth.actor, 'staff.view') ||
+      hasPermission(auth.actor, 'commissions.view_all');
+    const canViewOwn = hasPermission(auth.actor, 'commissions.view_own');
+
+    if (!canViewAllStaff && !canViewOwn) {
+      return res.status(403).json({
+        error: '403 Prohibido: No tiene autorización para consultar información financiera del personal.',
+      });
+    }
+
+    const ownEmp = (serverDbState.data.employees || []).find(
+      (e: any) => e.organizationId === orgId && e.userId === auth.user!.id
+    );
+
+    const employees = (serverDbState.data.employees || []).filter((e: any) => {
+      if (e.organizationId !== orgId) return false;
+      if (!canViewAllStaff && canViewOwn) return ownEmp ? e.id === ownEmp.id : false;
+      return true;
+    });
+    const allowedEmpIds = new Set(employees.map((e: any) => e.id));
+
+    const canViewSalaries =
+      auth.actor.role === 'SUPER_ADMIN' || hasPermission(auth.actor, 'salaries.view') || canViewOwn;
+    const salaries = canViewSalaries
+      ? (serverDbState.data.employeeSalaries || []).filter((s: any) => allowedEmpIds.has(s.employeeId))
+      : [];
+
+    const commissionRules = canViewAllStaff
+      ? (serverDbState.data.commissionRules || []).filter((r: any) => r.organizationId === orgId)
+      : [];
+
+    const generatedCommissions = (serverDbState.data.generatedCommissions || []).filter((c: any) =>
+      allowedEmpIds.has(c.employeeId)
+    );
+    const payrollSettlements = (serverDbState.data.payrollSettlements || []).filter((s: any) =>
+      allowedEmpIds.has(s.employeeId)
+    );
+    const settlementIds = new Set(payrollSettlements.map((s: any) => s.id));
+    const payrollSettlementItems = (serverDbState.data.payrollSettlementItems || []).filter((i: any) =>
+      settlementIds.has(i.settlementId)
+    );
+    const staffPayments = (serverDbState.data.staffPayments || []).filter((p: any) =>
+      allowedEmpIds.has(p.employeeId)
+    );
+
+    const metrics = computePayrollDashboardMetrics(serverDbState.data, {
+      organizationId: orgId,
+      employeeId: !canViewAllStaff && canViewOwn ? ownEmp?.id || '__none__' : null,
+    });
+
+    return res.json({
+      scope: canViewAllStaff ? 'ORGANIZATION' : 'OWN',
+      employees,
+      salaries,
+      commissionRules,
+      generatedCommissions,
+      payrollSettlements,
+      payrollSettlementItems,
+      staffPayments,
+      metrics,
+    });
+  });
+
+  router.post('/payroll/employees', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'staff.manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso staff.manage.' });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const orgId =
+        auth.actor.role === 'SUPER_ADMIN'
+          ? req.body?.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId
+          : auth.actor.organizationId;
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const employee = createEmployeeRecord(
+        serverDbState.data,
+        { ...req.body, organizationId: orgId },
+        auth.user.id
+      );
+      let initialSalaryRecord: any = null;
+      if (req.body?.initialSalary && Number(req.body.initialSalary) > 0) {
+        if (!hasPermission(auth.actor, 'salaries.manage')) {
+          return res.status(403).json({ error: '403 Prohibido: No posee permiso salaries.manage.' });
+        }
+        initialSalaryRecord = upsertEmployeeSalaryRecord(
+          serverDbState.data,
+          {
+            employeeId: employee.id,
+            baseSalary: Number(req.body.initialSalary),
+            paymentFrequency: req.body.paymentFrequency || 'MENSUAL',
+            effectiveDate: employee.hireDate,
+            observations: 'Salario inicial al crear ficha de empleado',
+          },
+          auth.user.id
+        );
+      }
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      await saveDatabaseState({
+        upserts: {
+          employees: [employee],
+          ...(initialSalaryRecord ? { employeeSalaries: [initialSalaryRecord] } : {}),
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.status(201).json({ employee });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.put('/payroll/employees/:id', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'staff.manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso staff.manage.' });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const emp = (serverDbState.data.employees || []).find((e: any) => e.id === req.params.id);
+      if (!emp) return res.status(404).json({ error: 'Empleado no encontrado.' });
+      if (auth.actor.role !== 'SUPER_ADMIN' && emp.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación multiempresa.' });
+      }
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const updated = updateEmployeeRecord(serverDbState.data, req.params.id, req.body || {}, auth.user.id);
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      await saveDatabaseState({
+        upserts: {
+          employees: [updated],
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.json({ employee: updated });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.patch('/payroll/employees/:id/status', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'staff.manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso staff.manage.' });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const emp = (serverDbState.data.employees || []).find((e: any) => e.id === req.params.id);
+      if (!emp) return res.status(404).json({ error: 'Empleado no encontrado.' });
+      if (auth.actor.role !== 'SUPER_ADMIN' && emp.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación multiempresa.' });
+      }
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const updated = toggleEmployeeStatusRecord(serverDbState.data, req.params.id, req.body?.status, auth.user.id);
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      await saveDatabaseState({
+        upserts: {
+          employees: [updated],
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.json({ employee: updated });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/payroll/salaries', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'salaries.manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso salaries.manage.' });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const emp = (serverDbState.data.employees || []).find((e: any) => e.id === req.body?.employeeId);
+      if (emp && auth.actor.role !== 'SUPER_ADMIN' && emp.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación multiempresa.' });
+      }
+      const previousActive = (serverDbState.data.employeeSalaries || []).find(
+        (s: any) => s.employeeId === req.body?.employeeId && s.status === 'VIGENTE'
+      );
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const salary = upsertEmployeeSalaryRecord(serverDbState.data, req.body || {}, auth.user.id);
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      const upsertedSalaries = previousActive ? [salary, previousActive] : [salary];
+      await saveDatabaseState({
+        upserts: {
+          employeeSalaries: upsertedSalaries,
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.status(201).json({ salary });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/payroll/commission-rules', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'commissions.rules_manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso commissions.rules_manage.' });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const orgId =
+        auth.actor.role === 'SUPER_ADMIN'
+          ? req.body?.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId
+          : auth.actor.organizationId;
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const rule = createCommissionRuleRecord(
+        serverDbState.data,
+        { ...req.body, organizationId: orgId },
+        auth.user.id
+      );
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      await saveDatabaseState({
+        upserts: {
+          commissionRules: [rule],
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.status(201).json({ rule });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.put('/payroll/commission-rules/:id', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'commissions.rules_manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso commissions.rules_manage.' });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const existing = (serverDbState.data.commissionRules || []).find((r: any) => r.id === req.params.id);
+      if (existing && auth.actor.role !== 'SUPER_ADMIN' && existing.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación multiempresa.' });
+      }
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const rule = updateCommissionRuleRecord(serverDbState.data, req.params.id, req.body || {}, auth.user.id);
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      await saveDatabaseState({
+        upserts: {
+          commissionRules: [rule],
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.json({ rule });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.patch('/payroll/commission-rules/:id/status', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'commissions.rules_manage')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso commissions.rules_manage.' });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const existing = (serverDbState.data.commissionRules || []).find((r: any) => r.id === req.params.id);
+      if (existing && auth.actor.role !== 'SUPER_ADMIN' && existing.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación multiempresa.' });
+      }
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const rule = updateCommissionRuleRecord(
+        serverDbState.data,
+        req.params.id,
+        { status: req.body?.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE' },
+        auth.user.id
+      );
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      await saveDatabaseState({
+        upserts: {
+          commissionRules: [rule],
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.json({ rule });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/payroll/commissions/evaluate', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.create') && !hasPermission(auth.actor, 'commissions.rules_manage')) {
+      return res.status(403).json({ error: '403 Prohibido: Permiso insuficiente para evaluar comisiones.' });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const orgId =
+        auth.actor.role === 'SUPER_ADMIN'
+          ? req.body?.organizationId || serverDbState.data.organization?.id || auth.actor.organizationId
+          : auth.actor.organizationId;
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const generated = evaluateCommissionsForEvent(serverDbState.data, {
+        ...req.body,
+        organizationId: orgId,
+        actorUserId: auth.user.id,
+      });
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      if (generated.length > 0 || newAuditLogs.length > 0) {
+        await saveDatabaseState({
+          upserts: {
+            ...(generated.length > 0 ? { generatedCommissions: generated } : {}),
+            ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+          },
+        });
+      }
+      return res.json({ generated });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/payroll/commissions/manual', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.create') && !hasPermission(auth.actor, 'commissions.rules_manage')) {
+      return res.status(403).json({
+        error: '403 Prohibido: Permiso insuficiente para bonos o comisiones manuales.',
+      });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const emp = (serverDbState.data.employees || []).find((e: any) => e.id === req.body?.employeeId);
+      if (emp && auth.actor.role !== 'SUPER_ADMIN' && emp.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación multiempresa.' });
+      }
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const commission = createManualCommissionAdjustment(serverDbState.data, req.body || {}, auth.user.id);
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      await saveDatabaseState({
+        upserts: {
+          generatedCommissions: [commission],
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.status(201).json({ commission });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/payroll/settlements', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.create')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso payroll.create.' });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const emp = (serverDbState.data.employees || []).find((e: any) => e.id === req.body?.employeeId);
+      if (emp && auth.actor.role !== 'SUPER_ADMIN' && emp.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación multiempresa.' });
+      }
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const result = createPayrollSettlementRecord(serverDbState.data, req.body || {}, auth.user.id);
+      const attachedCommissions = (serverDbState.data.generatedCommissions || []).filter(
+        (c: any) => c.settlementId === result.settlement.id
+      );
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      await saveDatabaseState({
+        upserts: {
+          payrollSettlements: [result.settlement],
+          ...(result.items.length > 0 ? { payrollSettlementItems: result.items } : {}),
+          ...(attachedCommissions.length > 0 ? { generatedCommissions: attachedCommissions } : {}),
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.status(201).json(result);
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/payroll/settlements/:id/submit', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.create')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso payroll.create.' });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const existing = (serverDbState.data.payrollSettlements || []).find((s: any) => s.id === req.params.id);
+      if (existing && auth.actor.role !== 'SUPER_ADMIN' && existing.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación multiempresa.' });
+      }
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const settlement = submitSettlementForApprovalRecord(serverDbState.data, req.params.id, auth.user.id);
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      await saveDatabaseState({
+        upserts: {
+          payrollSettlements: [settlement],
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.json({ settlement });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/payroll/settlements/:id/approve', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.approve')) {
+      return res.status(403).json({
+        error: '403 Prohibido: Solo usuarios con permiso payroll.approve pueden aprobar liquidaciones.',
+      });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const existing = (serverDbState.data.payrollSettlements || []).find((s: any) => s.id === req.params.id);
+      if (existing && auth.actor.role !== 'SUPER_ADMIN' && existing.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación multiempresa.' });
+      }
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const settlement = approvePayrollSettlementRecord(serverDbState.data, req.params.id, auth.user.id);
+      const linkedCommissions = (serverDbState.data.generatedCommissions || []).filter(
+        (c: any) => c.settlementId === settlement.id
+      );
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      await saveDatabaseState({
+        upserts: {
+          payrollSettlements: [settlement],
+          ...(linkedCommissions.length > 0 ? { generatedCommissions: linkedCommissions } : {}),
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.json({ settlement });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/payroll/settlements/:id/annul', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.approve') && !hasPermission(auth.actor, 'payroll.create')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso para anular liquidaciones.' });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const existing = (serverDbState.data.payrollSettlements || []).find((s: any) => s.id === req.params.id);
+      if (existing && auth.actor.role !== 'SUPER_ADMIN' && existing.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación multiempresa.' });
+      }
+      const linkedCommissionsBefore = (serverDbState.data.generatedCommissions || []).filter(
+        (c: any) => c.settlementId === req.params.id && c.status !== 'ANULADA'
+      );
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const settlement = annulPayrollSettlementRecord(
+        serverDbState.data,
+        req.params.id,
+        req.body?.reason || '',
+        auth.user.id
+      );
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      await saveDatabaseState({
+        upserts: {
+          payrollSettlements: [settlement],
+          ...(linkedCommissionsBefore.length > 0 ? { generatedCommissions: linkedCommissionsBefore } : {}),
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.json({ settlement });
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/payroll/payments', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.pay')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso payroll.pay.' });
+    }
+    try {
+      const canOverrideBalance = hasPermission(auth.actor, 'payroll.override_balance');
+      if (req.body?.overpaymentOverride && !canOverrideBalance) {
+        return res.status(403).json({
+          error: '403 Prohibido: No posee permiso payroll.override_balance para autorizar excedentes.',
+        });
+      }
+      const serverDbState = getServerDbState();
+      const existing = (serverDbState.data.payrollSettlements || []).find(
+        (s: any) => s.id === req.body?.settlementId
+      );
+      if (existing && auth.actor.role !== 'SUPER_ADMIN' && existing.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación multiempresa.' });
+      }
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const result = recordStaffPaymentRecord(
+        serverDbState.data,
+        {
+          ...req.body,
+          canOverrideBalance,
+          responsibleUserName: getUserDisplayName(auth.user),
+        },
+        auth.user.id
+      );
+      const linkedCommissions = (serverDbState.data.generatedCommissions || []).filter(
+        (c: any) => c.settlementId === result.settlement.id
+      );
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      await saveDatabaseState({
+        upserts: {
+          staffPayments: [result.payment],
+          payrollSettlements: [result.settlement],
+          ...(linkedCommissions.length > 0 ? { generatedCommissions: linkedCommissions } : {}),
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.status(201).json(result);
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  router.post('/payroll/payments/:id/annul', async (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.actor || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
+    }
+    if (!hasPermission(auth.actor, 'payroll.pay') && !hasPermission(auth.actor, 'payroll.approve')) {
+      return res.status(403).json({ error: '403 Prohibido: No posee permiso para anular pagos al personal.' });
+    }
+    try {
+      const serverDbState = getServerDbState();
+      const existing = (serverDbState.data.staffPayments || []).find((p: any) => p.id === req.params.id);
+      if (existing && auth.actor.role !== 'SUPER_ADMIN' && existing.organizationId !== auth.actor.organizationId) {
+        return res.status(403).json({ error: '403 Prohibido: Violación multiempresa.' });
+      }
+      const auditCountBefore = (serverDbState.data.auditLogs || []).length;
+      const result = annulStaffPaymentRecord(
+        serverDbState.data,
+        req.params.id,
+        req.body?.reason || '',
+        auth.user.id
+      );
+      const linkedCommissions = (serverDbState.data.generatedCommissions || []).filter(
+        (c: any) => c.settlementId === result.settlement.id
+      );
+      const newAuditLogs = (serverDbState.data.auditLogs || []).slice(
+        0,
+        (serverDbState.data.auditLogs || []).length - auditCountBefore
+      );
+      await saveDatabaseState({
+        upserts: {
+          staffPayments: [result.payment],
+          payrollSettlements: [result.settlement],
+          ...(linkedCommissions.length > 0 ? { generatedCommissions: linkedCommissions } : {}),
+          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+        },
+      });
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(400).json({ error: err.message });
+    }
+  });
+
+  return router;
+}

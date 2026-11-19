@@ -57,6 +57,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
   const [, setTick] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
+  const [pendingDeleteRoleId, setPendingDeleteRoleId] = useState<string | null>(null);
 
   // Form states
   const [roleCode, setRoleCode] = useState('');
@@ -163,19 +164,29 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
     }
   };
 
-  const handleDeleteRole = (roleId: string, roleTitle: string) => {
+  const handleRequestDeleteRole = (roleId: string, roleTitle: string) => {
     if (!isRoleManageable(roleId)) {
       setError(`403 Prohibido: No tiene jerarquía para eliminar el rol "${roleTitle}".`);
       return;
     }
-    if (confirm(`¿Estás seguro de eliminar el rol "${roleTitle}"? Esta acción no se puede deshacer.`)) {
-      try {
-        dbStore.deleteRole(roleId, effectiveActor);
-        setSuccessMsg(`Rol "${roleTitle}" eliminado del sistema`);
-        setTimeout(() => setSuccessMsg(null), 3000);
-      } catch (err: any) {
-        setError(err?.message || 'No se pudo eliminar el rol');
-      }
+    setError(null);
+    setPendingDeleteRoleId(roleId);
+  };
+
+  const handleConfirmDeleteRole = (roleId: string, roleTitle: string) => {
+    if (!isRoleManageable(roleId)) {
+      setError(`403 Prohibido: No tiene jerarquía para eliminar el rol "${roleTitle}".`);
+      setPendingDeleteRoleId(null);
+      return;
+    }
+    try {
+      dbStore.deleteRole(roleId, effectiveActor);
+      setPendingDeleteRoleId(null);
+      setSuccessMsg(`Rol "${roleTitle}" eliminado del sistema`);
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo eliminar el rol');
+      setPendingDeleteRoleId(null);
     }
   };
 
@@ -434,14 +445,33 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
                               <Edit2 className="h-3.5 w-3.5" />
                             </button>
                             {!isSystem && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteRole(r.id, r.name)}
-                                title="Eliminar rol personalizado"
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              pendingDeleteRoleId === r.id ? (
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleConfirmDeleteRole(r.id, r.name)}
+                                    className="px-2 py-1 text-[10px] font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-md transition-colors cursor-pointer"
+                                  >
+                                    Confirmar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPendingDeleteRoleId(null)}
+                                    className="px-2 py-1 text-[10px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRequestDeleteRole(r.id, r.name)}
+                                  title="Eliminar rol personalizado"
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )
                             )}
                           </>
                         ) : (

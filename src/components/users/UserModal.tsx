@@ -262,6 +262,9 @@ export const UserModal: React.FC<UserModalProps> = ({
           return;
         }
 
+        // Derivar hash PBKDF2 antes de registrar el usuario para persistencia atómica en el primer delta
+        const hashRec = await hashPassword(initialPassword);
+
         savedUser = dbStore.addUser(
           {
             firstName: cleanFirstName,
@@ -276,19 +279,14 @@ export const UserModal: React.FC<UserModalProps> = ({
             professionalLicense: isOdonto ? license.trim() : undefined,
             branchIds: selectedBranches,
             defaultBranchId,
+            passwordRecord: {
+              hash: hashRec.hash,
+              salt: hashRec.salt,
+              iterations: hashRec.iterations,
+            },
           },
           effectiveActor
         );
-
-        // Derivar y almacenar hash PBKDF2 (100,000 iteraciones + Salt)
-        if (savedUser && initialPassword) {
-          const hashRec = await hashPassword(initialPassword);
-          dbStore.setUserPasswordHash(savedUser.id, {
-            hash: hashRec.hash,
-            salt: hashRec.salt,
-            iterations: hashRec.iterations,
-          });
-        }
       }
 
       onClose();

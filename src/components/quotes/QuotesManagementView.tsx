@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 import { CreateQuoteModal } from './CreateQuoteModal.tsx';
 import { QuoteDetailModal } from './QuoteDetailModal.tsx';
 import {
@@ -41,6 +42,13 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [quoteToEditId, setQuoteToEditId] = useState<string | null>(null);
   const [inspectQuoteId, setInspectQuoteId] = useState<string | null>(null);
+  const [confirmingApproveId, setConfirmingApproveId] = useState<string | null>(null);
+  const [approvingQuoteId, setApprovingQuoteId] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{
+    type: 'success' | 'error';
+    message: string;
+    patientId?: string;
+  } | null>(null);
 
   const reloadData = () => {
     setQuotes([...dbStore.getQuotes()]);
@@ -110,15 +118,52 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
     }
   };
 
-  const handleQuickApprove = (qId: string) => {
-    if (confirm('¿Aprobar presupuesto y generar automáticamente el Plan de Tratamiento?')) {
-      const res = dbStore.updateQuoteStatus(qId, 'APROBADO', session?.userId, true);
-      reloadData();
-      if (res?.treatment && onNavigateToTreatments) {
-        if (confirm('Plan de tratamiento generado con éxito. ¿Desea ir a la vista de tratamientos?')) {
-          onNavigateToTreatments(res.treatment.patientId);
-        }
+  const handleQuickApprove = async (qId: string) => {
+    if (approvingQuoteId) return;
+    setActionFeedback(null);
+    setApprovingQuoteId(qId);
+
+    try {
+      let generatedPatientId: string | undefined;
+
+      if (hasBackendSession()) {
+        const res = await postAuthoritativeAction<{
+          quote?: any;
+          treatment?: any;
+          insuranceClaim?: any;
+          auditLogs?: any[];
+          stateVersion?: number;
+        }>(`/api/quotes/${qId}/approve`, { autoCreateTreatment: true });
+
+        dbStore.applyAuthoritativeSync(
+          {
+            ...(res.quote ? { quotes: [res.quote] } : {}),
+            ...(res.treatment ? { treatments: [res.treatment] } : {}),
+            ...(res.insuranceClaim ? { insuranceClaims: [res.insuranceClaim] } : {}),
+            ...(res.auditLogs?.length ? { auditLogs: res.auditLogs } : {}),
+          },
+          res.stateVersion
+        );
+        generatedPatientId = res.treatment?.patientId;
+      } else {
+        const res = dbStore.updateQuoteStatus(qId, 'APROBADO', session?.userId, true);
+        generatedPatientId = res?.treatment?.patientId;
       }
+
+      setConfirmingApproveId(null);
+      reloadData();
+      setActionFeedback({
+        type: 'success',
+        message: 'Presupuesto aprobado y Plan de Tratamiento generado con éxito.',
+        patientId: generatedPatientId,
+      });
+    } catch (err: any) {
+      setActionFeedback({
+        type: 'error',
+        message: err.message || 'No se pudo aprobar el presupuesto.',
+      });
+    } finally {
+      setApprovingQuoteId(null);
     }
   };
 
@@ -274,6 +319,43 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
         </div>
       </div>
 
+      {actionFeedback && (
+        <div
+          className={`rounded-2xl p-3.5 border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs ${
+            actionFeedback.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}
+        >
+          <div className="flex items-center gap-2 font-medium">
+            {actionFeedback.type === 'success' ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+            )}
+            <span>{actionFeedback.message}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {actionFeedback.type === 'success' && actionFeedback.patientId && onNavigateToTreatments && (
+              <button
+                type="button"
+                onClick={() => onNavigateToTreatments(actionFeedback.patientId!)}
+                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition-colors"
+              >
+                Ir a Tratamientos
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setActionFeedback(null)}
+              className="px-2.5 py-1 text-slate-600 hover:text-slate-900 font-semibold"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Quotes Table */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
@@ -399,13 +481,36 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
                           </a>
 
                           {q.status === 'PENDIENTE' && (
-                            <button
-                              onClick={() => handleQuickApprove(q.id)}
-                              title="Aprobar y Generar Tratamiento"
-                              className="px-2 py-1 text-[11px] font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors shadow-xs"
-                            >
-                              Aprobar
-                            </button>
+                            confirmingApproveId === q.id ? (
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  disabled={approvingQuoteId === q.id}
+                                  onClick={() => handleQuickApprove(q.id)}
+                                  className="px-2 py-1 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 rounded-lg transition-colors"
+                                >
+                                  {approvingQuoteId === q.id ? '...' : 'Confirmar'}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={approvingQuoteId === q.id}
+                                  onClick={() => setConfirmingApproveId(null)}
+                                  className="px-2 py-1 text-[11px] font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled={Boolean(approvingQuoteId)}
+                                onClick={() => setConfirmingApproveId(q.id)}
+                                title="Aprobar y Generar Tratamiento"
+                                className="px-2 py-1 text-[11px] font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-60 rounded-lg transition-colors shadow-xs"
+                              >
+                                Aprobar
+                              </button>
+                            )
                           )}
                         </div>
                       </td>

@@ -1,33 +1,90 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { AuthProvider, useAuth } from './auth/authContext.tsx';
 import { BrandingProvider } from './branding/BrandingContext.tsx';
 import { LoginScreen } from './components/auth/LoginScreen.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import { AppHeader } from './components/AppHeader.tsx';
 import { ALL_NAV_ITEMS, TabType } from './components/Header.tsx';
-import { SessionInspector } from './components/auth/SessionInspector.tsx';
-import { SchemaViewer } from './components/SchemaViewer.tsx';
-import { DataExplorer } from './components/DataExplorer.tsx';
-import { ParaguayCatalogsViewer } from './components/ParaguayCatalogsViewer.tsx';
-import { ArchitectureViewer } from './components/ArchitectureViewer.tsx';
-import { RoadmapViewer } from './components/RoadmapViewer.tsx';
-import { BranchManagementView } from './components/branches/BranchManagementView.tsx';
-import { OrganizationManagementView } from './components/organization/OrganizationManagementView.tsx';
-import { UserManagementView } from './components/users/UserManagementView.tsx';
-import { PatientManagementView } from './components/patients/PatientManagementView.tsx';
-import { AppointmentsCalendarView } from './components/appointments/AppointmentsCalendarView.tsx';
-import { ClinicalRecordsView } from './components/clinical/ClinicalRecordsView.tsx';
-import { OdontogramView } from './components/odontogram/OdontogramView.tsx';
-import { TreatmentsManagementView } from './components/treatments/TreatmentsManagementView.tsx';
-import { QuotesManagementView } from './components/quotes/QuotesManagementView.tsx';
-import { CashRegisterManagementView } from './components/cash/CashRegisterManagementView.tsx';
-import { StaffPayrollManagementView } from './components/payroll/StaffPayrollManagementView.tsx';
-import { AdaptiveDashboardView } from './components/reports/AdaptiveDashboardView.tsx';
-import { AuditLogsView } from './components/audit/AuditLogsView.tsx';
-import { SecurityHardeningView } from './components/security/SecurityHardeningView.tsx';
-import { AutomatedTestingView } from './components/testing/AutomatedTestingView.tsx';
-import { ProductionDeploymentView } from './components/production/ProductionDeploymentView.tsx';
 import { dbStore } from './db/inMemoryStore.ts';
+
+const SessionInspector = lazy(() =>
+  import('./components/auth/SessionInspector.tsx').then((m) => ({ default: m.SessionInspector }))
+);
+const SchemaViewer = lazy(() =>
+  import('./components/SchemaViewer.tsx').then((m) => ({ default: m.SchemaViewer }))
+);
+const DataExplorer = lazy(() =>
+  import('./components/DataExplorer.tsx').then((m) => ({ default: m.DataExplorer }))
+);
+const ParaguayCatalogsViewer = lazy(() =>
+  import('./components/ParaguayCatalogsViewer.tsx').then((m) => ({ default: m.ParaguayCatalogsViewer }))
+);
+const ArchitectureViewer = lazy(() =>
+  import('./components/ArchitectureViewer.tsx').then((m) => ({ default: m.ArchitectureViewer }))
+);
+const RoadmapViewer = lazy(() =>
+  import('./components/RoadmapViewer.tsx').then((m) => ({ default: m.RoadmapViewer }))
+);
+const BranchManagementView = lazy(() =>
+  import('./components/branches/BranchManagementView.tsx').then((m) => ({ default: m.BranchManagementView }))
+);
+const OrganizationManagementView = lazy(() =>
+  import('./components/organization/OrganizationManagementView.tsx').then((m) => ({
+    default: m.OrganizationManagementView,
+  }))
+);
+const UserManagementView = lazy(() =>
+  import('./components/users/UserManagementView.tsx').then((m) => ({ default: m.UserManagementView }))
+);
+const PatientManagementView = lazy(() =>
+  import('./components/patients/PatientManagementView.tsx').then((m) => ({ default: m.PatientManagementView }))
+);
+const AppointmentsCalendarView = lazy(() =>
+  import('./components/appointments/AppointmentsCalendarView.tsx').then((m) => ({
+    default: m.AppointmentsCalendarView,
+  }))
+);
+const ClinicalRecordsView = lazy(() =>
+  import('./components/clinical/ClinicalRecordsView.tsx').then((m) => ({ default: m.ClinicalRecordsView }))
+);
+const OdontogramView = lazy(() =>
+  import('./components/odontogram/OdontogramView.tsx').then((m) => ({ default: m.OdontogramView }))
+);
+const TreatmentsManagementView = lazy(() =>
+  import('./components/treatments/TreatmentsManagementView.tsx').then((m) => ({
+    default: m.TreatmentsManagementView,
+  }))
+);
+const QuotesManagementView = lazy(() =>
+  import('./components/quotes/QuotesManagementView.tsx').then((m) => ({ default: m.QuotesManagementView }))
+);
+const CashRegisterManagementView = lazy(() =>
+  import('./components/cash/CashRegisterManagementView.tsx').then((m) => ({
+    default: m.CashRegisterManagementView,
+  }))
+);
+const StaffPayrollManagementView = lazy(() =>
+  import('./components/payroll/StaffPayrollManagementView.tsx').then((m) => ({
+    default: m.StaffPayrollManagementView,
+  }))
+);
+const AdaptiveDashboardView = lazy(() =>
+  import('./components/reports/AdaptiveDashboardView.tsx').then((m) => ({ default: m.AdaptiveDashboardView }))
+);
+const AuditLogsView = lazy(() =>
+  import('./components/audit/AuditLogsView.tsx').then((m) => ({ default: m.AuditLogsView }))
+);
+const SecurityHardeningView = lazy(() =>
+  import('./components/security/SecurityHardeningView.tsx').then((m) => ({ default: m.SecurityHardeningView }))
+);
+const AutomatedTestingView = lazy(() =>
+  import('./components/testing/AutomatedTestingView.tsx').then((m) => ({ default: m.AutomatedTestingView }))
+);
+const ProductionDeploymentView = lazy(() =>
+  import('./components/production/ProductionDeploymentView.tsx').then((m) => ({
+    default: m.ProductionDeploymentView,
+  }))
+);
 import {
   ShieldAlert,
   ArrowRight,
@@ -114,8 +171,8 @@ function MainApplication() {
       : roleObj?.allowedNavTabs
       ? roleObj.allowedNavTabs.includes(activeTab)
       : currentItem
-      ? currentItem.allowedRoles.includes(session?.role || 'SUPER_ADMIN')
-      : true);
+      ? Boolean(session?.role && currentItem.allowedRoles.includes(session.role))
+      : false);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex">
@@ -152,7 +209,9 @@ function MainApplication() {
               </p>
               <button
                 onClick={() => {
-                  const firstAllowed = ALL_NAV_ITEMS.find((item) => item.allowedRoles.includes(session?.role || 'SUPER_ADMIN'));
+                  const firstAllowed = ALL_NAV_ITEMS.find((item) =>
+                    session?.role ? item.allowedRoles.includes(session.role) : false
+                  );
                   if (firstAllowed) setActiveTab(firstAllowed.id);
                 }}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors shadow-xs"
@@ -162,7 +221,16 @@ function MainApplication() {
               </button>
             </div>
           ) : (
-            <>
+            <Suspense
+              fallback={
+                <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-xs flex items-center justify-center min-h-[260px]">
+                  <div className="flex flex-col items-center gap-3 text-slate-500">
+                    <div className="h-8 w-8 rounded-full border-2 border-teal-600 border-t-transparent animate-spin" />
+                    <span className="text-xs font-semibold">Cargando módulo...</span>
+                  </div>
+                </div>
+              }
+            >
               {activeTab === 'dashboard' && (
                 <AdaptiveDashboardView
                   onNavigateTab={handleGlobalNavigate}
@@ -181,7 +249,7 @@ function MainApplication() {
               {activeTab === 'odontogram' && (
                 <OdontogramView
                   onNavigateToTreatments={handleNavigateToTreatments}
-                  onNavigateToQuotes={(patientId) => {
+                  onNavigateToQuotes={(_patientId) => {
                     setActiveTab('quotes');
                   }}
                 />
@@ -208,7 +276,7 @@ function MainApplication() {
               {activeTab === 'paraguay' && <ParaguayCatalogsViewer />}
               {activeTab === 'architecture' && <ArchitectureViewer />}
               {activeTab === 'roadmap' && <RoadmapViewer />}
-            </>
+            </Suspense>
           )}
         </main>
       </div>

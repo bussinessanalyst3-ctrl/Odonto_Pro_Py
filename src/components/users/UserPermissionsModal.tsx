@@ -32,6 +32,7 @@ import {
   isSuperAdminRole,
   getUserEffectivePermissions,
 } from '../../security/rbacHierarchy.ts';
+import { ConfirmDialog } from '../common/ConfirmDialog.tsx';
 
 interface UserPermissionsModalProps {
   isOpen: boolean;
@@ -86,6 +87,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
   const [allowedNavTabs, setAllowedNavTabs] = useState<string[]>([]);
 
   const [hasChanges, setHasChanges] = useState<boolean>(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -260,11 +262,11 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
   // Restablecer absolutamente todos los overrides a valores por defecto del rol
   const handleResetAllOverrides = () => {
     if (!isEditable) return;
-    const confirmReset = window.confirm(
-      `¿Está seguro de eliminar todas las personalizaciones, concesiones y revocaciones de ${freshUser.firstName} ${freshUser.lastName} y restablecerlo estrictamente a las directivas base de su rol (${freshUser.roleId})?`
-    );
-    if (!confirmReset) return;
+    setIsResetConfirmOpen(true);
+  };
 
+  const confirmResetAllOverrides = () => {
+    setIsResetConfirmOpen(false);
     setCustomPermissions([]);
     setRevokedPermissions([]);
     setAssignedRestrictions([]);
@@ -909,6 +911,16 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={isResetConfirmOpen}
+        title="Restablecer permisos al rol base"
+        message={`¿Está seguro de eliminar todas las personalizaciones, concesiones y revocaciones de ${freshUser.firstName} ${freshUser.lastName} y restablecerlo estrictamente a las directivas base de su rol (${freshUser.roleId})?`}
+        confirmLabel="Restablecer permisos"
+        variant="warning"
+        onConfirm={confirmResetAllOverrides}
+        onCancel={() => setIsResetConfirmOpen(false)}
+      />
     </div>
   );
 };

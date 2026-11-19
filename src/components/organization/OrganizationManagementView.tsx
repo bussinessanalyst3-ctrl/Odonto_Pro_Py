@@ -38,6 +38,7 @@ import {
 import { useBranding } from '../../branding/BrandingContext.tsx';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { ConfirmDialog } from '../common/ConfirmDialog.tsx';
 
 interface ThemePreset {
   id: string;
@@ -118,6 +119,8 @@ export const OrganizationManagementView: React.FC = () => {
 
   // Notificaciones
   const [notification, setNotification] = useState<string | null>(null);
+  const [errorNotification, setErrorNotification] = useState<string | null>(null);
+  const [orgPendingDelete, setOrgPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -231,12 +234,14 @@ export const OrganizationManagementView: React.FC = () => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Por favor seleccione un archivo de imagen válido (PNG, JPG, SVG o WebP).');
+      setErrorNotification('Por favor seleccione un archivo de imagen válido (PNG, JPG, SVG o WebP).');
+      setTimeout(() => setErrorNotification(null), 5000);
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      alert('La imagen no debe superar los 5 MB.');
+      setErrorNotification('La imagen no debe superar los 5 MB.');
+      setTimeout(() => setErrorNotification(null), 5000);
       return;
     }
 
@@ -249,7 +254,8 @@ export const OrganizationManagementView: React.FC = () => {
       setTimeout(() => setNotification(null), 4000);
     } catch (err) {
       console.error('Error al procesar logotipo:', err);
-      alert('No se pudo procesar la imagen seleccionada.');
+      setErrorNotification('No se pudo procesar la imagen seleccionada.');
+      setTimeout(() => setErrorNotification(null), 5000);
     }
   };
 
@@ -380,7 +386,13 @@ export const OrganizationManagementView: React.FC = () => {
   // Dar de baja organización (Exclusivo Super Administrador)
   const handleDeleteOrg = (orgId: string, orgName: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm(`¿Está seguro de que desea inactivar la empresa "${orgName}"?`)) return;
+    setOrgPendingDelete({ id: orgId, name: orgName });
+  };
+
+  const confirmDeleteOrg = () => {
+    if (!orgPendingDelete) return;
+    const { id: orgId, name: orgName } = orgPendingDelete;
+    setOrgPendingDelete(null);
 
     try {
       const actor = session ? {
@@ -394,7 +406,8 @@ export const OrganizationManagementView: React.FC = () => {
       setNotification(`Organización "${orgName}" dada de baja correctamente.`);
       setTimeout(() => setNotification(null), 4000);
     } catch (err: any) {
-      alert(err.message || 'Error al eliminar la empresa.');
+      setErrorNotification(err.message || 'Error al eliminar la empresa.');
+      setTimeout(() => setErrorNotification(null), 5000);
     }
   };
 
@@ -450,6 +463,18 @@ export const OrganizationManagementView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {errorNotification && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-800 flex items-center justify-between gap-2.5 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-5 w-5 text-rose-600 shrink-0" />
+            <span>{errorNotification}</span>
+          </div>
+          <button type="button" onClick={() => setErrorNotification(null)} className="text-rose-700 hover:text-rose-900 text-xs cursor-pointer">
+            ✕
+          </button>
+        </div>
+      )}
 
       {notification && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs font-semibold text-emerald-800 flex items-center justify-between gap-2.5 animate-in fade-in">
@@ -1362,6 +1387,16 @@ export const OrganizationManagementView: React.FC = () => {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={Boolean(orgPendingDelete)}
+        title="Inactivar empresa u organización"
+        message={`¿Está seguro de que desea inactivar la empresa "${orgPendingDelete?.name || ''}"?`}
+        confirmLabel="Inactivar empresa"
+        variant="danger"
+        onConfirm={confirmDeleteOrg}
+        onCancel={() => setOrgPendingDelete(null)}
+      />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 import { X, DollarSign, Building2, User, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface OpenCashRegisterModalProps {
@@ -27,25 +28,45 @@ export const OpenCashRegisterModal: React.FC<OpenCashRegisterModalProps> = ({
     'Fondo fijo para cambio inicial: 10x 20.000, 6x 50.000'
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMsg(null);
+    setIsSubmitting(true);
 
     try {
-      dbStore.openCashRegister({
-        branchId,
-        openingAmount,
-        observations,
-        actorUserId: session?.userId || dbStore.getUsers()[0]?.id,
-      });
+      if (hasBackendSession()) {
+        const result = await postAuthoritativeAction('/api/cash-registers/open', {
+          branchId,
+          openingAmount,
+          observations,
+        });
+        dbStore.applyAuthoritativeSync(
+          {
+            cashRegisters: [result.cashRegister],
+            ...(result.auditLogs?.length ? { auditLogs: result.auditLogs } : {}),
+          },
+          result.stateVersion
+        );
+      } else {
+        dbStore.openCashRegister({
+          branchId,
+          openingAmount,
+          observations,
+          actorUserId: session?.userId || dbStore.getUsers()[0]?.id,
+        });
+      }
 
       if (onOpened) onOpened();
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message || 'Error al abrir la caja.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -136,17 +157,19 @@ export const OpenCashRegisterModal: React.FC<OpenCashRegisterModalProps> = ({
           <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
             <button
               type="button"
+              disabled={isSubmitting}
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-xl"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-xl disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm"
+              disabled={isSubmitting}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CheckCircle2 className="h-4 w-4" />
-              Abrir Turno de Caja
+              <span>{isSubmitting ? 'Abriendo...' : 'Abrir Turno de Caja'}</span>
             </button>
           </div>
         </form>

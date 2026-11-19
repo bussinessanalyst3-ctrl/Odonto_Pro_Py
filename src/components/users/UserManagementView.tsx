@@ -38,6 +38,7 @@ import { RolePermissionsModal } from './RolePermissionsModal.tsx';
 import { ManageRolesModal } from './ManageRolesModal.tsx';
 import { ResetPasswordModal } from './ResetPasswordModal.tsx';
 import { UserPermissionsModal } from './UserPermissionsModal.tsx';
+import { ConfirmDialog } from '../common/ConfirmDialog.tsx';
 
 export const UserManagementView: React.FC = () => {
   const { session } = useAuth();
@@ -62,6 +63,7 @@ export const UserManagementView: React.FC = () => {
   const [userForPermissions, setUserForPermissions] = useState<any | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ type: 'revoke' | 'delete'; user: any } | null>(null);
 
   useEffect(() => {
     const unsub = dbStore.subscribe(() => setTick((t) => t + 1));
@@ -78,17 +80,32 @@ export const UserManagementView: React.FC = () => {
     : undefined;
 
   const handleRevokeSessions = (user: any) => {
-    const confirm = window.confirm(
-      `¿Está seguro de revocar inmediatamente todas las sesiones activas de ${user.firstName} ${user.lastName}? El usuario deberá volver a autenticarse.`
-    );
-    if (!confirm) return;
+    setConfirmAction({ type: 'revoke', user });
+  };
+
+  const executeConfirmAction = () => {
+    if (!confirmAction) return;
+    const { type, user } = confirmAction;
+    setConfirmAction(null);
+
+    if (type === 'revoke') {
+      try {
+        dbStore.revokeUserSessions(user.id, session?.userId);
+        setNotification(`Sesiones activas revocadas exitosamente para ${user.firstName} ${user.lastName}.`);
+        setTimeout(() => setNotification(null), 5000);
+      } catch (err: any) {
+        setErrorMessage(err.message || 'Error al revocar sesiones activas.');
+        setTimeout(() => setErrorMessage(null), 5000);
+      }
+      return;
+    }
 
     try {
-      dbStore.revokeUserSessions(user.id, session?.userId);
-      setNotification(`Sesiones activas revocadas exitosamente para ${user.firstName} ${user.lastName}.`);
+      dbStore.deleteUser(user.id, actor);
+      setNotification(`Usuario ${user.firstName} ${user.lastName} eliminado correctamente. Datos históricos conservados.`);
       setTimeout(() => setNotification(null), 5000);
     } catch (err: any) {
-      setErrorMessage(err.message || 'Error al revocar sesiones activas.');
+      setErrorMessage(err.message || 'Error al eliminar usuario.');
       setTimeout(() => setErrorMessage(null), 5000);
     }
   };
@@ -173,19 +190,7 @@ export const UserManagementView: React.FC = () => {
       }
     }
 
-    const confirm = window.confirm(
-      `¿Está seguro de eliminar la cuenta del usuario ${user.firstName} ${user.lastName} (@${user.username || user.email})?\n\nLos tratamientos, citas e historias clínicas asociados se mantendrán intactos como referencias históricas.`
-    );
-    if (!confirm) return;
-
-    try {
-      dbStore.deleteUser(user.id, actor);
-      setNotification(`Usuario ${user.firstName} ${user.lastName} eliminado correctamente. Datos históricos conservados.`);
-      setTimeout(() => setNotification(null), 5000);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Error al eliminar usuario.');
-      setTimeout(() => setErrorMessage(null), 5000);
-    }
+    setConfirmAction({ type: 'delete', user });
   };
 
   const handleOpenUserPermissions = (user: any) => {
@@ -978,6 +983,22 @@ export const UserManagementView: React.FC = () => {
         }}
         targetUser={userForPermissions}
         actor={actor}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(confirmAction)}
+        title={confirmAction?.type === 'revoke' ? 'Revocar sesiones activas' : 'Eliminar cuenta de usuario'}
+        message={
+          confirmAction?.type === 'revoke'
+            ? `¿Está seguro de revocar inmediatamente todas las sesiones activas de ${confirmAction.user.firstName} ${confirmAction.user.lastName}? El usuario deberá volver a autenticarse.`
+            : confirmAction
+              ? `¿Está seguro de eliminar la cuenta del usuario ${confirmAction.user.firstName} ${confirmAction.user.lastName} (@${confirmAction.user.username || confirmAction.user.email})?\n\nLos tratamientos, citas e historias clínicas asociados se mantendrán intactos como referencias históricas.`
+              : ''
+        }
+        confirmLabel={confirmAction?.type === 'revoke' ? 'Revocar sesiones' : 'Eliminar usuario'}
+        variant={confirmAction?.type === 'delete' ? 'danger' : 'warning'}
+        onConfirm={executeConfirmAction}
+        onCancel={() => setConfirmAction(null)}
       />
     </div>
   );

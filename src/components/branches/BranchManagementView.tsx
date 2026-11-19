@@ -16,7 +16,9 @@ import {
   FileSpreadsheet,
   Globe2,
   Landmark,
-  Save
+  Save,
+  ShieldAlert,
+  X
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { BranchModal } from './BranchModal.tsx';
@@ -32,6 +34,7 @@ export const BranchManagementView: React.FC = () => {
   const [branchToEdit, setBranchToEdit] = useState<any | null>(null);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [branchToConfigure, setBranchToConfigure] = useState<any | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Edit organization state
   const [isEditingOrg, setIsEditingOrg] = useState(false);
@@ -65,7 +68,8 @@ export const BranchManagementView: React.FC = () => {
 
   const handleOpenAddBranch = () => {
     if (!canCreateBranch) {
-      alert('403 Prohibido: El Administrador de Sucursal no tiene autorización para crear sucursales.');
+      setErrorMessage('403 Prohibido: El Administrador de Sucursal no tiene autorización para crear sucursales.');
+      setTimeout(() => setErrorMessage(null), 5000);
       return;
     }
     setBranchToEdit(null);
@@ -93,7 +97,8 @@ export const BranchManagementView: React.FC = () => {
     try {
       dbStore.toggleBranchStatus(branchId, actor);
     } catch (err: any) {
-      alert(err.message || 'Operación de cambio de estado no autorizada.');
+      setErrorMessage(err.message || 'Operación de cambio de estado no autorizada.');
+      setTimeout(() => setErrorMessage(null), 5000);
     }
   };
 
@@ -114,6 +119,23 @@ export const BranchManagementView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {errorMessage && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-semibold text-rose-800 flex items-center justify-between gap-2 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-4 w-4 text-rose-600 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMessage(null)}
+            className="text-rose-700 hover:text-rose-900 p-1 rounded-lg cursor-pointer"
+            aria-label="Cerrar error"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Top Banner */}
       <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

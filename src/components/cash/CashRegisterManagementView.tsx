@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 import { OpenCashRegisterModal } from './OpenCashRegisterModal.tsx';
 import { RecordCashMovementModal } from './RecordCashMovementModal.tsx';
 import { CloseCashRegisterModal } from './CloseCashRegisterModal.tsx';
@@ -743,18 +744,37 @@ export const CashRegisterManagementView: React.FC = () => {
               <button
                 type="button"
                 disabled={isAnnulling || annulReason.trim().length < 5}
-                onClick={() => {
+                onClick={async () => {
                   if (annulReason.trim().length < 5) {
                     setAnnulError('El motivo debe contener al menos 5 caracteres.');
                     return;
                   }
                   setIsAnnulling(true);
+                  setAnnulError(null);
                   try {
-                    dbStore.annulPayment({
-                      paymentId: annulPaymentId,
-                      reason: annulReason.trim(),
-                      actorUserId: session?.userId || dbStore.getUsers()[0]?.id,
-                    });
+                    if (hasBackendSession()) {
+                      const result = await postAuthoritativeAction(`/api/payments/${annulPaymentId}/annul`, {
+                        reason: annulReason.trim(),
+                      });
+                      dbStore.applyAuthoritativeSync(
+                        {
+                          payments: [result.payment],
+                          ...(result.restoredTreatment ? { treatments: [result.restoredTreatment] } : {}),
+                          ...(result.counterMovement ? { cashMovements: [result.counterMovement] } : {}),
+                          ...(result.reversedCommissions?.length
+                            ? { generatedCommissions: result.reversedCommissions }
+                            : {}),
+                          ...(result.auditLogs?.length ? { auditLogs: result.auditLogs } : {}),
+                        },
+                        result.stateVersion
+                      );
+                    } else {
+                      dbStore.annulPayment({
+                        paymentId: annulPaymentId,
+                        reason: annulReason.trim(),
+                        actorUserId: session?.userId || dbStore.getUsers()[0]?.id,
+                      });
+                    }
                     reloadData();
                     setAnnulPaymentId(null);
                     setAnnulReason('');

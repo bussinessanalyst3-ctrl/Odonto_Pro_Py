@@ -4,6 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm install --legacy-peer-deps && npm run build
+    preDeployCommand: npm run db:migrate -- --if-configured
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
@@ -11,3 +12,11 @@ services:
         value: production
       - key: PORT
         value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        sync: false

@@ -19,28 +19,55 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const SESSION_STORAGE_KEY = 'odontopro_auth_session';
+const LEGACY_SESSION_STORAGE_KEY = 'odontopro_auth_session';
+const LEGACY_DB_STORAGE_KEY = 'odontopro_db_state_v3';
 
-const getInitialSession = (): UserSession | null => {
+function purgeLegacyBrowserSecrets() {
   try {
-    const stored = localStorage.getItem(SESSION_STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as UserSession;
-      if (authService.isSessionValid(parsed)) {
-        return parsed;
-      }
-      localStorage.removeItem(SESSION_STORAGE_KEY);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
+      localStorage.removeItem(LEGACY_DB_STORAGE_KEY);
     }
-  } catch (e) {
-    console.error('Error cargando sesión previa:', e);
+  } catch {
+    // Ignorar errores de acceso a storage
   }
-
-  return null;
-};
+}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [session, setSession] = useState<UserSession | null>(getInitialSession);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [session, setSession] = useState<UserSession | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Hidratar sesión segura desde cookie HttpOnly en el backend y purgar residuos inseguros de localStorage
+  useEffect(() => {
+    purgeLegacyBrowserSecrets();
+    let mounted = true;
+    (async () => {
+      try {
+        const serverSession = await authService.getCurrentSession();
+        if (mounted && serverSession && authService.isSessionValid(serverSession)) {
+          dbStore.setSessionToken(serverSession.sessionToken || null);
+          dbStore.setBackendActorContext({
+            userId: serverSession.userId,
+            role: serverSession.role,
+            organizationId: serverSession.organizationId,
+            allowedBranchIds: serverSession.allowedBranchIds,
+            customPermissions: serverSession.customPermissions,
+            revokedPermissions: serverSession.revokedPermissions,
+            assignedRestrictions: serverSession.assignedRestrictions,
+            allowedNavTabs: serverSession.allowedNavTabs,
+            permissionsVersion: serverSession.permissionsVersion,
+          });
+          setSession(serverSession);
+          await dbStore.syncFromServer();
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Sincronización reactiva inmediata de cambios de permisos, revocación y versionado
   useEffect(() => {
@@ -63,13 +90,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       permissionsVersion: session.permissionsVersion,
     });
 
-    // Verificación periódica de expiración y revocación
-    const interval = setInterval(() => {
+    // Verificación periódica de expiración y revocación contra el servidor
+    const interval = setInterval(async () => {
       if (!authService.isSessionValid(session)) {
-        console.warn('Sesión caducada o revocada por el Administrador. Cerrando sesión...');
+        logout();
+        return;
+      }
+      const checked = await authService.getCurrentSession();
+      if (!checked) {
         logout();
       }
-    }, 10000);
+    }, 30000);
 
     // Suscripción reactiva instantánea a cambios en base de datos
     const unsubscribe = dbStore.subscribe(() => {
@@ -80,7 +111,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (dbStore.isSessionRevoked(session.userId, session.issuedAt)) {
-        console.warn('Sesión revocada explícitamente por el Super Administrador.');
         logout();
         return;
       }
@@ -116,9 +146,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
 
         setSession(updatedSession);
-        try {
-          localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updatedSession));
-        } catch (e) {}
       }
     });
 
@@ -146,7 +173,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           permissionsVersion: result.session.permissionsVersion,
         });
         setSession(result.session);
-        localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(result.session));
+        purgeLegacyBrowserSecrets();
       }
       return result;
     } finally {
@@ -159,9 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dbStore.setSessionToken(null);
     dbStore.setBackendActorContext(null);
     setSession(null);
-    try {
-      localStorage.removeItem(SESSION_STORAGE_KEY);
-    } catch (e) {}
+    purgeLegacyBrowserSecrets();
   };
 
   const switchBranch = (branchId: string) => {
@@ -169,9 +194,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const updated = authService.switchBranch(session, branchId);
       setSession(updated);
-      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updated));
     } catch (err: any) {
-      alert(err.message || 'Error al cambiar de sucursal');
+      console.error(err.message || 'Error al cambiar de sucursal');
     }
   };
 
@@ -197,9 +221,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       currentBranchId: orgBranches[0]?.id || '',
     };
     setSession(updated);
-    try {
-      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(updated));
-    } catch (e) {}
   };
 
   const hasRole = (requiredRoles: UserRole | UserRole[]): boolean => {
