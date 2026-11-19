@@ -3311,12 +3311,508 @@ async function upsertMetadata(client: pg.PoolClient, state: DbStateEnvelope, sta
   );
 }
 
+function sanitizeStateForRelationalSync(state: DbStateEnvelope): {
+  envelope: DbStateEnvelope;
+  skippedOrphans: number;
+} {
+  const srcData = state?.data && typeof state.data === 'object' ? state.data : {};
+  let skippedOrphans = 0;
+
+  const rawOrgs =
+    Array.isArray(state.organizationsList) && state.organizationsList.length > 0
+      ? state.organizationsList
+      : srcData.organization
+        ? [srcData.organization]
+        : [];
+  const validOrgIds = new Set<string>(
+    rawOrgs.map((o: any) => normalizeUuidOrNull(o?.id)).filter((id: string | null): id is string => Boolean(id))
+  );
+
+  const rawRoles = Array.isArray(srcData.roles) ? srcData.roles : [];
+  const validRoleIds = new Set<string>(
+    rawRoles.map((r: any) => (r?.id ? String(r.id) : '')).filter(Boolean)
+  );
+
+  const rawBranches = Array.isArray(srcData.branches) ? srcData.branches : [];
+  const branches = rawBranches.filter((b: any) => {
+    const ok = Boolean(normalizeUuidOrNull(b?.id)) && validOrgIds.has(b?.organizationId);
+    if (!ok) skippedOrphans += 1;
+    return ok;
+  });
+  const validBranchIds = new Set<string>(branches.map((b: any) => b.id));
+
+  const branchSettings = (Array.isArray(srcData.branchSettings) ? srcData.branchSettings : []).filter((bs: any) => {
+    const ok = validBranchIds.has(bs?.branchId);
+    if (!ok) skippedOrphans += 1;
+    return ok;
+  });
+
+  const dentalChairs = (Array.isArray(srcData.dentalChairs) ? srcData.dentalChairs : []).filter((dc: any) => {
+    const ok =
+      Boolean(normalizeUuidOrNull(dc?.id)) &&
+      validOrgIds.has(dc?.organizationId) &&
+      validBranchIds.has(dc?.branchId);
+    if (!ok) skippedOrphans += 1;
+    return ok;
+  });
+  const validChairIds = new Set<string>(dentalChairs.map((dc: any) => dc.id));
+
+  const users = (Array.isArray(srcData.users) ? srcData.users : []).filter((u: any) => {
+    const ok =
+      Boolean(normalizeUuidOrNull(u?.id)) &&
+      validOrgIds.has(u?.organizationId) &&
+      validRoleIds.has(String(u?.roleId || ''));
+    if (!ok) skippedOrphans += 1;
+    return ok;
+  });
+  const validUserIds = new Set<string>(users.map((u: any) => u.id));
+  const fallbackUserByOrg = new Map<string, string>();
+  for (const u of users) {
+    if (!fallbackUserByOrg.has(u.organizationId)) {
+      fallbackUserByOrg.set(u.organizationId, u.id);
+    }
+  }
+  const safeUserRef = (userId: any) => {
+    const uid = normalizeUuidOrNull(userId);
+    return uid && validUserIds.has(uid) ? uid : null;
+  };
+  const requiredUserRef = (userId: any, orgId: string) =>
+    safeUserRef(userId) || fallbackUserByOrg.get(orgId) || null;
+
+  const userBranches = (Array.isArray(srcData.userBranches) ? srcData.userBranches : []).filter((ub: any) => {
+    const ok = validUserIds.has(ub?.userId) && validBranchIds.has(ub?.branchId);
+    if (!ok) skippedOrphans += 1;
+    return ok;
+  });
+
+  const services = (Array.isArray(srcData.services) ? srcData.services : []).filter((s: any) => {
+    const ok = Boolean(normalizeUuidOrNull(s?.id)) && validOrgIds.has(s?.organizationId);
+    if (!ok) skippedOrphans += 1;
+    return ok;
+  });
+  const validServiceIds = new Set<string>(services.map((s: any) => s.id));
+
+  const branchServices = (Array.isArray(srcData.branchServices) ? srcData.branchServices : []).filter((bs: any) => {
+    const ok = validBranchIds.has(bs?.branchId) && validServiceIds.has(bs?.serviceId);
+    if (!ok) skippedOrphans += 1;
+    return ok;
+  });
+
+  const insurancePlans = (Array.isArray(srcData.insurancePlans) ? srcData.insurancePlans : []).filter((ip: any) => {
+    const ok = Boolean(normalizeUuidOrNull(ip?.id)) && validOrgIds.has(ip?.organizationId);
+    if (!ok) skippedOrphans += 1;
+    return ok;
+  });
+  const validPlanIds = new Set<string>(insurancePlans.map((ip: any) => ip.id));
+
+  const planServicePrices = (Array.isArray(srcData.planServicePrices) ? srcData.planServicePrices : []).filter(
+    (psp: any) => {
+      const ok = validPlanIds.has(psp?.planId) && validServiceIds.has(psp?.serviceId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    }
+  );
+
+  const employees = (Array.isArray(srcData.employees) ? srcData.employees : [])
+    .filter((e: any) => {
+      const ok = Boolean(normalizeUuidOrNull(e?.id)) && validOrgIds.has(e?.organizationId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((e: any) => ({
+      ...e,
+      branchId: validBranchIds.has(e.branchId) ? e.branchId : null,
+      userId: safeUserRef(e.userId),
+    }));
+  const validEmployeeIds = new Set<string>(employees.map((e: any) => e.id));
+
+  const employeeSalaries = (Array.isArray(srcData.employeeSalaries) ? srcData.employeeSalaries : [])
+    .filter((es: any) => {
+      const ok =
+        Boolean(normalizeUuidOrNull(es?.id)) &&
+        validOrgIds.has(es?.organizationId) &&
+        validEmployeeIds.has(es?.employeeId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((es: any) => ({
+      ...es,
+      createdBy: safeUserRef(es.createdBy ?? es.createdByUserId),
+      createdByUserId: safeUserRef(es.createdByUserId ?? es.createdBy),
+    }));
+
+  const commissionRules = (Array.isArray(srcData.commissionRules) ? srcData.commissionRules : [])
+    .filter((cr: any) => {
+      const ok = Boolean(normalizeUuidOrNull(cr?.id)) && validOrgIds.has(cr?.organizationId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((cr: any) => ({
+      ...cr,
+      branchId: validBranchIds.has(cr.branchId) ? cr.branchId : null,
+      targetEmployeeId: validEmployeeIds.has(cr.targetEmployeeId ?? cr.employeeId)
+        ? cr.targetEmployeeId ?? cr.employeeId
+        : null,
+      employeeId: validEmployeeIds.has(cr.employeeId ?? cr.targetEmployeeId)
+        ? cr.employeeId ?? cr.targetEmployeeId
+        : null,
+      serviceId: validServiceIds.has(cr.serviceId) ? cr.serviceId : null,
+      createdBy: safeUserRef(cr.createdBy ?? cr.createdByUserId),
+      createdByUserId: safeUserRef(cr.createdByUserId ?? cr.createdBy),
+    }));
+  const validRuleIds = new Set<string>(commissionRules.map((cr: any) => cr.id));
+
+  const patients = (Array.isArray(srcData.patients) ? srcData.patients : [])
+    .filter((p: any) => {
+      const ok = Boolean(normalizeUuidOrNull(p?.id)) && validOrgIds.has(p?.organizationId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((p: any) => ({
+      ...p,
+      primaryBranchId: validBranchIds.has(p.primaryBranchId) ? p.primaryBranchId : null,
+      insurancePlanId: validPlanIds.has(p.insurancePlanId) ? p.insurancePlanId : null,
+      assignedAdvisorId: validEmployeeIds.has(p.assignedAdvisorId) ? p.assignedAdvisorId : null,
+      assignedByUserId: safeUserRef(p.assignedByUserId),
+      createdByUserId: safeUserRef(p.createdByUserId),
+    }));
+  const validPatientIds = new Set<string>(patients.map((p: any) => p.id));
+
+  const patientBranches = (Array.isArray(srcData.patientBranches) ? srcData.patientBranches : []).filter(
+    (pb: any) => {
+      const ok = validPatientIds.has(pb?.patientId) && validBranchIds.has(pb?.branchId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    }
+  );
+
+  const appointments = (Array.isArray(srcData.appointments) ? srcData.appointments : [])
+    .filter((a: any) => {
+      const ok =
+        Boolean(normalizeUuidOrNull(a?.id)) &&
+        validOrgIds.has(a?.organizationId) &&
+        validBranchIds.has(a?.branchId) &&
+        validPatientIds.has(a?.patientId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((a: any) => ({
+      ...a,
+      dentalChairId: validChairIds.has(a.dentalChairId) ? a.dentalChairId : null,
+      serviceId: validServiceIds.has(a.serviceId) ? a.serviceId : null,
+      odontologistId: requiredUserRef(a.odontologistId, a.organizationId),
+      createdBy: safeUserRef(a.createdBy),
+    }));
+  const validAppointmentIds = new Set<string>(appointments.map((a: any) => a.id));
+
+  const clinicalRecords = (Array.isArray(srcData.clinicalRecords) ? srcData.clinicalRecords : [])
+    .filter((c: any) => {
+      const ok =
+        Boolean(normalizeUuidOrNull(c?.id)) &&
+        validOrgIds.has(c?.organizationId) &&
+        validBranchIds.has(c?.branchId) &&
+        validPatientIds.has(c?.patientId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((c: any) => ({
+      ...c,
+      odontologistId: requiredUserRef(c.odontologistId, c.organizationId),
+      appointmentId: validAppointmentIds.has(c.appointmentId) ? c.appointmentId : null,
+    }));
+  const validClinicalRecordIds = new Set<string>(clinicalRecords.map((c: any) => c.id));
+
+  const odontograms = (Array.isArray(srcData.odontograms) ? srcData.odontograms : [])
+    .filter((o: any) => {
+      const ok =
+        Boolean(normalizeUuidOrNull(o?.id)) &&
+        validOrgIds.has(o?.organizationId) &&
+        validPatientIds.has(o?.patientId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((o: any) => ({
+      ...o,
+      odontologistId: safeUserRef(o.odontologistId),
+      clinicalRecordId: validClinicalRecordIds.has(o.clinicalRecordId) ? o.clinicalRecordId : null,
+    }));
+  const validOdontogramIds = new Set<string>(odontograms.map((o: any) => o.id));
+
+  const odontogramItems = (Array.isArray(srcData.odontogramItems) ? srcData.odontogramItems : []).filter(
+    (oi: any) => {
+      const ok = Boolean(normalizeUuidOrNull(oi?.id)) && validOdontogramIds.has(oi?.odontogramId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    }
+  );
+
+  const quotes = (Array.isArray(srcData.quotes) ? srcData.quotes : [])
+    .filter((q: any) => {
+      const ok =
+        Boolean(normalizeUuidOrNull(q?.id)) &&
+        validOrgIds.has(q?.organizationId) &&
+        validBranchIds.has(q?.branchId) &&
+        validPatientIds.has(q?.patientId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((q: any) => ({
+      ...q,
+      planId: validPlanIds.has(q.planId) ? q.planId : null,
+      odontologistId: safeUserRef(q.odontologistId),
+    }));
+  const validQuoteIds = new Set<string>(quotes.map((q: any) => q.id));
+
+  const quoteItems = (Array.isArray(srcData.quoteItems) ? srcData.quoteItems : [])
+    .filter((qi: any) => {
+      const ok = Boolean(normalizeUuidOrNull(qi?.id)) && validQuoteIds.has(qi?.quoteId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((qi: any) => ({
+      ...qi,
+      serviceId: validServiceIds.has(qi.serviceId) ? qi.serviceId : null,
+      appliedPlanId: validPlanIds.has(qi.appliedPlanId) ? qi.appliedPlanId : null,
+    }));
+
+  const treatments = (Array.isArray(srcData.treatments) ? srcData.treatments : [])
+    .filter((t: any) => {
+      const ok =
+        Boolean(normalizeUuidOrNull(t?.id)) &&
+        validOrgIds.has(t?.organizationId) &&
+        validBranchIds.has(t?.branchId) &&
+        validPatientIds.has(t?.patientId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((t: any) => ({
+      ...t,
+      quoteId: validQuoteIds.has(t.quoteId) ? t.quoteId : null,
+      serviceId: validServiceIds.has(t.serviceId) ? t.serviceId : null,
+      appliedPlanId: validPlanIds.has(t.appliedPlanId) ? t.appliedPlanId : null,
+      odontologistId: safeUserRef(t.odontologistId),
+    }));
+  const validTreatmentIds = new Set<string>(treatments.map((t: any) => t.id));
+
+  const insuranceClaims = (Array.isArray(srcData.insuranceClaims) ? srcData.insuranceClaims : [])
+    .filter((ic: any) => {
+      const ok =
+        Boolean(normalizeUuidOrNull(ic?.id)) &&
+        validOrgIds.has(ic?.organizationId) &&
+        validBranchIds.has(ic?.branchId) &&
+        validPlanIds.has(ic?.planId) &&
+        validPatientIds.has(ic?.patientId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((ic: any) => ({
+      ...ic,
+      treatmentId: validTreatmentIds.has(ic.treatmentId) ? ic.treatmentId : null,
+      serviceId: validServiceIds.has(ic.serviceId) ? ic.serviceId : null,
+    }));
+
+  const cashRegisters = (Array.isArray(srcData.cashRegisters) ? srcData.cashRegisters : [])
+    .filter((cr: any) => {
+      const openedBy = requiredUserRef(cr?.openedBy, cr?.organizationId);
+      const ok =
+        Boolean(normalizeUuidOrNull(cr?.id)) &&
+        validOrgIds.has(cr?.organizationId) &&
+        validBranchIds.has(cr?.branchId) &&
+        Boolean(openedBy);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((cr: any) => ({
+      ...cr,
+      openedBy: requiredUserRef(cr.openedBy, cr.organizationId),
+      closedBy: safeUserRef(cr.closedBy),
+    }));
+  const validCashRegisterIds = new Set<string>(cashRegisters.map((cr: any) => cr.id));
+  const cashRegisterOrgMap = new Map<string, string>(cashRegisters.map((cr: any) => [cr.id, cr.organizationId]));
+
+  const cashMovements = (Array.isArray(srcData.cashMovements) ? srcData.cashMovements : [])
+    .filter((cm: any) => {
+      const orgId = cashRegisterOrgMap.get(cm?.cashRegisterId) || '';
+      const performedBy = requiredUserRef(cm?.performedBy, orgId);
+      const ok =
+        Boolean(normalizeUuidOrNull(cm?.id)) &&
+        validCashRegisterIds.has(cm?.cashRegisterId) &&
+        Boolean(performedBy);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((cm: any) => {
+      const orgId = cashRegisterOrgMap.get(cm.cashRegisterId) || '';
+      return {
+        ...cm,
+        performedBy: requiredUserRef(cm.performedBy, orgId),
+      };
+    });
+  const validCashMovementIds = new Set<string>(cashMovements.map((cm: any) => cm.id));
+
+  const payments = (Array.isArray(srcData.payments) ? srcData.payments : [])
+    .filter((p: any) => {
+      const receivedBy = requiredUserRef(p?.receivedBy, p?.organizationId);
+      const ok =
+        Boolean(normalizeUuidOrNull(p?.id)) &&
+        validOrgIds.has(p?.organizationId) &&
+        validBranchIds.has(p?.branchId) &&
+        validPatientIds.has(p?.patientId) &&
+        Boolean(receivedBy);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((p: any) => ({
+      ...p,
+      treatmentId: validTreatmentIds.has(p.treatmentId) ? p.treatmentId : null,
+      appointmentId: validAppointmentIds.has(p.appointmentId) ? p.appointmentId : null,
+      cashMovementId: validCashMovementIds.has(p.cashMovementId) ? p.cashMovementId : null,
+      receivedBy: requiredUserRef(p.receivedBy, p.organizationId),
+      annulledBy: safeUserRef(p.annulledBy),
+    }));
+  const validPaymentIds = new Set<string>(payments.map((p: any) => p.id));
+
+  const payrollSettlements = (Array.isArray(srcData.payrollSettlements) ? srcData.payrollSettlements : [])
+    .filter((ps: any) => {
+      const ok =
+        Boolean(normalizeUuidOrNull(ps?.id)) &&
+        validOrgIds.has(ps?.organizationId) &&
+        validEmployeeIds.has(ps?.employeeId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((ps: any) => ({
+      ...ps,
+      branchId: validBranchIds.has(ps.branchId) ? ps.branchId : null,
+      createdBy: safeUserRef(ps.createdBy ?? ps.createdByUserId),
+      createdByUserId: safeUserRef(ps.createdByUserId ?? ps.createdBy),
+      approvedBy: safeUserRef(ps.approvedBy ?? ps.approvedByUserId),
+      approvedByUserId: safeUserRef(ps.approvedByUserId ?? ps.approvedBy),
+      annulledBy: safeUserRef(ps.annulledBy ?? ps.annulledByUserId),
+      annulledByUserId: safeUserRef(ps.annulledByUserId ?? ps.annulledBy),
+    }));
+  const validSettlementIds = new Set<string>(payrollSettlements.map((ps: any) => ps.id));
+
+  const generatedCommissions = (Array.isArray(srcData.generatedCommissions) ? srcData.generatedCommissions : [])
+    .filter((gc: any) => {
+      const ok =
+        Boolean(normalizeUuidOrNull(gc?.id)) &&
+        validOrgIds.has(gc?.organizationId) &&
+        validEmployeeIds.has(gc?.employeeId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((gc: any) => ({
+      ...gc,
+      branchId: validBranchIds.has(gc.branchId) ? gc.branchId : null,
+      ruleId: validRuleIds.has(gc.ruleId) ? gc.ruleId : null,
+      settlementId: validSettlementIds.has(gc.settlementId) ? gc.settlementId : null,
+      patientId: validPatientIds.has(gc.patientId) ? gc.patientId : null,
+      quoteId: validQuoteIds.has(gc.quoteId) ? gc.quoteId : null,
+      treatmentId: validTreatmentIds.has(gc.treatmentId) ? gc.treatmentId : null,
+      paymentId: validPaymentIds.has(gc.paymentId) ? gc.paymentId : null,
+      serviceId: validServiceIds.has(gc.serviceId) ? gc.serviceId : null,
+      advisorSnapshotId: validEmployeeIds.has(gc.advisorSnapshotId) ? gc.advisorSnapshotId : null,
+      createdBy: safeUserRef(gc.createdBy ?? gc.createdByUserId),
+      createdByUserId: safeUserRef(gc.createdByUserId ?? gc.createdBy),
+    }));
+  const validCommissionIds = new Set<string>(generatedCommissions.map((gc: any) => gc.id));
+
+  const payrollSettlementItems = (
+    Array.isArray(srcData.payrollSettlementItems) ? srcData.payrollSettlementItems : []
+  )
+    .filter((psi: any) => {
+      const ok = Boolean(normalizeUuidOrNull(psi?.id)) && validSettlementIds.has(psi?.settlementId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((psi: any) => {
+      const commId = psi.commissionId ?? psi.generatedCommissionId;
+      const safeComm = validCommissionIds.has(commId) ? commId : null;
+      return {
+        ...psi,
+        commissionId: safeComm,
+        generatedCommissionId: safeComm,
+      };
+    });
+
+  const staffPayments = (Array.isArray(srcData.staffPayments) ? srcData.staffPayments : [])
+    .filter((sp: any) => {
+      const ok =
+        Boolean(normalizeUuidOrNull(sp?.id)) &&
+        validOrgIds.has(sp?.organizationId) &&
+        validSettlementIds.has(sp?.settlementId) &&
+        validEmployeeIds.has(sp?.employeeId);
+      if (!ok) skippedOrphans += 1;
+      return ok;
+    })
+    .map((sp: any) => ({
+      ...sp,
+      branchId: validBranchIds.has(sp.branchId) ? sp.branchId : null,
+      responsibleUserId: safeUserRef(sp.responsibleUserId),
+      annulledBy: safeUserRef(sp.annulledBy ?? sp.annulledByUserId),
+      annulledByUserId: safeUserRef(sp.annulledByUserId ?? sp.annulledBy),
+    }));
+
+  const auditLogs = (Array.isArray(srcData.auditLogs) ? srcData.auditLogs : []).map((al: any) => ({
+    ...al,
+    organizationId: validOrgIds.has(al?.organizationId) ? al.organizationId : null,
+    branchId: validBranchIds.has(al?.branchId) ? al.branchId : null,
+    userId: safeUserRef(al?.userId),
+  }));
+
+  return {
+    skippedOrphans,
+    envelope: {
+      organizationsList: rawOrgs.filter((o: any) => validOrgIds.has(o?.id)),
+      data: {
+        ...srcData,
+        roles: rawRoles,
+        branches,
+        branchSettings,
+        dentalChairs,
+        users,
+        userBranches,
+        services,
+        branchServices,
+        insurancePlans,
+        planServicePrices,
+        employees,
+        employeeSalaries,
+        commissionRules,
+        patients,
+        patientBranches,
+        appointments,
+        clinicalRecords,
+        odontograms,
+        odontogramItems,
+        quotes,
+        quoteItems,
+        treatments,
+        insuranceClaims,
+        cashRegisters,
+        cashMovements,
+        payments,
+        payrollSettlements,
+        generatedCommissions,
+        payrollSettlementItems,
+        staffPayments,
+        auditLogs,
+      },
+    },
+  };
+}
+
 export async function syncFullStateToRelationalDb(
   pool: pg.Pool,
   state: DbStateEnvelope,
   stateVersion: number = 1
 ): Promise<void> {
   await ensureRelationalSchema(pool);
+  const { envelope: cleanState, skippedOrphans } = sanitizeStateForRelationalSync(state);
+  if (skippedOrphans > 0) {
+    console.warn(`[PostgreSQL] Depurados ${skippedOrphans} vínculo(s) huérfano(s) durante sincronización relacional.`);
+  }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -3364,21 +3860,21 @@ export async function syncFullStateToRelationalDb(
 
     const getCollectionRows = (col: string): any[] => {
       if (col === 'organizationsList') {
-        const list = Array.isArray(state.organizationsList) ? state.organizationsList : [];
+        const list = Array.isArray(cleanState.organizationsList) ? cleanState.organizationsList : [];
         if (list.length > 0) return list;
-        return state.data?.organization ? [state.data.organization] : [];
+        return cleanState.data?.organization ? [cleanState.data.organization] : [];
       }
-      return Array.isArray(state.data?.[col]) ? state.data[col] : [];
+      return Array.isArray(cleanState.data?.[col]) ? cleanState.data[col] : [];
     };
 
     for (const col of COLLECTION_PARENT_TO_CHILD_ORDER) {
       const rows = getCollectionRows(col);
       for (const item of rows) {
-        await upsertRow(client, col, item, state);
+        await upsertRow(client, col, item, cleanState);
       }
     }
 
-    await upsertMetadata(client, state, stateVersion);
+    await upsertMetadata(client, cleanState, stateVersion);
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');

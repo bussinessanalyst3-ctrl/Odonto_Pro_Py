@@ -184,3 +184,51 @@ test('RBAC jerárquico y aislamiento multi-tenant en filterStateForTenant', () =
   assert.ok(!filtered.data.users.some((u: any) => u.roleId === 'SUPER_ADMIN'));
   assert.ok(!filtered.data.users.some((u: any) => u.passwordHash !== undefined));
 });
+
+test('syncFullStateToRelationalDb depura vínculos huérfanos (userBranches/patientBranches) antes de insertar FKs', async () => {
+  const { syncFullStateToRelationalDb } = await import('../src/db/pgRepository.ts');
+  const seed = generateInitialSeedData() as any;
+  const orphanUserId = '99999999-9999-4999-8999-999999999999';
+  seed.userBranches.push({
+    userId: orphanUserId,
+    branchId: seed.branches[0].id,
+    isDefault: false,
+  });
+
+  const userBranchInserts: Array<any[]> = [];
+  const mockClient = {
+    async query(sql: string, params?: any[]) {
+      const normalized = sql.replace(/\s+/g, ' ').trim();
+      if (normalized.includes('FROM information_schema.columns')) {
+        return { rows: [{ column_name: 'last_name' }] };
+      }
+      if (normalized.startsWith('INSERT INTO user_branches')) {
+        userBranchInserts.push(params || []);
+      }
+      return { rows: [] };
+    },
+    release() {},
+  };
+
+  const mockPool = {
+    async connect() {
+      return mockClient;
+    },
+    async query(sql: string, params?: any[]) {
+      return mockClient.query(sql, params);
+    },
+  } as any;
+
+  await syncFullStateToRelationalDb(
+    mockPool,
+    { data: seed, organizationsList: [seed.organization] },
+    1
+  );
+
+  assert.ok(userBranchInserts.length > 0);
+  assert.ok(
+    !userBranchInserts.some((params) => params[0] === orphanUserId),
+    'No debe intentar insertar user_branches cuyo userId no existe en users'
+  );
+});
+
