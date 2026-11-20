@@ -153,14 +153,18 @@ export const AuditLogsView: React.FC = () => {
   const handleSimulateSensitiveAccess = () => {
     const randomPatient = snapshot.patients[0];
     const dentist = users.find((u) => u.roleId === 'ODONTOLOGO') || users[0];
+    if (!dentist) return;
+    const patientDesc = randomPatient
+      ? `${randomPatient.firstName} ${randomPatient.lastName} (CI ${randomPatient.documentNumber})`
+      : 'Registro clínico de verificación MSPBS';
     dbStore.addAuditLog({
       action: 'READ_SENSITIVE',
       entity: 'CLINICAL_RECORD',
-      entityId: randomPatient ? randomPatient.id : 'pat-001',
+      entityId: randomPatient ? randomPatient.id : 'audit-check',
       userId: dentist.id,
       branchId: snapshot.branches[0]?.id || null,
       ipAddress: '190.52.144.' + (Math.floor(Math.random() * 80) + 10),
-      description: `Auditoría preventiva: Lectura de antecedentes médicos confidenciales del paciente ${randomPatient?.firstName} ${randomPatient?.lastName} (CI ${randomPatient?.documentNumber}) por Dr(a). ${dentist.firstName} ${dentist.lastName}`,
+      description: `Auditoría preventiva: Lectura de antecedentes médicos confidenciales (${patientDesc}) por ${dentist.firstName} ${dentist.lastName}`,
     });
   };
 
@@ -230,7 +234,7 @@ export const AuditLogsView: React.FC = () => {
                   Auditoría, Trazabilidad & Compliance Sanitario
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-300">
-                  Fase 14: Ley N° 1682/01 MSPBS
+                  Ley N° 1682/01 MSPBS
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">

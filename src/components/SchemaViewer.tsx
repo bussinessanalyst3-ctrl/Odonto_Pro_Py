@@ -24,10 +24,10 @@ const TABLES: TableDefinition[] = [
     description: 'Entidad raíz (Tenant). Cada clínica u organización opera con aislamiento estricto.',
     columns: [
       { name: 'id', type: 'UUID', isPrimary: true, defaultVal: 'gen_random_uuid()' },
-      { name: 'code', type: 'VARCHAR(50)', note: 'Código único ej. ODONTOSOL-PY' },
+      { name: 'code', type: 'VARCHAR(50)', note: 'Código único ej. ODONTOPRO-PY' },
       { name: 'name', type: 'VARCHAR(255)', note: 'Nombre comercial' },
       { name: 'legal_name', type: 'VARCHAR(255)', nullable: true },
-      { name: 'tax_id', type: 'VARCHAR(50)', note: 'RUC Paraguay con DV (ej. 80098765-4)' },
+      { name: 'tax_id', type: 'VARCHAR(50)', note: 'RUC Paraguay con DV (ej. 7627641-4)' },
       { name: 'country_code', type: 'VARCHAR(3)', defaultVal: "'PRY'" },
       { name: 'default_currency', type: 'VARCHAR(3)', defaultVal: "'PYG'" },
       { name: 'timezone', type: 'VARCHAR(50)', defaultVal: "'America/Asuncion'" },

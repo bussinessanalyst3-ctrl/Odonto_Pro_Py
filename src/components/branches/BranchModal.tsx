@@ -89,7 +89,7 @@ export const BranchModal: React.FC<BranchModalProps> = ({
           address,
           phone,
           whatsapp,
-          email: email || `sucursal.${code.toLowerCase()}@odontosol.com.py`,
+          email: email || `sucursal.${code.toLowerCase()}@odontopro.com.py`,
           openingTime,
           closingTime,
         }, actor);

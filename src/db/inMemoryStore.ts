@@ -85,8 +85,8 @@ class DatabaseStore {
       if (!this.data.planServicePrices || !Array.isArray(this.data.planServicePrices) || this.data.planServicePrices.length === 0) {
         this.data.planServicePrices = defaultSeed.planServicePrices || [];
       }
-      if (!this.data.insuranceClaims || !Array.isArray(this.data.insuranceClaims) || this.data.insuranceClaims.length === 0) {
-        this.data.insuranceClaims = defaultSeed.insuranceClaims || [];
+      if (!this.data.insuranceClaims || !Array.isArray(this.data.insuranceClaims)) {
+        this.data.insuranceClaims = [];
       }
       if (this.data.patients && Array.isArray(this.data.patients)) {
         this.data.patients.forEach((p: any) => {

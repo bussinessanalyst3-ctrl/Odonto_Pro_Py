@@ -27,7 +27,7 @@ test('COLLECTION_PARENT_TO_CHILD_ORDER cubre las 32 colecciones y claves determi
 
 test('applyDeltaToRelationalDb ejecuta transacciones en orden padre->hijo para upserts y hijo->padre para deletes', async () => {
   const executedSql: Array<{ text: string; params?: any[] }> = [];
-  const seed = generateInitialSeedData();
+  const seed = generateInitialSeedData({ includeDemoData: true });
   const envelope = { data: seed, organizationsList: [seed.organization] };
 
   const mockClient = {

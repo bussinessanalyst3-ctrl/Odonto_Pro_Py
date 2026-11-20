@@ -520,7 +520,7 @@ export function addBranch(
     address: newBranch.address,
     phone: newBranch.phone,
     whatsapp: newBranch.whatsapp || newBranch.phone,
-    email: newBranch.email || `sucursal.${newBranch.code.toLowerCase()}@odontosol.com.py`,
+    email: newBranch.email || `sucursal.${newBranch.code.toLowerCase()}@odontopro.com.py`,
     openingTime: newBranch.openingTime || '07:30',
     closingTime: newBranch.closingTime || '19:30',
     status: 'ACTIVE' as const,

@@ -160,7 +160,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                   Ficha Médica Única & Registro de Pacientes
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 border border-teal-200">
-                  Fase 6: Ficha Clínica Unificada
+                  Ficha Clínica Unificada
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">

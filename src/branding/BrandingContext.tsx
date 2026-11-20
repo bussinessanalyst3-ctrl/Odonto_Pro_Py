@@ -50,6 +50,14 @@ const getBrandingForOrg = (org: any): OrganizationBranding => {
 
 export const BRANDING_STORAGE_KEY = 'odontopro_active_branding_v2';
 
+const isLegacyDemoBranding = (b: any): boolean => {
+  if (!b || typeof b !== 'object') return false;
+  const fields = [b.tradeName, b.legalName, b.email, b.website, b.taxId]
+    .map((v) => String(v || '').toLowerCase())
+    .join(' ');
+  return fields.includes('odontosol') || b.taxId === '80098765-4';
+};
+
 const getInitialBranding = (): OrganizationBranding => {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
@@ -57,7 +65,11 @@ const getInitialBranding = (): OrganizationBranding => {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && (parsed.tradeName || parsed.legalName)) {
-          return parsed;
+          if (isLegacyDemoBranding(parsed)) {
+            localStorage.removeItem(BRANDING_STORAGE_KEY);
+          } else {
+            return parsed;
+          }
         }
       }
     }

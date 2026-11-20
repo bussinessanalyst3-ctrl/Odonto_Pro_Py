@@ -87,7 +87,7 @@ export const OrganizationManagementView: React.FC = () => {
   // Estados del formulario de marca
   const [tradeName, setTradeName] = useState(branding.tradeName);
   const [legalName, setLegalName] = useState(branding.legalName);
-  const [companyType, setCompanyType] = useState(branding.companyType || 'S.R.L.');
+  const [companyType, setCompanyType] = useState(branding.companyType || 'E.A.S.');
   const [taxId, setTaxId] = useState(branding.taxId);
   const [timbradoNumber, setTimbradoNumber] = useState(branding.timbradoNumber || '15984260');
   const [timbradoVencimiento, setTimbradoVencimiento] = useState(branding.timbradoVencimiento || '2026-12-31');
@@ -109,10 +109,48 @@ export const OrganizationManagementView: React.FC = () => {
   const [currency, setCurrency] = useState(branding.currency || 'PYG');
   const [currencySymbol, setCurrencySymbol] = useState(branding.currencySymbol || '₲');
   const [phone, setPhone] = useState(branding.phone || '');
-  const [whatsapp, setWhatsapp] = useState(branding.whatsapp || '+595 981 123 456');
+  const [whatsapp, setWhatsapp] = useState(branding.whatsapp || '+595 984 805 602');
   const [email, setEmail] = useState(branding.email || '');
   const [address, setAddress] = useState(branding.address || '');
   const [website, setWebsite] = useState(branding.website || '');
+
+  React.useEffect(() => {
+    setTradeName(branding.tradeName);
+    setLegalName(branding.legalName);
+    setCompanyType(branding.companyType || 'E.A.S.');
+    setTaxId(branding.taxId);
+    setTimbradoNumber(branding.timbradoNumber || '15984260');
+    setTimbradoVencimiento(branding.timbradoVencimiento || '2026-12-31');
+    setLogoUrl(branding.logoUrl || '');
+    setSelectedIcon(branding.logoIcon || 'stethoscope');
+    setPrimaryColor(branding.primaryColor || 'teal');
+    setCustomHexColor(branding.customHexColor || '#0d9488');
+    setCurrency(branding.currency || 'PYG');
+    setCurrencySymbol(branding.currencySymbol || '₲');
+    setPhone(branding.phone || '');
+    setWhatsapp(branding.whatsapp || '+595 984 805 602');
+    setEmail(branding.email || '');
+    setAddress(branding.address || '');
+    setWebsite(branding.website || '');
+  }, [
+    branding.tradeName,
+    branding.legalName,
+    branding.companyType,
+    branding.taxId,
+    branding.timbradoNumber,
+    branding.timbradoVencimiento,
+    branding.logoUrl,
+    branding.logoIcon,
+    branding.primaryColor,
+    branding.customHexColor,
+    branding.currency,
+    branding.currencySymbol,
+    branding.phone,
+    branding.whatsapp,
+    branding.email,
+    branding.address,
+    branding.website,
+  ]);
 
   // Pestaña del simulador interactivo
   const [previewTab, setPreviewTab] = useState<'sidebar' | 'receipt' | 'clinical' | 'quote'>('sidebar');
@@ -130,7 +168,7 @@ export const OrganizationManagementView: React.FC = () => {
   const [isNewOrgModalOpen, setIsNewOrgModalOpen] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
   const [newOrgTaxId, setNewOrgTaxId] = useState('');
-  const [newOrgCompanyType, setNewOrgCompanyType] = useState('S.R.L.');
+  const [newOrgCompanyType, setNewOrgCompanyType] = useState('E.A.S.');
 
   // VERIFICACIÓN DE AUTORIDAD Y AISLAMIENTO MULTIEMPRESA:
   // "El administrador de organización no debería poder visualizar EMPRESA&BRANDING.
@@ -926,7 +964,7 @@ export const OrganizationManagementView: React.FC = () => {
                   required
                   value={taxId}
                   onChange={(e) => setTaxId(e.target.value)}
-                  placeholder="Ej. 80098765-4"
+                  placeholder="Ej. 7627641-4"
                   className="w-full text-xs font-mono px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
                 />
               </div>
@@ -985,7 +1023,7 @@ export const OrganizationManagementView: React.FC = () => {
                   type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+595 21 445 890"
+                  placeholder="+595 984 805 602"
                   className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
                 />
               </div>
@@ -998,7 +1036,7 @@ export const OrganizationManagementView: React.FC = () => {
                   type="text"
                   value={whatsapp}
                   onChange={(e) => setWhatsapp(e.target.value)}
-                  placeholder="+595 981 123 456"
+                  placeholder="+595 984 805 602"
                   className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
                 />
               </div>
@@ -1011,7 +1049,7 @@ export const OrganizationManagementView: React.FC = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="contacto@odontosol.com.py"
+                  placeholder="contacto@odontopro.com.py"
                   className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
                 />
               </div>
@@ -1024,7 +1062,7 @@ export const OrganizationManagementView: React.FC = () => {
                   type="url"
                   value={website}
                   onChange={(e) => setWebsite(e.target.value)}
-                  placeholder="https://odontosol.com.py"
+                  placeholder="https://odontopro.com.py"
                   className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
                 />
               </div>
@@ -1037,7 +1075,7 @@ export const OrganizationManagementView: React.FC = () => {
                   type="text"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Calle Palma 745 c/ Ayolas - Edificio Palma Real, Asunción"
+                  placeholder="Encarnación, Paraguay"
                   className="w-full text-xs px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
                 />
               </div>

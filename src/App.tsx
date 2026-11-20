@@ -194,6 +194,7 @@ function MainApplication() {
           onSelectBranch={setSelectedBranchId}
           onNavigateTab={handleGlobalNavigate}
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
+          showDevTools={showDevTools}
         />
 
         {/* Área de Contenido de los Módulos */}

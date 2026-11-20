@@ -354,8 +354,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
 
-          {/* Grupo de Ingeniería / Modo Dev (Solo visible si es SUPER_ADMIN) */}
-          {userRole === 'SUPER_ADMIN' && (
+          {/* Grupo de Ingeniería / Modo Dev (Solo visible si showDevTools está activado) */}
+          {userRole === 'SUPER_ADMIN' && showDevTools && (
             <div className="pt-2 border-t border-slate-100">
               <button
                 onClick={() => toggleGroup('engineering')}

@@ -67,7 +67,7 @@ class SecurityService {
         severity: 'MEDIUM',
         threatType: 'Ataque de Fuerza Bruta en Autenticación',
         sourceIp: '190.52.148.22 (San Lorenzo, PY)',
-        targetedUserOrResource: 'admin.general@odontosol.com.py',
+        targetedUserOrResource: 'admin.general@odontopro.com.py',
         actionTaken: 'Cuenta bloqueada temporalmente por 15 minutos (5 intentos fallidos)',
         details: 'Ráfaga de 5 contraseñas erróneas en lapso de 22 segundos.',
       },
@@ -376,7 +376,7 @@ class SecurityService {
       name: 'V4: Ataque de Fuerza Bruta en Autenticación (5+ intentos)',
       targetEndpoint: '/api/v1/auth/login',
       payload: {
-        targetEmail: 'director.medico@odontosol.com.py',
+        targetEmail: 'director.medico@odontopro.com.py',
         attemptCount: 6,
         passwordsTested: ['123456', 'admin', 'password', 'clinica2026', 'odonto123', 'root'],
       },

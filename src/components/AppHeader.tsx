@@ -32,6 +32,7 @@ interface AppHeaderProps {
   onSelectBranch: (branchId: string) => void;
   onNavigateTab: (tab: TabType, extraPayload?: any) => void;
   onOpenMobileSidebar: () => void;
+  showDevTools?: boolean;
 }
 
 interface SearchResult {
@@ -49,6 +50,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onSelectBranch,
   onNavigateTab,
   onOpenMobileSidebar,
+  showDevTools = false,
 }) => {
   const { session } = useAuth();
   const { branding } = useBranding();
@@ -422,12 +424,12 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               <span>₲ PYG</span>
             </div>
 
-            {/* Botón de Restaurar Seed inicial de prueba (EXCLUSIVO SUPER_ADMIN) */}
-            {isSuperAdmin && (
+            {/* Botón de Restaurar configuración inicial (Solo visible en Modo Dev para SUPER_ADMIN) */}
+            {isSuperAdmin && showDevTools && (
               <button
                 onClick={handleResetData}
                 disabled={isResettingSeed}
-                title="Restaurar datos iniciales de prueba de Paraguay"
+                title="Restaurar configuración inicial del sistema"
                 data-testid="reset-seed-button"
                 className="hidden sm:flex p-2 text-slate-500 hover:text-slate-800 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors shadow-2xs min-h-[40px] min-w-[40px] items-center justify-center shrink-0 cursor-pointer disabled:opacity-50"
               >
@@ -455,9 +457,9 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 
       <ConfirmDialog
         isOpen={isResetConfirmOpen}
-        title="Restaurar datos iniciales de prueba"
-        message="¿Desea restaurar los datos iniciales de prueba de Paraguay? Esta acción reemplazará los registros de demostración actuales."
-        confirmLabel="Restaurar datos"
+        title="Restaurar configuración inicial"
+        message="¿Desea restaurar la configuración inicial oficial de OdontoPro? Esta acción reiniciará los registros de la base actual."
+        confirmLabel="Restaurar configuración"
         variant="warning"
         isLoading={isResettingSeed}
         onConfirm={executeResetData}

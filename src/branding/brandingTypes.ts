@@ -1,7 +1,7 @@
 export interface OrganizationBranding {
-  tradeName: string;         // Nombre comercial público (ej. "OdontoPro Dental")
-  legalName: string;         // Razón Social (ej. "OdontoSol S.R.L.")
-  taxId: string;             // RUC Paraguay (ej. "80098765-4")
+  tradeName: string;         // Nombre comercial público (ej. "OdontoPro")
+  legalName: string;         // Razón Social (ej. "Quality Solutions")
+  taxId: string;             // RUC Paraguay (ej. "7627641-4")
   logoUrl?: string;          // URL del logo institucional o data-URL cargada
   logoIcon?: string;         // Identificador del icono dental prediseñado
   primaryColor: string;      // Color temático primario (teal, cyan, blue, emerald, indigo, violet, rose, amber, slate)
@@ -21,10 +21,10 @@ export interface OrganizationBranding {
 }
 
 export const DEFAULT_BRANDING: OrganizationBranding = {
-  tradeName: 'OdontoPro Paraguay',
-  legalName: 'OdontoSol Servicios Odontológicos Integrales S.R.L.',
-  taxId: '80098765-4',
-  companyType: 'S.R.L.',
+  tradeName: 'OdontoPro',
+  legalName: 'Quality Solutions',
+  taxId: '7627641-4',
+  companyType: 'E.A.S.',
   primaryColor: 'teal',
   customHexColor: '#0d9488',
   logoIcon: 'stethoscope',
@@ -34,9 +34,9 @@ export const DEFAULT_BRANDING: OrganizationBranding = {
   currencySymbol: '₲',
   countryCode: 'PRY',
   timezone: 'America/Asuncion',
-  phone: '+595 21 445 890',
-  whatsapp: '+595 981 123 456',
-  email: 'contacto@odontosol.com.py',
-  address: 'Calle Palma 745 c/ Ayolas - Edificio Palma Real, Asunción',
-  website: 'https://odontosol.com.py',
+  phone: '+595 984 805 602',
+  whatsapp: '+595 984 805 602',
+  email: 'bussinessanalyst3@gmail.com',
+  address: 'Encarnación, Paraguay',
+  website: '',
 };

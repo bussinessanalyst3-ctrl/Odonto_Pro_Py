@@ -1,5 +1,5 @@
 /**
- * Módulo Criptográfico de Contraseñas del Sistema Clínico OdontoSol
+ * Módulo Criptográfico de Contraseñas del Sistema Clínico OdontoPro
  * 
  * Implementa Criptografía de Estándar Bancario y Médico (Web Crypto API):
  * - Derivación con PBKDF2 (Password-Based Key Derivation Function 2)

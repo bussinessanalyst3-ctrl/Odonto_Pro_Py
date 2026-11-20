@@ -81,7 +81,7 @@ export const SecurityHardeningView: React.FC = () => {
       organizationId: dbStore.getActiveOrganization().id,
       role: simRole,
       allowedBranchIds,
-      email: `simulated.${simRole.toLowerCase()}@odontosol.com.py`,
+      email: `simulated.${simRole.toLowerCase()}@odontopro.com.py`,
     } as any;
 
     let result = { allowed: true, status: 200, message: 'Operación permitida bajo políticas de seguridad.' };

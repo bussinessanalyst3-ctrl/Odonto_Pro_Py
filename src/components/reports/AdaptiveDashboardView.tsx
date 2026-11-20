@@ -63,7 +63,7 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
                   Dashboard Dinámico & Reportes de Gestión
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  Fase 13
+                  Tiempo Real
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">

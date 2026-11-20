@@ -446,17 +446,17 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Reset Button (EXCLUSIVO SUPER_ADMIN) */}
-            {isSuperAdmin && (
+            {/* Reset Button (Solo visible en Modo Dev para SUPER_ADMIN) */}
+            {isSuperAdmin && showDevTools && (
               <button
                 onClick={handleResetData}
                 disabled={isResettingSeed}
-                title="Restaurar datos iniciales de prueba"
+                title="Restaurar configuración inicial"
                 data-testid="reset-seed-button"
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-xs disabled:opacity-50"
               >
                 <RefreshCw className={`h-3.5 w-3.5 text-slate-400 ${isResettingSeed ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Seed</span>
+                <span className="hidden sm:inline">Reiniciar</span>
               </button>
             )}
 
@@ -492,9 +492,9 @@ export const Header: React.FC<HeaderProps> = ({
 
       <ConfirmDialog
         isOpen={isResetConfirmOpen}
-        title="Restaurar datos iniciales de prueba"
-        message="¿Desea restaurar los datos iniciales de prueba de Paraguay? Esta acción reemplazará los registros de demostración actuales."
-        confirmLabel="Restaurar datos"
+        title="Restaurar configuración inicial"
+        message="¿Desea restaurar la configuración inicial oficial de OdontoPro? Esta acción reiniciará los registros actuales."
+        confirmLabel="Restaurar"
         variant="warning"
         isLoading={isResettingSeed}
         onConfirm={executeResetData}

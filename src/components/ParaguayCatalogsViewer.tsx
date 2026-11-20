@@ -11,7 +11,7 @@ import {
 
 export const ParaguayCatalogsViewer: React.FC = () => {
   const [selectedDeptCode, setSelectedDeptCode] = useState<string>('CEN');
-  const [rucTestNumber, setRucTestNumber] = useState<string>('80098765');
+  const [rucTestNumber, setRucTestNumber] = useState<string>('7627641');
   const [testedDv, setTestedDv] = useState<number | null>(4);
 
   const selectedDept =
@@ -132,7 +132,7 @@ export const ParaguayCatalogsViewer: React.FC = () => {
                   type="text"
                   value={rucTestNumber}
                   onChange={(e) => handleCalculateDv(e.target.value)}
-                  placeholder="Ej. 4250312 o 80098765"
+                  placeholder="Ej. 4250312 o 7627641"
                   className="w-full text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 font-medium"
                 />
               </div>

@@ -24,7 +24,7 @@ import { useBranding } from '../../branding/BrandingContext.tsx';
 
 // Clave exclusiva para recordar únicamente el identificador (correo o nombre de usuario).
 // NUNCA se almacena la contraseña en ningún medio local.
-const REMEMBERED_IDENTIFIER_KEY = 'odontosol_remembered_identifier';
+const REMEMBERED_IDENTIFIER_KEY = 'odontopro_remembered_identifier';
 
 export const LoginScreen: React.FC = () => {
   const { login, requestPasswordReset, resetPasswordWithToken, isLoading } = useAuth();
@@ -50,10 +50,11 @@ export const LoginScreen: React.FC = () => {
 
   // Carga inicial y saneamiento de almacenamiento local
   useEffect(() => {
-    // 1. Limpieza de seguridad: erradicar cualquier clave previa que pudiera contener contraseñas
+    // 1. Limpieza de seguridad: erradicar cualquier clave previa que pudiera contener contraseñas o branding legado
     try {
       localStorage.removeItem('odontopro_remembered_credentials');
       sessionStorage.removeItem('odontopro_remembered_credentials');
+      localStorage.removeItem('odontosol_remembered_identifier');
     } catch (e) {}
 
     // 2. Cargar únicamente el identificador no sensible si fue recordado por el usuario
