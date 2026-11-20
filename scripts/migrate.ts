@@ -64,6 +64,21 @@ export async function applyPendingMigrations(
         checksum VARCHAR(64) NOT NULL,
         applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE schema_migrations ENABLE ROW LEVEL SECURITY;
+      DROP POLICY IF EXISTS deny_direct_schema_migrations ON schema_migrations;
+      CREATE POLICY deny_direct_schema_migrations ON schema_migrations
+        FOR ALL
+        USING (FALSE)
+        WITH CHECK (FALSE);
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+          EXECUTE 'REVOKE ALL ON TABLE schema_migrations FROM anon';
+        END IF;
+        IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+          EXECUTE 'REVOKE ALL ON TABLE schema_migrations FROM authenticated';
+        END IF;
+      END $$;
     `);
 
     const appliedRows = await client.query<{ filename: string; checksum: string }>(
