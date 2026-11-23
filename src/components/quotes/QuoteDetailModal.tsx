@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
+import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
 import {
   X,
   Printer,
@@ -43,6 +44,7 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
   const branch = dbStore.getBranches().find((b) => b.id === quote.branchId);
   const odontologist = dbStore.getUsers().find((u) => u.id === quote.odontologistId);
   const organization = dbStore.getOrganization();
+  const orgLegalName = resolveOrganizationLegalName(organization);
 
   const handleConfirmAction = async () => {
     if (!pendingAction || isSubmitting) return;
@@ -108,7 +110,9 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
     )
     .join('%0A');
 
-  const waMessage = `Hola ${patient?.firstName}! Le compartimos el presupuesto formal N° ${quote.quoteNumber} de *${organization?.name || 'OdontoPro Paraguay'}* (Sucursal ${branch?.name}):%0A%0A*Detalle de Procedimientos:*%0A${itemsListText}%0A%0A*Total Presupuestado:* ₲ ${quote.finalAmount.toLocaleString('es-PY')}%0A*Validez:* Hasta ${quote.validUntil || '30 días'}%0A%0AQuedamos a su disposición para coordinar el inicio de su tratamiento.`;
+  const senderText = orgLegalName ? ` de *${orgLegalName}*` : '';
+  const branchText = branch?.name ? ` (Sucursal ${branch.name})` : '';
+  const waMessage = `Hola ${patient?.firstName}! Le compartimos el presupuesto formal N° ${quote.quoteNumber}${senderText}${branchText}:%0A%0A*Detalle de Procedimientos:*%0A${itemsListText}%0A%0A*Total Presupuestado:* ₲ ${quote.finalAmount.toLocaleString('es-PY')}%0A*Validez:* Hasta ${quote.validUntil || '30 días'}%0A%0AQuedamos a su disposición para coordinar el inicio de su tratamiento.`;
 
   const waUrl = `https://wa.me/${waPhone}?text=${waMessage}`;
 
@@ -189,18 +193,28 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
           {/* Clinic Header */}
           <div className="border-b-2 border-slate-800 pb-6 flex items-start justify-between">
             <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                {organization?.name || 'OdontoPro Paraguay'}
-              </h1>
+              {orgLegalName && (
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                  {orgLegalName}
+                </h1>
+              )}
               <p className="text-xs font-semibold text-slate-600 mt-0.5">
                 Clínica Odontológica Integral & Especialidades
               </p>
               <div className="text-xs text-slate-500 mt-2 space-y-0.5">
-                <p>RUC: {organization?.taxId || '80012345-6'}</p>
-                <p>
-                  Sucursal: {branch?.name} — {branch?.address}, {branch?.city}
-                </p>
-                <p>Tel: {branch?.phone} | WhatsApp: {branch?.whatsapp}</p>
+                {organization?.taxId && <p>RUC: {organization.taxId}</p>}
+                {branch?.name && (
+                  <p>
+                    Sucursal: {branch.name}{branch.address ? ` — ${branch.address}` : ''}{branch.city ? `, ${branch.city}` : ''}
+                  </p>
+                )}
+                {(branch?.phone || branch?.whatsapp) && (
+                  <p>
+                    {branch?.phone ? `Tel: ${branch.phone}` : ''}
+                    {branch?.phone && branch?.whatsapp ? ' | ' : ''}
+                    {branch?.whatsapp ? `WhatsApp: ${branch.whatsapp}` : ''}
+                  </p>
+                )}
               </div>
             </div>
 

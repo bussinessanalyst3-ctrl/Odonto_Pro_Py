@@ -175,7 +175,7 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold text-teal-700 uppercase tracking-wider mb-1">
               <Stethoscope className="h-4 w-4" />
-              <span>Fase 10 • Tratamientos & Catálogo Odontológico</span>
+              <span>Tratamientos & Catálogo Odontológico</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900">
               Tratamientos Clínicos & Aranceles

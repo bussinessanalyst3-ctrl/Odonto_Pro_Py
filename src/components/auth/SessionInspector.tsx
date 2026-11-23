@@ -72,7 +72,7 @@ export const SessionInspector: React.FC = () => {
                 <ShieldCheck className="h-4 w-4" />
               </span>
               <h2 className="text-lg font-bold text-slate-900">
-                Fase 3: Autenticación Segura & Inspector de Sesión Activa
+                Autenticación Segura & Inspector de Sesión Activa
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-1">

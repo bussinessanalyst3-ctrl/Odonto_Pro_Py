@@ -22,6 +22,7 @@ import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import { TabType } from '../Header.tsx';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 
 interface ExecutiveDashboardProps {
   onNavigateTab: (tab: TabType, payload?: any) => void;
@@ -35,7 +36,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   const { session } = useAuth();
   const snapshot = dbStore.getSnapshot();
 
-  const todayStr = '2026-09-21'; // Fecha de operación del consultorio
+  const todayStr = getTodayAsuncionISO(); // Fecha actual de operación del consultorio
 
   // Filtrado por sucursal si está seleccionada
   const appointments = snapshot.appointments.filter((a) =>

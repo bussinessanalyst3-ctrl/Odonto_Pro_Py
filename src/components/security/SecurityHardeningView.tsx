@@ -132,7 +132,7 @@ export const SecurityHardeningView: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
-                Fase 15: Seguridad & Hardening
+                Seguridad & Hardening
               </span>
               <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -238,7 +238,7 @@ export const SecurityHardeningView: React.FC = () => {
           }`}
         >
           <Lock className="h-4 w-4" />
-          <span>Simulador de IDOR en Vivo</span>
+          <span>Verificador de IDOR en Vivo</span>
         </button>
 
         <button
@@ -395,7 +395,7 @@ export const SecurityHardeningView: React.FC = () => {
                   </div>
 
                   <div>
-                    <span className="text-slate-500 font-medium">Carga Útil del Ataque (Payload Simulado):</span>
+                    <span className="text-slate-500 font-medium">Carga Útil de Prueba (Payload):</span>
                     <pre className="mt-1 p-3 rounded-xl bg-slate-900 text-slate-200 font-mono text-[11px] overflow-x-auto max-h-48 border border-slate-800">
                       {JSON.stringify(selectedResult.payload, null, 2)}
                     </pre>
@@ -429,7 +429,7 @@ export const SecurityHardeningView: React.FC = () => {
           <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <Lock className="h-4 w-4 text-teal-600" />
-              <span>Simulador Interactivo de Explotación IDOR (Insecure Direct Object Reference)</span>
+              <span>Verificador Interactivo de Explotación IDOR (Insecure Direct Object Reference)</span>
             </h2>
             <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
               Pruebe activamente cómo el sistema previene que un usuario con privilegios restringidos
@@ -440,7 +440,7 @@ export const SecurityHardeningView: React.FC = () => {
               {/* Role selector */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  1. Rol Simulado del Atacante
+                  1. Rol de Prueba del Usuario
                 </label>
                 <select
                   value={simRole}

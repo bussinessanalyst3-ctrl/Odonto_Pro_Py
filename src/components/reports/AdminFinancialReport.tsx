@@ -138,7 +138,7 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
     filteredPayments.length + filteredMovements.filter((m) => m.movementType === 'INGRESO').length;
   const averageTicket = totalTransactionsCount > 0 ? Math.round(totalRevenue / totalTransactionsCount) : 0;
 
-  // Modality metrics: Particulares vs Aseguradoras (Fase 5)
+  // Modality metrics: Particulares vs Aseguradoras
   const branchFilteredClaims = selectedBranchId
     ? insuranceClaims.filter((c: any) => c.branchId === selectedBranchId)
     : insuranceClaims;
@@ -406,13 +406,13 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
         </div>
       </div>
 
-      {/* Fase 5: Insurance & Prepagas Financial Performance Section */}
+      {/* Insurance & Prepagas Financial Performance Section */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-100">
           <div>
             <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 uppercase tracking-wider mb-0.5">
               <ShieldCheck className="h-4 w-4" />
-              <span>Fase 5 • Facturación por Modalidad Comercial</span>
+              <span>Facturación por Modalidad Comercial</span>
             </div>
             <h3 className="text-base font-extrabold text-slate-900">
               Desglose de Ingresos: Particulares vs Seguros & Prepagas Odontológicas

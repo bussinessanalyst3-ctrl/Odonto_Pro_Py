@@ -93,7 +93,7 @@ export const AutomatedTestingView: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `test-report-fase16-${Date.now()}.json`;
+    a.download = `test-report-odontopro-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -109,11 +109,11 @@ export const AutomatedTestingView: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                Fase 16: Testing Automatizado
+                Testing Automatizado
               </span>
               <span className="px-3 py-1 rounded-full text-xs font-semibold bg-teal-500/20 text-teal-300 border border-teal-500/30 flex items-center gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                100% Cobertura de Requisitos
+                Cobertura de Requisitos Verificada
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
@@ -175,14 +175,14 @@ export const AutomatedTestingView: React.FC = () => {
               3
             </div>
             <div>
-              <div className="font-bold text-slate-200">Tests E2E Simulados</div>
+              <div className="font-bold text-slate-200">Tests E2E</div>
               <div className="text-[11px] text-slate-400">Flujos Clínicos Reales</div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <div className="h-7 w-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
-              100%
+              OK
             </div>
             <div>
               <div className="font-bold text-slate-200">Tasa de Éxito</div>

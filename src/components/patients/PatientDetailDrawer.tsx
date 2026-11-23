@@ -21,6 +21,7 @@ import {
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import { useBranding } from '../../branding/BrandingContext.tsx';
+import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
 
 interface PatientDetailDrawerProps {
   patientId: string | null;
@@ -61,10 +62,16 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
   const age = currentYear - birthYear;
 
   // Paraguay WhatsApp link
+  const orgLegalName = resolveOrganizationLegalName({
+    legalName: branding.legalName,
+    name: snapshot.organization?.name,
+  });
   const cleanPhone = (patient.whatsapp || patient.phone || '').replace(/\D/g, '');
   const waNumber = cleanPhone.startsWith('595') ? cleanPhone : `595${cleanPhone.replace(/^0/, '')}`;
   const greeting = encodeURIComponent(
-    `Hola ${patient.firstName}, le saludamos desde ${branding.legalName || branding.tradeName || 'la clínica odontológica'}.`
+    orgLegalName
+      ? `Hola ${patient.firstName}, le saludamos desde ${orgLegalName}.`
+      : `Hola ${patient.firstName}, le saludamos cordialmente.`
   );
   const waUrl = `https://wa.me/${waNumber}?text=${greeting}`;
 
@@ -380,7 +387,7 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                   <Award className="h-4 w-4 text-teal-600 shrink-0 mt-0.5" />
                   <span>
                     Ficha clínica unificada vinculada a la Ley N° 1682/01 de Protección de Datos Médicos.
-                    Válida en cualquiera de las sucursales habilitadas de {branding.tradeName || branding.legalName || 'nuestra red odontológica'}.
+                    Válida en cualquiera de las sucursales habilitadas{orgLegalName ? ` de ${orgLegalName}` : ''}.
                   </span>
                 </div>
               </div>

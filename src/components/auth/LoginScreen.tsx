@@ -5,22 +5,16 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  Building2,
   CheckCircle2,
   ArrowRight,
   Stethoscope,
   KeyRound,
-  HeartPulse,
-  Hospital,
-  Activity,
-  Landmark,
-  Sparkles,
-  ShieldCheck,
   User,
   X
 } from 'lucide-react';
 import { useAuth } from '../../auth/authContext.tsx';
 import { useBranding } from '../../branding/BrandingContext.tsx';
+import { APP_NAME } from '../../config/appBrand.ts';
 
 // Clave exclusiva para recordar únicamente el identificador (correo o nombre de usuario).
 // NUNCA se almacena la contraseña en ningún medio local.
@@ -187,6 +181,8 @@ export const LoginScreen: React.FC = () => {
     setIsForgotModalOpen(true);
   };
 
+  const companyLegalName = (branding.legalName || '').trim();
+
   return (
     <div className="min-h-[100dvh] bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 flex flex-col justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8 font-sans antialiased text-slate-800 relative overflow-x-hidden selection:bg-teal-500 selection:text-white">
       {/* Luces difusas de fondo */}
@@ -199,43 +195,24 @@ export const LoginScreen: React.FC = () => {
         <div className="text-center mb-6">
           <div
             className="inline-flex items-center justify-center h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-xl shadow-teal-500/20 mb-3 sm:mb-4 border border-teal-300/30 overflow-hidden"
-            style={branding.customHexColor ? { background: branding.customHexColor } : undefined}
+            role="img"
+            aria-label={APP_NAME}
           >
-            {branding.logoUrl ? (
-              <img
-                src={branding.logoUrl}
-                alt={branding.tradeName || 'Sistema Odontológico Paraguay'}
-                className="h-10 w-10 sm:h-12 sm:w-12 object-contain rounded-xl p-1"
-                onError={(e) => {
-                  (e.target as HTMLElement).style.display = 'none';
-                }}
-              />
-            ) : branding.logoIcon === 'heart-pulse' ? (
-              <HeartPulse className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
-            ) : branding.logoIcon === 'hospital' ? (
-              <Hospital className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
-            ) : branding.logoIcon === 'building' ? (
-              <Building2 className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
-            ) : branding.logoIcon === 'sparkles' ? (
-              <Sparkles className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
-            ) : branding.logoIcon === 'shield' ? (
-              <ShieldCheck className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
-            ) : branding.logoIcon === 'activity' ? (
-              <Activity className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
-            ) : branding.logoIcon === 'landmark' ? (
-              <Landmark className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
-            ) : (
-              <Stethoscope className="h-7 w-7 sm:h-8 sm:w-8 text-white" />
-            )}
+            <Stethoscope className="h-7 w-7 sm:h-8 sm:w-8 text-white" aria-hidden="true" />
           </div>
 
-          <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-            {branding.tradeName || 'Sistema Odontológico Paraguay'}
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            {APP_NAME}
           </h1>
 
-          <p className="mt-1 text-xs sm:text-sm font-medium text-teal-200/90">
-            Acceso al Sistema Clínico
-          </p>
+          {companyLegalName && (
+            <p
+              className="mt-1.5 text-xs sm:text-sm font-medium text-teal-200/90 max-w-[280px] sm:max-w-sm mx-auto truncate px-2"
+              title={companyLegalName}
+            >
+              Empresa: {companyLegalName}
+            </p>
+          )}
         </div>
 
         {/* Tarjeta de Inicio de Sesión */}

@@ -1,6 +1,7 @@
 import React from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
-import { X, Printer, CheckCircle2, Building2 } from 'lucide-react';
+import { X, Printer } from 'lucide-react';
+import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
 
 interface CashReceiptModalProps {
   paymentId: string | null;
@@ -17,6 +18,7 @@ export const CashReceiptModal: React.FC<CashReceiptModalProps> = ({ paymentId, o
   const branch = dbStore.getBranches().find((b) => b.id === payment.branchId);
   const cashier = dbStore.getUsers().find((u) => u.id === payment.receivedBy);
   const organization = dbStore.getOrganization();
+  const orgLegalName = resolveOrganizationLegalName(organization);
 
   const handlePrint = () => {
     window.print();
@@ -58,16 +60,18 @@ export const CashReceiptModal: React.FC<CashReceiptModalProps> = ({ paymentId, o
           {/* Header */}
           <div className="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
             <div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                {organization?.name || 'OdontoPro Paraguay'}
-              </h2>
+              {orgLegalName && (
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                  {orgLegalName}
+                </h2>
+              )}
               <p className="text-xs font-semibold text-slate-600">
                 Clínica Odontológica Integral
               </p>
               <div className="text-[11px] text-slate-500 mt-1 space-y-0.5">
-                <p>RUC: {organization?.taxId || '80012345-6'}</p>
-                <p>Sucursal: {branch?.name} ({branch?.city})</p>
-                <p>Dirección: {branch?.address}</p>
+                {organization?.taxId && <p>RUC: {organization.taxId}</p>}
+                {branch?.name && <p>Sucursal: {branch.name}{branch.city ? ` (${branch.city})` : ''}</p>}
+                {branch?.address && <p>Dirección: {branch.address}</p>}
               </div>
             </div>
 

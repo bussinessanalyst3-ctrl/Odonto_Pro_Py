@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 
 interface CreateAppointmentModalProps {
@@ -37,7 +38,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
   const [odontologistId, setOdontologistId] = useState<string>(dentists[0]?.id || '');
   const [dentalChairId, setDentalChairId] = useState<string>('');
   const [serviceId, setServiceId] = useState<string>(services[0]?.id || '');
-  const [appointmentDate, setAppointmentDate] = useState<string>(initialDate || '2026-09-21');
+  const [appointmentDate, setAppointmentDate] = useState<string>(initialDate || getTodayAsuncionISO());
   const [startTime, setStartTime] = useState<string>('09:00');
   const [durationMin, setDurationMin] = useState<number>(30);
   const [reason, setReason] = useState<string>('');

@@ -29,6 +29,7 @@ import { useAuth } from '../auth/authContext.tsx';
 import { UserRole } from '../auth/types.ts';
 import { isSuperAdminRole } from '../security/rbacHierarchy.ts';
 import { ConfirmDialog } from './common/ConfirmDialog.tsx';
+import { APP_NAME, ENABLE_DEV_TOOLS, resolveOrganizationLegalName } from '../config/appBrand.ts';
 
 export type TabType =
   | 'dashboard'
@@ -51,8 +52,7 @@ export type TabType =
   | 'database'
   | 'data-explorer'
   | 'paraguay'
-  | 'architecture'
-  | 'roadmap';
+  | 'architecture';
 
 interface NavItem {
   id: TabType;
@@ -69,7 +69,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'agenda',
     label: 'Agenda & Citas',
-    devLabel: 'Agenda & Citas (Fase 7)',
+    devLabel: 'Agenda & Citas',
     icon: Calendar,
     category: 'clinical',
     allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION'],
@@ -78,7 +78,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'patients',
     label: 'Pacientes',
-    devLabel: 'Ficha Pacientes (Fase 6)',
+    devLabel: 'Ficha de Pacientes',
     icon: HeartPulse,
     category: 'clinical',
     allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
@@ -87,7 +87,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'odontogram',
     label: 'Odontograma FDI',
-    devLabel: 'Odontograma FDI (Fase 9)',
+    devLabel: 'Odontograma FDI',
     icon: Stethoscope,
     category: 'clinical',
     allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
@@ -96,7 +96,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'clinical',
     label: 'Historias Clínicas',
-    devLabel: 'Historias Clínicas (Fase 8)',
+    devLabel: 'Historias Clínicas',
     icon: FileText,
     category: 'clinical',
     allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
@@ -105,7 +105,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'treatments',
     label: 'Tratamientos & Tarifas',
-    devLabel: 'Tratamientos (Fase 10)',
+    devLabel: 'Tratamientos & Tarifas',
     icon: Building2,
     category: 'clinical',
     allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
@@ -114,7 +114,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'quotes',
     label: 'Presupuestos & Planes',
-    devLabel: 'Presupuestos (Fase 11)',
+    devLabel: 'Presupuestos & Planes',
     icon: Calculator,
     category: 'clinical',
     allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
@@ -125,7 +125,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'cash',
     label: 'Caja & Facturación',
-    devLabel: 'Caja Diaria (Fase 12)',
+    devLabel: 'Caja Diaria & Pagos',
     icon: DollarSign,
     category: 'management',
     allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'RECEPCION', 'CAJA'],
@@ -143,7 +143,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'dashboard',
     label: 'Dashboard & Reportes',
-    devLabel: 'Dashboard & Reportes (Fase 13)',
+    devLabel: 'Dashboard & Reportes',
     icon: BarChart3,
     category: 'management',
     allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
@@ -152,7 +152,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'users',
     label: 'Equipo & Roles MSPBS',
-    devLabel: 'Equipo & Roles (Fase 5)',
+    devLabel: 'Equipo & Roles',
     icon: Users,
     category: 'management',
     allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
@@ -161,7 +161,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'branches',
     label: 'Sucursales & Sillones',
-    devLabel: 'Sucursales (Fase 4)',
+    devLabel: 'Sucursales & Sillones',
     icon: Landmark,
     category: 'management',
     allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
@@ -170,7 +170,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'organization',
     label: 'Empresa & Branding',
-    devLabel: 'Multiempresa & Marca (Fase 18)',
+    devLabel: 'Multiempresa & Marca',
     icon: Building2,
     category: 'management',
     allowedRoles: ['SUPER_ADMIN'], // Exclusivo Super Administrador
@@ -179,18 +179,18 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'audit',
     label: 'Auditoría MSPBS',
-    devLabel: 'Auditoría MSPBS (Fase 14)',
+    devLabel: 'Auditoría MSPBS',
     icon: ShieldAlert,
     category: 'management',
     allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
     color: 'bg-purple-600',
   },
 
-  // Herramientas de Ingeniería / DevOps (Visibles para SUPER_ADMIN)
+  // Herramientas Técnicas (solo disponibles cuando VITE_ENABLE_DEV_TOOLS=true)
   {
     id: 'production',
-    label: 'Producción Vercel',
-    devLabel: 'Producción Vercel (Fase 17)',
+    label: 'Entorno & Despliegue',
+    devLabel: 'Entorno & Despliegue',
     icon: Rocket,
     category: 'engineering',
     allowedRoles: ['SUPER_ADMIN'],
@@ -199,7 +199,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'security',
     label: 'Seguridad & ASVS',
-    devLabel: 'Seguridad & Hardening (Fase 15)',
+    devLabel: 'Seguridad & Hardening',
     icon: ShieldCheck,
     category: 'engineering',
     allowedRoles: ['SUPER_ADMIN'],
@@ -208,7 +208,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'testing',
     label: 'Testing Automatizado',
-    devLabel: 'Testing Automatizado (Fase 16)',
+    devLabel: 'Testing Automatizado',
     icon: CheckCheck,
     category: 'engineering',
     allowedRoles: ['SUPER_ADMIN'],
@@ -217,7 +217,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'auth-session',
     label: 'Tokens de Sesión',
-    devLabel: 'Sesión & Seguridad (Fase 3)',
+    devLabel: 'Sesión & Seguridad',
     icon: Lock,
     category: 'engineering',
     allowedRoles: ['SUPER_ADMIN'],
@@ -226,7 +226,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'database',
     label: 'Esquemas Drizzle',
-    devLabel: 'Esquemas Drizzle & DDL (Fase 1)',
+    devLabel: 'Esquemas Drizzle & DDL',
     icon: Database,
     category: 'engineering',
     allowedRoles: ['SUPER_ADMIN'],
@@ -235,7 +235,7 @@ export const ALL_NAV_ITEMS: NavItem[] = [
   {
     id: 'data-explorer',
     label: 'Multi-Tenant',
-    devLabel: 'Datos & Multi-Tenant (Fase 2)',
+    devLabel: 'Datos & Multi-Tenant',
     icon: Building2,
     category: 'engineering',
     allowedRoles: ['SUPER_ADMIN'],
@@ -259,15 +259,6 @@ export const ALL_NAV_ITEMS: NavItem[] = [
     allowedRoles: ['SUPER_ADMIN'],
     color: 'bg-teal-600',
   },
-  {
-    id: 'roadmap',
-    label: 'Roadmap (100%)',
-    devLabel: 'Roadmap (17/17 Fases - 100%)',
-    icon: Sparkles,
-    category: 'engineering',
-    allowedRoles: ['SUPER_ADMIN'],
-    color: 'bg-teal-600',
-  },
 ];
 
 interface HeaderProps {
@@ -287,13 +278,15 @@ export const Header: React.FC<HeaderProps> = ({
   const org = dbStore.getActiveOrganization();
   const { session } = useAuth();
 
-  // Estado para alternar entre "Vista Clínica Limpia" (lo que ve el personal)
-  // y "Modo Desarrollador" (con las 17 fases y herramientas técnicas)
+  const orgLegalName = resolveOrganizationLegalName(org);
+
+  // Estado para alternar entre "Vista Clínica Limpia" y herramientas técnicas (solo con VITE_ENABLE_DEV_TOOLS=true)
   const [showDevTools, setShowDevTools] = useState<boolean>(() => {
-    return localStorage.getItem('odontopro_dev_tools') === 'true';
+    return ENABLE_DEV_TOOLS && localStorage.getItem('odontopro_dev_tools') === 'true';
   });
 
   const handleToggleDevTools = () => {
+    if (!ENABLE_DEV_TOOLS) return;
     const nextVal = !showDevTools;
     setShowDevTools(nextVal);
     localStorage.setItem('odontopro_dev_tools', String(nextVal));
@@ -350,8 +343,8 @@ export const Header: React.FC<HeaderProps> = ({
     const hasRolePermission = item.allowedRoles.includes(userRole);
     if (!hasRolePermission) return false;
 
-    // 2. Si es una herramienta de ingeniería, solo mostrar si showDevTools está activo
-    if (item.category === 'engineering' && !showDevTools) {
+    // 2. Si es una herramienta técnica, solo mostrar si VITE_ENABLE_DEV_TOOLS=true y showDevTools está activo
+    if (item.category === 'engineering' && (!ENABLE_DEV_TOOLS || !showDevTools)) {
       return false;
     }
 
@@ -378,12 +371,14 @@ export const Header: React.FC<HeaderProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-slate-900 text-lg tracking-tight">
-                  OdontoPro <span className="text-teal-600 font-semibold text-sm">Dental Suite</span>
+                  {APP_NAME}
                 </span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-50 text-cyan-800 border border-cyan-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse"></span>
-                  {org?.tradeName || org?.name || 'Clínica Odontológica'}
-                </span>
+                {orgLegalName && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-50 text-cyan-800 border border-cyan-200 max-w-[200px] truncate" title={orgLegalName}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse shrink-0"></span>
+                    <span className="truncate">{orgLegalName}</span>
+                  </span>
+                )}
                 {userRole === 'SUPER_ADMIN' ? (
                   <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
                     Sillones: 2 Operativos
@@ -395,10 +390,18 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-500">
-                <span className="font-medium text-slate-700">{org?.name}</span>
-                <span>•</span>
-                <span>RUC: {org?.taxId}</span>
-                <span>•</span>
+                {orgLegalName && (
+                  <>
+                    <span className="font-medium text-slate-700 truncate max-w-[220px]" title={orgLegalName}>{orgLegalName}</span>
+                    <span>•</span>
+                  </>
+                )}
+                {org?.taxId && (
+                  <>
+                    <span>RUC: {org.taxId}</span>
+                    <span>•</span>
+                  </>
+                )}
                 <span className="text-teal-700 font-medium">Guaraníes (PYG ₲)</span>
               </div>
             </div>
@@ -426,14 +429,14 @@ export const Header: React.FC<HeaderProps> = ({
               </select>
             </div>
 
-            {/* Toggle Herramientas de Desarrollo (solo para SUPER_ADMIN) */}
-            {isSuperAdmin && (
+            {/* Toggle Herramientas Técnicas (solo visible si VITE_ENABLE_DEV_TOOLS=true) */}
+            {ENABLE_DEV_TOOLS && isSuperAdmin && (
               <button
                 onClick={handleToggleDevTools}
                 title={
                   showDevTools
-                    ? 'Cambiar a Vista Clínica Limpia (como lo ve el personal)'
-                    : 'Ver todas las 17 Fases y Herramientas Técnicas'
+                    ? 'Cambiar a Vista Clínica Limpia'
+                    : 'Mostrar Herramientas Técnicas'
                 }
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-xl border transition-all shadow-xs ${
                   showDevTools
@@ -442,12 +445,12 @@ export const Header: React.FC<HeaderProps> = ({
                 }`}
               >
                 <Code2 className="h-3.5 w-3.5" />
-                <span>{showDevTools ? 'Vista Dev (17 Fases)' : 'Vista Clínica'}</span>
+                <span>{showDevTools ? 'Vista Técnica' : 'Vista Clínica'}</span>
               </button>
             )}
 
-            {/* Reset Button (Solo visible en Modo Dev para SUPER_ADMIN) */}
-            {isSuperAdmin && showDevTools && (
+            {/* Reset Button (Solo visible si VITE_ENABLE_DEV_TOOLS=true y showDevTools) */}
+            {ENABLE_DEV_TOOLS && isSuperAdmin && showDevTools && (
               <button
                 onClick={handleResetData}
                 disabled={isResettingSeed}
@@ -493,7 +496,7 @@ export const Header: React.FC<HeaderProps> = ({
       <ConfirmDialog
         isOpen={isResetConfirmOpen}
         title="Restaurar configuración inicial"
-        message="¿Desea restaurar la configuración inicial oficial de OdontoPro? Esta acción reiniciará los registros actuales."
+        message={`¿Desea restaurar la configuración inicial oficial de ${APP_NAME}? Esta acción reiniciará los registros actuales.`}
         confirmLabel="Restaurar"
         variant="warning"
         isLoading={isResettingSeed}

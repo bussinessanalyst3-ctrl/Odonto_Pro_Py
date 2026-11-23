@@ -1,11 +1,12 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { AuthProvider, useAuth } from './auth/authContext.tsx';
-import { BrandingProvider } from './branding/BrandingContext.tsx';
+import { BrandingProvider, useBranding } from './branding/BrandingContext.tsx';
 import { LoginScreen } from './components/auth/LoginScreen.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import { AppHeader } from './components/AppHeader.tsx';
 import { ALL_NAV_ITEMS, TabType } from './components/Header.tsx';
 import { dbStore } from './db/inMemoryStore.ts';
+import { ENABLE_DEV_TOOLS, formatDocumentTitle } from './config/appBrand.ts';
 
 const SessionInspector = lazy(() =>
   import('./components/auth/SessionInspector.tsx').then((m) => ({ default: m.SessionInspector }))
@@ -21,9 +22,6 @@ const ParaguayCatalogsViewer = lazy(() =>
 );
 const ArchitectureViewer = lazy(() =>
   import('./components/ArchitectureViewer.tsx').then((m) => ({ default: m.ArchitectureViewer }))
-);
-const RoadmapViewer = lazy(() =>
-  import('./components/RoadmapViewer.tsx').then((m) => ({ default: m.RoadmapViewer }))
 );
 const BranchManagementView = lazy(() =>
   import('./components/branches/BranchManagementView.tsx').then((m) => ({ default: m.BranchManagementView }))
@@ -99,29 +97,40 @@ import {
 
 function MainApplication() {
   const { isAuthenticated, session } = useAuth();
+  const { branding } = useBranding();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [treatmentNavTarget, setTreatmentNavTarget] = useState<{ patientId: string; toothNumber?: number } | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [showDevTools, setShowDevTools] = useState<boolean>(() => {
-    return localStorage.getItem('odontopro_dev_tools') === 'true';
+    return ENABLE_DEV_TOOLS && localStorage.getItem('odontopro_dev_tools') === 'true';
   });
 
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.title = formatDocumentTitle(branding.legalName);
+    }
+  }, [branding.legalName]);
+
   const handleToggleDevTools = () => {
+    if (!ENABLE_DEV_TOOLS) return;
     const nextVal = !showDevTools;
     setShowDevTools(nextVal);
     localStorage.setItem('odontopro_dev_tools', String(nextVal));
   };
 
-  // Redireccionar automáticamente cuando el usuario cambia de rol
+  // Redireccionar automáticamente cuando el usuario cambia de rol o si una pestaña técnica no está habilitada
   useEffect(() => {
     if (!session) return;
     const roleObj = dbStore.getRoles().find((r) => r.id === session.role);
     const currentNavItem = ALL_NAV_ITEMS.find((item) => item.id === activeTab);
+    const isBlockedEngineeringTab = currentNavItem?.category === 'engineering' && !ENABLE_DEV_TOOLS;
 
     let isAllowed = false;
-    if (session.role === 'SUPER_ADMIN') {
-      isAllowed = true;
+    if (isBlockedEngineeringTab) {
+      isAllowed = false;
+    } else if (session.role === 'SUPER_ADMIN') {
+      isAllowed = Boolean(currentNavItem);
     } else if (session.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0) {
       isAllowed = session.allowedNavTabs.includes(activeTab);
     } else if (roleObj?.allowedNavTabs) {
@@ -137,13 +146,17 @@ function MainApplication() {
       } else if (roleObj?.allowedNavTabs && roleObj.allowedNavTabs.length > 0) {
         setActiveTab(roleObj.allowedNavTabs[0] as TabType);
       } else {
-        const firstAllowed = ALL_NAV_ITEMS.find((item) => item.allowedRoles.includes(session.role));
+        const firstAllowed = ALL_NAV_ITEMS.find(
+          (item) =>
+            item.allowedRoles.includes(session.role) &&
+            (item.category !== 'engineering' || ENABLE_DEV_TOOLS)
+        );
         if (firstAllowed) {
           setActiveTab(firstAllowed.id);
         }
       }
     }
-  }, [session?.role, session?.permissionsVersion, session?.allowedNavTabs]);
+  }, [session?.role, session?.permissionsVersion, session?.allowedNavTabs, activeTab]);
 
   if (!isAuthenticated) {
     return <LoginScreen />;
@@ -161,18 +174,20 @@ function MainApplication() {
     setActiveTab(tab as TabType);
   };
 
-  // Verificar si la pestaña actual está autorizada para este rol
+  // Verificar si la pestaña actual está autorizada para este rol y entorno
   const roleObj = dbStore.getRoles().find((r) => r.id === session?.role);
   const currentItem = ALL_NAV_ITEMS.find((item) => item.id === activeTab);
   const isAuthorized =
-    session?.role === 'SUPER_ADMIN' ||
-    (session?.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0
-      ? session.allowedNavTabs.includes(activeTab)
-      : roleObj?.allowedNavTabs
-      ? roleObj.allowedNavTabs.includes(activeTab)
-      : currentItem
-      ? Boolean(session?.role && currentItem.allowedRoles.includes(session.role))
-      : false);
+    Boolean(currentItem) &&
+    (currentItem?.category !== 'engineering' || ENABLE_DEV_TOOLS) &&
+    (session?.role === 'SUPER_ADMIN' ||
+      (session?.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0
+        ? session.allowedNavTabs.includes(activeTab)
+        : roleObj?.allowedNavTabs
+        ? roleObj.allowedNavTabs.includes(activeTab)
+        : currentItem
+        ? Boolean(session?.role && currentItem.allowedRoles.includes(session.role))
+        : false));
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex">
@@ -182,7 +197,7 @@ function MainApplication() {
         onSelectTab={setActiveTab}
         isOpen={isMobileSidebarOpen}
         onClose={() => setIsMobileSidebarOpen(false)}
-        showDevTools={showDevTools}
+        showDevTools={ENABLE_DEV_TOOLS && showDevTools}
         onToggleDevTools={handleToggleDevTools}
       />
 
@@ -194,7 +209,7 @@ function MainApplication() {
           onSelectBranch={setSelectedBranchId}
           onNavigateTab={handleGlobalNavigate}
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-          showDevTools={showDevTools}
+          showDevTools={ENABLE_DEV_TOOLS && showDevTools}
         />
 
         {/* Área de Contenido de los Módulos */}
@@ -211,7 +226,10 @@ function MainApplication() {
               <button
                 onClick={() => {
                   const firstAllowed = ALL_NAV_ITEMS.find((item) =>
-                    session?.role ? item.allowedRoles.includes(session.role) : false
+                    session?.role
+                      ? item.allowedRoles.includes(session.role) &&
+                        (item.category !== 'engineering' || ENABLE_DEV_TOOLS)
+                      : false
                   );
                   if (firstAllowed) setActiveTab(firstAllowed.id);
                 }}
@@ -238,9 +256,9 @@ function MainApplication() {
                   selectedBranchId={selectedBranchId}
                 />
               )}
-              {activeTab === 'production' && <ProductionDeploymentView />}
-              {activeTab === 'security' && <SecurityHardeningView />}
-              {activeTab === 'testing' && <AutomatedTestingView />}
+              {ENABLE_DEV_TOOLS && activeTab === 'production' && <ProductionDeploymentView />}
+              {ENABLE_DEV_TOOLS && activeTab === 'security' && <SecurityHardeningView />}
+              {ENABLE_DEV_TOOLS && activeTab === 'testing' && <AutomatedTestingView />}
               {activeTab === 'audit' && <AuditLogsView />}
               {activeTab === 'quotes' && (
                 <QuotesManagementView onNavigateToTreatments={handleNavigateToTreatments} />
@@ -269,14 +287,13 @@ function MainApplication() {
               {activeTab === 'users' && <UserManagementView />}
               {activeTab === 'branches' && <BranchManagementView />}
               {activeTab === 'organization' && <OrganizationManagementView />}
-              {activeTab === 'auth-session' && <SessionInspector />}
-              {activeTab === 'database' && <SchemaViewer />}
-              {activeTab === 'data-explorer' && (
+              {ENABLE_DEV_TOOLS && activeTab === 'auth-session' && <SessionInspector />}
+              {ENABLE_DEV_TOOLS && activeTab === 'database' && <SchemaViewer />}
+              {ENABLE_DEV_TOOLS && activeTab === 'data-explorer' && (
                 <DataExplorer selectedBranchId={selectedBranchId || session?.currentBranchId || ''} />
               )}
-              {activeTab === 'paraguay' && <ParaguayCatalogsViewer />}
-              {activeTab === 'architecture' && <ArchitectureViewer />}
-              {activeTab === 'roadmap' && <RoadmapViewer />}
+              {ENABLE_DEV_TOOLS && activeTab === 'paraguay' && <ParaguayCatalogsViewer />}
+              {ENABLE_DEV_TOOLS && activeTab === 'architecture' && <ArchitectureViewer />}
             </Suspense>
           )}
         </main>

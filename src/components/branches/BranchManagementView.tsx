@@ -149,7 +149,7 @@ export const BranchManagementView: React.FC = () => {
                   Organización & Red de Sucursales
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 border border-teal-200">
-                  Fase 4: Multi-Sucursal
+                  Multi-Sucursal
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">

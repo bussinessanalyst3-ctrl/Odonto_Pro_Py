@@ -87,7 +87,7 @@ export const ClinicalRecordsView: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 border border-teal-200">
-                Fase 8: Historia Clínica Unificada
+                Historia Clínica Unificada
               </span>
               <span className="text-xs text-slate-500">
                 Ley N° 1682/01 de Secreto Profesional & Datos Médicos

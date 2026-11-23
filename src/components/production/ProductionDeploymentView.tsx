@@ -80,7 +80,7 @@ export const ProductionDeploymentView: React.FC = () => {
     },
     {
       id: 'edge-ssl',
-      title: '6. Dominio Personalizado con TLS 1.3 y HSTS en Vercel Edge',
+      title: '6. Dominio Personalizado con TLS 1.3 y HSTS en Edge',
       description: 'Enrutamiento en la región gru1 (São Paulo) con certificado SSL automático Let\'s Encrypt y cabeceras de seguridad A+.',
       category: 'SECURITY',
       completed: true,
@@ -192,15 +192,15 @@ jobs:
             <div className="flex items-center gap-2 mb-2">
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30 flex items-center gap-1.5">
                 <Rocket className="h-3.5 w-3.5" />
-                Fase 17: Producción en Vercel &amp; Go-Live
+                Infraestructura &amp; Despliegue en Producción
               </span>
               <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Estado: 100% Producción Lista
+                Estado: Producción Activa
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-              Arquitectura de Producción, Vercel Edge &amp; Go-Live Paraguay
+              Arquitectura de Producción &amp; Salud Operativa
             </h1>
             <p className="text-slate-400 text-sm mt-1 max-w-2xl leading-relaxed">
               Infraestructura optimizada con enrutamiento de ultra-baja latencia desde São Paulo (gru1),
@@ -208,7 +208,7 @@ jobs:
             </p>
           </div>
 
-          {/* Vercel Status Badge */}
+          {/* Edge Status Badge */}
           <div className="bg-slate-800/90 backdrop-blur-md px-5 py-4 rounded-2xl border border-slate-700 flex items-center gap-4">
             <div className="flex flex-col items-center">
               <span className="relative flex h-3 w-3">
@@ -223,7 +223,7 @@ jobs:
             <div>
               <div className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                 <Globe className="h-3.5 w-3.5 text-teal-400" />
-                <span>Vercel Edge: gru1 (São Paulo)</span>
+                <span>Edge Regional: gru1 (São Paulo)</span>
               </div>
               <div className="text-[11px] text-slate-400 mt-0.5">
                 Latencia hacia Asunción: <strong className="text-emerald-400">{pingLatency} ms</strong>
@@ -300,7 +300,7 @@ jobs:
             }`}
           >
             <CheckCircle2 className="h-4 w-4" />
-            <span>Checklist Go-Live Paraguay ({progressPercent}%)</span>
+            <span>Checklist Regulatorio ({completedCount}/{goLiveItems.length})</span>
           </button>
 
           <button
@@ -312,7 +312,7 @@ jobs:
             }`}
           >
             <FileCode2 className="h-4 w-4" />
-            <span>CI/CD &amp; vercel.json</span>
+            <span>CI/CD &amp; Despliegue</span>
           </button>
 
           <button
@@ -355,7 +355,7 @@ jobs:
                 </span>
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Vercel Edge Global Network</h3>
+                <h3 className="text-sm font-bold text-slate-900">Edge Global Network</h3>
                 <p className="text-xs text-slate-500 mt-1">
                   Enrutamiento DNS Anycast con presencia en el punto de intercambio de internet más cercano a Paraguay.
                 </p>
@@ -458,7 +458,7 @@ jobs:
                   </div>
                 </div>
                 <div className="text-right font-mono">
-                  <span className="text-emerald-700 font-bold">100% OPERACIONAL</span>
+                  <span className="text-emerald-700 font-bold">OPERACIONAL</span>
                   <div className="text-[10px] text-slate-400">Pool: 20/100 conn</div>
                 </div>
               </div>
@@ -611,7 +611,7 @@ jobs:
               <span>Pipeline Automatizado de Entrega Continua (CI/CD)</span>
             </h2>
             <p className="text-xs text-slate-500">
-              Cada commit a la rama principal (main) dispara la suite de testing automatizado antes de autorizar el despliegue al Edge de Vercel.
+              Cada commit a la rama principal (main) dispara la suite de testing automatizado antes de autorizar el despliegue en producción.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
@@ -635,7 +635,7 @@ jobs:
 
               <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 space-y-1">
                 <span className="text-[10px] font-mono uppercase font-bold text-emerald-700">Paso 4</span>
-                <div className="font-bold text-emerald-950 text-xs">Vercel Edge Live</div>
+                <div className="font-bold text-emerald-950 text-xs">Producción Activa</div>
                 <div className="text-[11px] text-emerald-700">Despliegue atómico sin tiempo de inactividad</div>
               </div>
             </div>
@@ -712,10 +712,10 @@ jobs:
           <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
             <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <Lock className="h-5 w-5 text-teal-600" />
-              <span>Variables de Entorno para Producción en Vercel</span>
+              <span>Variables de Entorno de Producción</span>
             </h2>
             <p className="text-xs text-slate-500">
-              Configure estas variables en el panel de Vercel (Project Settings &rarr; Environment Variables) o agréguelas mediante la CLI de Vercel.
+              Configure estas variables en el panel de hosting (Environment Variables) o en su archivo de entorno del servidor.
             </p>
 
             <div className="divide-y divide-slate-100 text-xs font-mono">
@@ -729,8 +729,8 @@ jobs:
 
               <div className="py-2.5 flex items-center justify-between">
                 <div>
-                  <span className="font-bold text-slate-900">VERCEL_REGION</span>
-                  <div className="text-[11px] text-slate-500 font-sans">Región física del Edge Network Vercel</div>
+                  <span className="font-bold text-slate-900">DEPLOYMENT_REGION</span>
+                  <div className="text-[11px] text-slate-500 font-sans">Región física de despliegue</div>
                 </div>
                 <span className="px-2.5 py-1 rounded-md bg-teal-50 text-teal-800 font-bold">gru1 (São Paulo)</span>
               </div>

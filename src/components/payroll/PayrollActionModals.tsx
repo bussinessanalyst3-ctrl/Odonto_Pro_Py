@@ -7,6 +7,7 @@ import {
   getEmployeeDisplayName,
 } from '../../db/payrollEngine.ts';
 import { useBranding } from '../../branding/BrandingContext.tsx';
+import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
 
 interface ManualCommissionModalProps {
   isOpen: boolean;
@@ -332,6 +333,10 @@ export const PayrollPrintReportModal: React.FC<PayrollPrintReportModalProps> = (
     : payment
       ? employees.find((e: any) => e.id === payment.employeeId)
       : null;
+  const orgLegalName = resolveOrganizationLegalName({
+    legalName: branding.legalName,
+    name: org?.name,
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto print:bg-white print:p-0">
@@ -360,10 +365,14 @@ export const PayrollPrintReportModal: React.FC<PayrollPrintReportModalProps> = (
         <div className="p-8 space-y-6 text-slate-900 text-xs">
           <div className="flex items-start justify-between border-b border-slate-200 pb-4">
             <div>
-              <div className="text-base font-extrabold text-slate-900">
-                {branding.legalName || org?.name || 'Clínica Odontológica'}
+              {orgLegalName && (
+                <div className="text-base font-extrabold text-slate-900">
+                  {orgLegalName}
+                </div>
+              )}
+              <div className="text-slate-500">
+                {org?.taxId ? `RUC: ${org.taxId} • ` : ''}Paraguay
               </div>
-              <div className="text-slate-500">RUC: {org?.taxId || '80000000-0'} • Paraguay</div>
             </div>
             <div className="text-right">
               <div className="text-sm font-bold uppercase tracking-wide text-teal-800">{title}</div>

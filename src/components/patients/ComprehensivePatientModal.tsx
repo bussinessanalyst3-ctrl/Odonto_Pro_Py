@@ -27,6 +27,7 @@ import {
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import { ToothSVG, ToothData } from '../odontogram/ToothSVG.tsx';
+import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
 
 interface ComprehensivePatientModalProps {
   patientId: string | null;
@@ -104,10 +105,13 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
     patient.medicalConditions.toLowerCase() !== 'ninguna conocida';
 
   // WhatsApp link
+  const orgLegalName = resolveOrganizationLegalName(snapshot.organization);
   const cleanPhone = (patient.whatsapp || patient.phone || '').replace(/\D/g, '');
   const waNumber = cleanPhone.startsWith('595') ? cleanPhone : `595${cleanPhone.replace(/^0/, '')}`;
   const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(
-    `Hola ${patient.firstName}, le saludamos de OdontoPro Dental Suite.`
+    orgLegalName
+      ? `Hola ${patient.firstName}, le saludamos de ${orgLegalName}.`
+      : `Hola ${patient.firstName}, le saludamos cordialmente.`
   )}`;
 
   return (

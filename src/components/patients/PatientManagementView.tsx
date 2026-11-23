@@ -28,6 +28,7 @@ import { UNKNOWN_CREATOR_LABEL } from '../../db/payrollEngine.ts';
 import { useBranding } from '../../branding/BrandingContext.tsx';
 import { PatientModal } from './PatientModal.tsx';
 import { ComprehensivePatientModal } from './ComprehensivePatientModal.tsx';
+import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
 
 interface PatientManagementViewProps {
   onNavigateToTab?: (tab: string, payload?: any) => void;
@@ -332,11 +333,17 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
               p.allergies.toLowerCase() !== 'ninguna' &&
               p.allergies.toLowerCase() !== 'ninguna conocida';
 
+            const orgLegalName = resolveOrganizationLegalName({
+              legalName: branding.legalName,
+              name: snapshot.organization?.name,
+            });
             const cleanPhone = (p.whatsapp || p.phone || '').replace(/\D/g, '');
             const waUrl = `https://wa.me/${
               cleanPhone.startsWith('595') ? cleanPhone : '595' + cleanPhone.replace(/^0/, '')
             }?text=${encodeURIComponent(
-              `Hola ${p.firstName}, le saludamos desde ${branding.legalName || branding.tradeName || 'la clínica odontológica'}.`
+              orgLegalName
+                ? `Hola ${p.firstName}, le saludamos desde ${orgLegalName}.`
+                : `Hola ${p.firstName}, le saludamos cordialmente.`
             )}`;
 
             return (
@@ -512,11 +519,17 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                   p.allergies.toLowerCase() !== 'ninguna' &&
                   p.allergies.toLowerCase() !== 'ninguna conocida';
 
+                const orgLegalName = resolveOrganizationLegalName({
+                  legalName: branding.legalName,
+                  name: snapshot.organization?.name,
+                });
                 const cleanPhone = (p.whatsapp || p.phone || '').replace(/\D/g, '');
                 const waUrl = `https://wa.me/${
                   cleanPhone.startsWith('595') ? cleanPhone : '595' + cleanPhone.replace(/^0/, '')
                 }?text=${encodeURIComponent(
-                  `Hola ${p.firstName}, le saludamos desde ${branding.legalName || branding.tradeName || 'la clínica odontológica'}.`
+                  orgLegalName
+                    ? `Hola ${p.firstName}, le saludamos desde ${orgLegalName}.`
+                    : `Hola ${p.firstName}, le saludamos cordialmente.`
                 )}`;
 
                 return (

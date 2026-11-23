@@ -27,7 +27,7 @@ const getBrandingForOrg = (org: any): OrganizationBranding => {
   if (!org) return DEFAULT_BRANDING;
   return {
     tradeName: org.name || org.tradeName || DEFAULT_BRANDING.tradeName,
-    legalName: org.legalName || org.name || DEFAULT_BRANDING.legalName,
+    legalName: org.legalName || org.name || '',
     taxId: org.taxId || DEFAULT_BRANDING.taxId,
     primaryColor: org.primaryColor || DEFAULT_BRANDING.primaryColor,
     customHexColor: org.customHexColor || THEME_HEX_MAP[org.primaryColor || 'teal'] || DEFAULT_BRANDING.customHexColor,

@@ -39,6 +39,7 @@ import { useBranding } from '../../branding/BrandingContext.tsx';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { ConfirmDialog } from '../common/ConfirmDialog.tsx';
+import { APP_NAME } from '../../config/appBrand.ts';
 
 interface ThemePreset {
   id: string;
@@ -167,6 +168,7 @@ export const OrganizationManagementView: React.FC = () => {
   const activeOrg = dbStore.getActiveOrganization();
   const [isNewOrgModalOpen, setIsNewOrgModalOpen] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
+  const [newOrgLegalName, setNewOrgLegalName] = useState('');
   const [newOrgTaxId, setNewOrgTaxId] = useState('');
   const [newOrgCompanyType, setNewOrgCompanyType] = useState('E.A.S.');
 
@@ -375,10 +377,11 @@ export const OrganizationManagementView: React.FC = () => {
       allowedBranchIds: session.allowedBranchIds,
     } : undefined;
 
+    const resolvedLegalName = newOrgLegalName.trim() || `${newOrgName.trim()} ${newOrgCompanyType}`;
     const created = dbStore.addOrganization({
       name: newOrgName.trim(),
       tradeName: newOrgName.trim(),
-      legalName: `${newOrgName.trim()} ${newOrgCompanyType}`,
+      legalName: resolvedLegalName,
       taxId: newOrgTaxId.trim() || '80000000-1',
       primaryColor,
     }, actor);
@@ -393,6 +396,7 @@ export const OrganizationManagementView: React.FC = () => {
 
     setIsNewOrgModalOpen(false);
     setNewOrgName('');
+    setNewOrgLegalName('');
     setNewOrgTaxId('');
     setNotification(`Nueva Organización "${created.name}" creada e inicializada con su propia sede central independiente.`);
     setTimeout(() => setNotification(null), 5000);
@@ -1111,7 +1115,7 @@ export const OrganizationManagementView: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-teal-600" />
                 <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Simulador en Vivo Multi-Entorno
+                  Vista Previa Multi-Entorno
                 </h3>
               </div>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
@@ -1189,14 +1193,16 @@ export const OrganizationManagementView: React.FC = () => {
                     </div>
                     <div className="min-w-0">
                       <div className="font-black text-white text-sm leading-tight flex items-center gap-1.5">
-                        <span className="truncate">{tradeName || 'Nombre Clínica'}</span>
+                        <span className="truncate">{APP_NAME}</span>
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/20 text-white border border-white/30">
                           {currency}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                        {legalName}
-                      </p>
+                      {legalName && (
+                        <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                          {legalName}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1208,15 +1214,13 @@ export const OrganizationManagementView: React.FC = () => {
                       className="h-8 w-8 rounded-lg flex items-center justify-center text-white text-xs font-bold"
                       style={{ backgroundColor: activeColorHex }}
                     >
-                      {logoMode !== 'icon' && logoUrl ? (
-                        <img src={logoUrl} alt="Logo" className="h-full w-full object-contain p-0.5" />
-                      ) : (
-                        <ActiveDentalIconComponent className="h-4 w-4" />
-                      )}
+                      <ActiveDentalIconComponent className="h-4 w-4" />
                     </div>
-                    <div>
-                      <span className="font-bold text-xs text-slate-800">{tradeName}</span>
-                      <p className="text-[10px] text-slate-400 font-mono">RUC: {taxId}</p>
+                    <div className="min-w-0">
+                      <span className="font-black text-xs text-slate-800">{APP_NAME}</span>
+                      {legalName && (
+                        <p className="text-[10px] text-slate-400 truncate max-w-[180px]">{legalName}</p>
+                      )}
                     </div>
                   </div>
                   <span
@@ -1364,6 +1368,19 @@ export const OrganizationManagementView: React.FC = () => {
                   value={newOrgName}
                   onChange={(e) => setNewOrgName(e.target.value)}
                   placeholder="Ej. Dental Care San Lorenzo"
+                  className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Razón Social Oficial (Opcional)
+                </label>
+                <input
+                  type="text"
+                  value={newOrgLegalName}
+                  onChange={(e) => setNewOrgLegalName(e.target.value)}
+                  placeholder="Ej. Dental Care Paraguay S.R.L."
                   className="w-full text-xs px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500"
                 />
               </div>

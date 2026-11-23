@@ -131,7 +131,7 @@ export const CashRegisterManagementView: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                  Caja Diaria & Pagos (Fase 12)
+                  Caja Diaria & Pagos
                 </h1>
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                   Guaraníes (PYG)

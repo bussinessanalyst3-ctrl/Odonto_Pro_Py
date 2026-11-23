@@ -4,6 +4,7 @@ import { useAuth } from '../../auth/authContext.tsx';
 import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 import { CreateQuoteModal } from './CreateQuoteModal.tsx';
 import { QuoteDetailModal } from './QuoteDetailModal.tsx';
+import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
 import {
   Calculator,
   Search,
@@ -179,7 +180,7 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                  Presupuestos Odontológicos (Fase 11)
+                  Presupuestos Odontológicos
                 </h1>
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
                   Guaraníes (PYG)
@@ -394,7 +395,13 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
                     ? '595' + cleanPhone.substring(1)
                     : '595' + cleanPhone;
 
-                  const waUrl = `https://wa.me/${waPhone}?text=Hola%20${patient?.firstName}!%20Le%20saludamos%20de%20OdontoPro.%20Adjuntamos%20su%20presupuesto%20${q.quoteNumber}%20por%20₲%20${q.finalAmount.toLocaleString('es-PY')}.`;
+                  const activeOrg = dbStore.getActiveOrganization();
+                  const orgLegalName = resolveOrganizationLegalName(activeOrg);
+                  const waSender = orgLegalName ? ` de ${orgLegalName}` : '';
+                  const waText = encodeURIComponent(
+                    `Hola ${patient?.firstName || ''}! Le saludamos${waSender}. Adjuntamos su presupuesto ${q.quoteNumber} por ₲ ${q.finalAmount.toLocaleString('es-PY')}.`
+                  );
+                  const waUrl = `https://wa.me/${waPhone}?text=${waText}`;
 
                   return (
                     <tr key={q.id} className="hover:bg-slate-50/80 transition-colors">

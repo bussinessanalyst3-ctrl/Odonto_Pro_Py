@@ -26,6 +26,8 @@ import { useBranding } from '../../branding/BrandingContext.tsx';
 import { CreateAppointmentModal } from './CreateAppointmentModal.tsx';
 import { AppointmentStatusModal } from './AppointmentStatusModal.tsx';
 
+import { getTodayAsuncionISO, resolveOrganizationLegalName } from '../../config/appBrand.ts';
+
 export const AppointmentsCalendarView: React.FC = () => {
   const { session } = useAuth();
   const { branding } = useBranding();
@@ -36,7 +38,7 @@ export const AppointmentsCalendarView: React.FC = () => {
   const [selectedOdontologistId, setSelectedOdontologistId] = useState<string>('ALL');
   const [selectedChairId, setSelectedChairId] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
-  const [currentDate, setCurrentDate] = useState<string>('2026-09-21');
+  const [currentDate, setCurrentDate] = useState<string>(() => getTodayAsuncionISO());
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'list'>('day');
 
   // Modals state
@@ -143,7 +145,7 @@ export const AppointmentsCalendarView: React.FC = () => {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 border border-teal-200">
-                Fase 7: Agenda & Citas Concurrente
+                Agenda & Citas
               </span>
               <span className="text-xs text-slate-500 font-mono">
                 Zona: America/Asuncion (UTC-4)
@@ -308,10 +310,10 @@ export const AppointmentsCalendarView: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setCurrentDate('2026-09-21')}
+              onClick={() => setCurrentDate(getTodayAsuncionISO())}
               className="px-3 py-2 min-h-[40px] text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors"
             >
-              Hoy (Fecha Simulación)
+              Hoy
             </button>
           </div>
 
@@ -360,8 +362,13 @@ export const AppointmentsCalendarView: React.FC = () => {
             const phone = patient?.whatsapp || patient?.phone || '';
             const cleanPhone = phone.replace(/\D/g, '');
             const waNumber = cleanPhone.startsWith('595') ? cleanPhone : `595${cleanPhone.replace(/^0/, '')}`;
+            const orgLegalName = resolveOrganizationLegalName({
+              legalName: branding.legalName,
+              name: snapshot.organization?.name,
+            });
+            const placeLabel = branch?.name || orgLegalName;
             const waGreeting = encodeURIComponent(
-              `Hola ${patient?.firstName || ''}, le recordamos su turno odontológico para hoy a las ${app.startTime.slice(0, 5)} en ${branch?.name || branding.tradeName || branding.legalName || 'nuestra clínica'}.`
+              `Hola ${patient?.firstName || ''}, le recordamos su turno odontológico para hoy a las ${app.startTime.slice(0, 5)}${placeLabel ? ` en ${placeLabel}` : ''}.`
             );
             const waUrl = `https://wa.me/${waNumber}?text=${waGreeting}`;
 

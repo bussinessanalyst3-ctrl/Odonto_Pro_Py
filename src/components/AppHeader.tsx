@@ -26,6 +26,7 @@ import { formatPYG } from '../db/seeds/paraguay-catalogs.ts';
 import { UserSessionMenu } from './auth/UserSessionMenu.tsx';
 import { isSuperAdminRole } from '../security/rbacHierarchy.ts';
 import { ConfirmDialog } from './common/ConfirmDialog.tsx';
+import { APP_NAME, resolveOrganizationLegalName } from '../config/appBrand.ts';
 
 interface AppHeaderProps {
   selectedBranchId: string;
@@ -316,8 +317,15 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             >
               <Menu className="h-5 w-5" />
             </button>
-            <span className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight flex items-center gap-0.5 truncate max-w-[120px] min-[360px]:max-w-[170px]" title={branding.tradeName}>
-              <span className="truncate">{branding.tradeName || 'OdontoPro'}</span>
+            <span
+              className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight flex items-center gap-0.5 truncate max-w-[120px] min-[360px]:max-w-[170px]"
+              title={
+                resolveOrganizationLegalName({ legalName: branding.legalName, name: org?.name })
+                  ? `${APP_NAME} — ${resolveOrganizationLegalName({ legalName: branding.legalName, name: org?.name })}`
+                  : APP_NAME
+              }
+            >
+              <span className="truncate">{APP_NAME}</span>
             </span>
             <button
               onClick={() => setIsMobileSearchOpen(true)}
@@ -458,7 +466,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       <ConfirmDialog
         isOpen={isResetConfirmOpen}
         title="Restaurar configuración inicial"
-        message="¿Desea restaurar la configuración inicial oficial de OdontoPro? Esta acción reiniciará los registros de la base actual."
+        message={`¿Desea restaurar la configuración inicial oficial de ${APP_NAME}? Esta acción reiniciará los registros de la base actual.`}
         confirmLabel="Restaurar configuración"
         variant="warning"
         isLoading={isResettingSeed}

@@ -252,7 +252,7 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
           <div>
             <div className="flex items-center gap-2 text-xs font-semibold text-teal-700 uppercase tracking-wider mb-1">
               <Layers className="h-4 w-4" />
-              <span>Fase 9 • Odontograma Digital Interactivo (FDI)</span>
+              <span>Odontograma Digital Interactivo (FDI)</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900">
               Odontograma Clínico Unificado

@@ -142,7 +142,7 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
                 Nuevo Plan de Tratamiento Odontológico
               </h3>
               <p className="text-xs text-slate-500">
-                Fase 10 • Vinculación a catálogo de servicios y piezas dentales FDI
+                Vinculación a catálogo de servicios y piezas dentales FDI
               </p>
             </div>
           </div>

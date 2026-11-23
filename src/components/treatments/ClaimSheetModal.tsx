@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Printer, Download, ShieldCheck, Building2, Stethoscope, FileText, CheckCircle2 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
+import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
 
 interface ClaimSheetModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export const ClaimSheetModal: React.FC<ClaimSheetModalProps> = ({
 }) => {
   const snapshot = dbStore.getSnapshot();
   const org = snapshot.organization;
+  const orgLegalName = resolveOrganizationLegalName(org);
   const patients = snapshot.patients || [];
   const doctors = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO');
   const mainDoctor = doctors[0] || snapshot.users[0];
@@ -122,12 +124,18 @@ export const ClaimSheetModal: React.FC<ClaimSheetModalProps> = ({
           {/* Header Membrete */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b-2 border-slate-800/20">
             <div>
-              <div className="text-lg font-black tracking-tight text-slate-900 flex items-center gap-2">
-                <span>{org?.name || 'Clínica Odontológica OdontoPro'}</span>
-              </div>
-              <p className="text-xs text-slate-600 font-medium">
-                Razón Social: {org?.businessName || 'OdontoPro S.A.'} • RUC: {org?.ruc || '80012345-6'}
-              </p>
+              {orgLegalName && (
+                <div className="text-lg font-black tracking-tight text-slate-900 flex items-center gap-2">
+                  <span>{orgLegalName}</span>
+                </div>
+              )}
+              {(org?.legalName || org?.taxId) && (
+                <p className="text-xs text-slate-600 font-medium">
+                  {org?.legalName ? `Razón Social: ${org.legalName}` : ''}
+                  {org?.legalName && org?.taxId ? ' • ' : ''}
+                  {org?.taxId ? `RUC: ${org.taxId}` : ''}
+                </p>
+              )}
               <p className="text-xs text-slate-500">
                 Establecimiento Habilitado por MSPBS • Reg. Sanitario N° 456/2020 • Asunción, Paraguay
               </p>

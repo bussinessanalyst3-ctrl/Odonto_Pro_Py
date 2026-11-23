@@ -34,8 +34,9 @@ import {
 import { useAuth } from '../auth/authContext.tsx';
 import { useBranding } from '../branding/BrandingContext.tsx';
 import { UserRole } from '../auth/types.ts';
-import { TabType, ALL_NAV_ITEMS } from './Header.tsx';
+import { TabType } from './Header.tsx';
 import { dbStore } from '../db/inMemoryStore.ts';
+import { APP_NAME, ENABLE_DEV_TOOLS, resolveOrganizationLegalName } from '../config/appBrand.ts';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -199,12 +200,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
-  // Herramientas de Ingeniería (Solo visibles para SUPER_ADMIN)
+  const companyLegalName = resolveOrganizationLegalName({
+    legalName: branding.legalName,
+    name: org?.name,
+  });
+
+  // Herramientas internas (solo visibles si VITE_ENABLE_DEV_TOOLS=true y SUPER_ADMIN)
   const devGroup: NavGroup = {
     id: 'engineering',
-    label: 'DEV & HERRAMIENTAS (17 FASES)',
+    label: 'HERRAMIENTAS TÉCNICAS',
     items: [
-      { id: 'production', label: 'Producción Vercel', icon: Rocket, allowedRoles: ['SUPER_ADMIN'] },
+      { id: 'production', label: 'Entorno & Despliegue', icon: Rocket, allowedRoles: ['SUPER_ADMIN'] },
       { id: 'security', label: 'Seguridad & ASVS', icon: ShieldCheck, allowedRoles: ['SUPER_ADMIN'] },
       { id: 'testing', label: 'Testing Automatizado', icon: CheckCheck, allowedRoles: ['SUPER_ADMIN'] },
       { id: 'auth-session', label: 'Tokens de Sesión', icon: Lock, allowedRoles: ['SUPER_ADMIN'] },
@@ -212,7 +218,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       { id: 'data-explorer', label: 'Multi-Tenant Explorer', icon: Layers, allowedRoles: ['SUPER_ADMIN'] },
       { id: 'paraguay', label: 'Catálogos Paraguay', icon: MapPin, allowedRoles: ['SUPER_ADMIN'] },
       { id: 'architecture', label: 'Arquitectura', icon: Shield, allowedRoles: ['SUPER_ADMIN'] },
-      { id: 'roadmap', label: 'Roadmap (100%)', icon: Sparkles, allowedRoles: ['SUPER_ADMIN'] },
     ],
   };
 
@@ -248,7 +253,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               style={branding.customHexColor ? { background: branding.customHexColor } : undefined}
             >
               {branding.logoUrl ? (
-                <img src={branding.logoUrl} alt={branding.tradeName} className="h-full w-full object-contain p-1" />
+                <img src={branding.logoUrl} alt={APP_NAME} className="h-full w-full object-contain p-1" />
               ) : branding.logoIcon === 'heart-pulse' ? (
                 <HeartPulse className="h-5 w-5" />
               ) : branding.logoIcon === 'hospital' ? (
@@ -267,18 +272,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <Stethoscope className="h-5 w-5" />
               )}
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="font-extrabold text-slate-900 text-base leading-tight tracking-tight flex items-center gap-1.5">
-                <span className="truncate max-w-[130px]" title={branding.tradeName}>
-                  {branding.tradeName}
+                <span className="truncate max-w-[130px]" title={APP_NAME}>
+                  {APP_NAME}
                 </span>
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200">
                   {branding.currency}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 font-medium truncate max-w-[150px]" title={branding.legalName}>
-                {branding.legalName}
-              </p>
+              {companyLegalName && (
+                <p className="text-[11px] text-slate-500 font-medium truncate max-w-[155px]" title={companyLegalName}>
+                  {companyLegalName}
+                </p>
+              )}
             </div>
           </div>
           {/* Botón cerrar para móvil con área táctil accesible (44px) */}
@@ -354,8 +361,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
 
-          {/* Grupo de Ingeniería / Modo Dev (Solo visible si showDevTools está activado) */}
-          {userRole === 'SUPER_ADMIN' && showDevTools && (
+          {/* Grupo de Herramientas Técnicas (solo visible si VITE_ENABLE_DEV_TOOLS=true) */}
+          {ENABLE_DEV_TOOLS && userRole === 'SUPER_ADMIN' && showDevTools && (
             <div className="pt-2 border-t border-slate-100">
               <button
                 onClick={() => toggleGroup('engineering')}
