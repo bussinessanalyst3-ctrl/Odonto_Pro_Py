@@ -70,15 +70,24 @@ export const SecurityHardeningView: React.FC = () => {
   };
 
   const handleTriggerSimulatedIdor = () => {
-    const branches = dbStore.getBranches();
-    const asuBranch = branches.find((b) => b.code.includes('ASU')) || branches[0];
-    const luqBranch = branches.find((b) => b.code.includes('LUQ')) || branches[branches.length - 1];
+    const branches = dbStore.getBranches() || [];
+    const asuBranch = branches.find((b) => b.code?.includes('ASU')) || branches[0] || { id: 'branch-sim-asu' };
+    const luqBranch =
+      branches.find((b) => b.code?.includes('LUQ')) ||
+      branches[branches.length - 1] ||
+      { id: 'branch-sim-luq' };
 
+    const activeOrgId = dbStore.getActiveOrganization()?.id || 'org-sim-001';
     const currentBranchId = simBranch === 'ASUNCION' ? asuBranch.id : luqBranch.id;
-    const allowedBranchIds = simRole === 'SUPER_ADMIN' ? branches.map((b) => b.id) : [currentBranchId];
+    const allowedBranchIds =
+      simRole === 'SUPER_ADMIN'
+        ? branches.length > 0
+          ? branches.map((b) => b.id)
+          : [asuBranch.id, luqBranch.id]
+        : [currentBranchId];
 
     const simulatedUser = {
-      organizationId: dbStore.getActiveOrganization().id,
+      organizationId: activeOrgId,
       role: simRole,
       allowedBranchIds,
       email: `simulated.${simRole.toLowerCase()}@odontopro.com.py`,

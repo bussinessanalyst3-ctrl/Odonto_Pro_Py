@@ -4,7 +4,7 @@ import { users } from './users.ts';
 
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').defaultRandom().primaryKey(),
-  organizationId: uuid('organization_id').references(() => organizations.id),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id),
   branchId: uuid('branch_id').references(() => branches.id),
   userId: uuid('user_id').references(() => users.id),
   action: varchar('action', { length: 50 }).notNull(), // CREATE, UPDATE, DELETE, LOGIN, EXPORT, CANCEL

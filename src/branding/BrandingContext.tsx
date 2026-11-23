@@ -127,7 +127,7 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       address: next.address,
       website: next.website,
       logoUrl: next.logoUrl !== undefined ? next.logoUrl : '',
-      logoIcon: next.logoIcon || 'stethoscope',
+      logoIcon: next.logoIcon || 'shield',
       primaryColor: next.primaryColor || 'teal',
       customHexColor: next.customHexColor,
       companyType: next.companyType,

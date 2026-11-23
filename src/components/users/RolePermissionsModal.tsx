@@ -82,7 +82,7 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
 
   // Un rol es configurable si y solo si el actor tiene jerarquía estricta sobre él
   const isRoleConfigurable = (roleId: string): boolean => {
-    if (roleId === 'SUPER_ADMIN') return false; // Super Admin siempre tiene acceso universal e inmutable
+    if (roleId === 'SUPER_ADMIN') return false; // Inmutable
     if (isSuperAdminActor) return true;
     if (!effectiveActor) return false;
     return canManageRole(effectiveActor.role, roleId);

@@ -286,17 +286,16 @@ export function createDbSyncRouter(): express.Router {
         error: auth.error || '401 No autorizado: Se requiere sesión autenticada.',
       });
     }
-
     const serverDbState = getServerDbState();
     const stateVersion = getServerStateVersion();
 
-    if (isSuperAdminRole(auth.user.roleId) && auth.user.roleId === 'SUPER_ADMIN') {
+    if (isSuperAdminRole(auth.user.roleId)) {
       return res.json({
         stateVersion,
         ...serverDbState,
         data: {
           ...serverDbState.data,
-          users: sanitizeUsersForClient(serverDbState.data.users),
+          users: sanitizeUsersForClient(serverDbState.data.users || []),
         },
       });
     }
@@ -326,7 +325,7 @@ export function createDbSyncRouter(): express.Router {
       });
 
       const serverDbState = getServerDbState();
-      if (!authz.authorized || !isSuperAdminRole(auth.user.roleId) || auth.user.roleId !== 'SUPER_ADMIN') {
+      if (!authz.authorized || !isSuperAdminRole(auth.user.roleId)) {
         const deniedLog = {
           id: crypto.randomUUID(),
           organizationId: auth.user.organizationId || serverDbState.data.organization?.id,
@@ -374,7 +373,7 @@ export function createDbSyncRouter(): express.Router {
       };
       setServerDbState(nextState);
 
-      const survivingUserIds = new Set((initial.users || []).map((u: any) => u.id));
+      const survivingUserIds = new Set((nextState.data.users || []).map((u: any) => u.id));
       for (const [sessToken, sess] of activeServerSessions.entries()) {
         if (!survivingUserIds.has(sess.userId)) {
           activeServerSessions.delete(sessToken);
@@ -391,7 +390,7 @@ export function createDbSyncRouter(): express.Router {
         timestamp: new Date().toISOString(),
         data: {
           ...nextState.data,
-          users: sanitizeUsersForClient(nextState.data.users),
+          users: sanitizeUsersForClient(nextState.data.users || []),
         },
         organizationsList: nextState.organizationsList,
       });
@@ -416,7 +415,7 @@ export function createDbSyncRouter(): express.Router {
       const upserts = body.upserts && typeof body.upserts === 'object' ? body.upserts : {};
       const deletes = body.deletes && typeof body.deletes === 'object' ? body.deletes : {};
 
-      const isSuperAdmin = isSuperAdminRole(authUser.roleId) && authUser.roleId === 'SUPER_ADMIN';
+      const isSuperAdmin = isSuperAdminRole(authUser.roleId);
       const actorOrgId = actor.organizationId;
       const lockOrgId = isSuperAdmin
         ? String(body.activeOrganizationId || getServerDbState().data?.organization?.id || '__global__')
@@ -886,7 +885,7 @@ export function createDbSyncRouter(): express.Router {
         });
       }
       res.setHeader('Deprecation', 'true');
-      if (!isSuperAdminRole(auth.user.roleId) || auth.user.roleId !== 'SUPER_ADMIN') {
+      if (!isSuperAdminRole(auth.user.roleId)) {
         return res.status(410).json({
           error: '410 Endpoint deprecado: Use POST /api/db/delta para sincronización incremental segura.',
         });

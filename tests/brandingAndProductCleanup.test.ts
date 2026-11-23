@@ -4,22 +4,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   APP_NAME,
-  ENABLE_DEV_TOOLS,
+  OFFICIAL_APP_ICON_ID,
   resolveOrganizationLegalName,
   formatDocumentTitle,
   getTodayAsuncionISO,
 } from '../src/config/appBrand.ts';
+import { DEFAULT_BRANDING } from '../src/branding/brandingTypes.ts';
 import { dbStore } from '../src/db/inMemoryStore.ts';
 
-test('Marca fija ODONTOPRO y resolución de razón social multi-tenant', () => {
-  assert.equal(APP_NAME, 'ODONTOPRO');
-  assert.equal(ENABLE_DEV_TOOLS, false);
+test('Marca fija OdontoPro y resolución de razón social multi-tenant', () => {
+  assert.equal(APP_NAME, 'OdontoPro');
+  assert.equal(OFFICIAL_APP_ICON_ID, 'shield');
+  assert.equal(DEFAULT_BRANDING.logoIcon, 'shield');
 
-  // Sin empresa identificada: solo ODONTOPRO, sin subtítulo ni placeholders
+  // Sin empresa identificada: solo OdontoPro, sin subtítulo ni placeholders
   assert.equal(resolveOrganizationLegalName(null), '');
   assert.equal(resolveOrganizationLegalName({ legalName: '', name: '' }), '');
-  assert.equal(formatDocumentTitle(''), 'ODONTOPRO');
-  assert.equal(formatDocumentTitle(null), 'ODONTOPRO');
+  assert.equal(formatDocumentTitle(''), 'OdontoPro');
+  assert.equal(formatDocumentTitle(null), 'OdontoPro');
 
   // Con empresa identificada: prioridad a legalName sobre name/tradeName
   const org = dbStore.addOrganization({
@@ -35,7 +37,7 @@ test('Marca fija ODONTOPRO y resolución de razón social multi-tenant', () => {
   assert.equal(resolvedLegal, 'Servicios Odontológicos del Este S.R.L.');
   assert.equal(
     formatDocumentTitle(resolvedLegal),
-    'ODONTOPRO | Servicios Odontológicos del Este S.R.L.'
+    'OdontoPro | Servicios Odontológicos del Este S.R.L.'
   );
 
   // Fecha del sistema válida YYYY-MM-DD (sin fecha fija de simulación)
@@ -80,8 +82,20 @@ test('UI de producción no expone fases, roadmap, Vercel ni fechas de simulació
     );
   }
 
-  // Verificar que RoadmapViewer y la pestaña 'roadmap' estén ausentes de la navegación principal
+  // Verificar que RoadmapViewer, 'roadmap' y flags ENABLE_DEV_TOOLS estén ausentes del frontend público
   const appSource = fs.readFileSync(path.join(root, 'src/App.tsx'), 'utf8');
   assert.equal(appSource.includes('RoadmapViewer'), false);
   assert.equal(appSource.includes("case 'roadmap':"), false);
+
+  for (const relPath of [
+    'src/config/appBrand.ts',
+    'src/App.tsx',
+    'src/components/Sidebar.tsx',
+    'src/components/Header.tsx',
+    '.env.example',
+  ]) {
+    const content = fs.readFileSync(path.join(root, relPath), 'utf8');
+    assert.equal(content.includes('ENABLE_DEV_TOOLS'), false, `${relPath} no debe contener ENABLE_DEV_TOOLS`);
+    assert.equal(content.includes('VITE_ENABLE_DEV_TOOLS'), false, `${relPath} no debe contener VITE_ENABLE_DEV_TOOLS`);
+  }
 });

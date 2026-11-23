@@ -6,22 +6,11 @@ import { Sidebar } from './components/Sidebar.tsx';
 import { AppHeader } from './components/AppHeader.tsx';
 import { ALL_NAV_ITEMS, TabType } from './components/Header.tsx';
 import { dbStore } from './db/inMemoryStore.ts';
-import { ENABLE_DEV_TOOLS, formatDocumentTitle } from './config/appBrand.ts';
+import { formatDocumentTitle } from './config/appBrand.ts';
+import { getApiBaseUrl } from './config/apiConfig.ts';
 
-const SessionInspector = lazy(() =>
-  import('./components/auth/SessionInspector.tsx').then((m) => ({ default: m.SessionInspector }))
-);
-const SchemaViewer = lazy(() =>
-  import('./components/SchemaViewer.tsx').then((m) => ({ default: m.SchemaViewer }))
-);
-const DataExplorer = lazy(() =>
-  import('./components/DataExplorer.tsx').then((m) => ({ default: m.DataExplorer }))
-);
-const ParaguayCatalogsViewer = lazy(() =>
-  import('./components/ParaguayCatalogsViewer.tsx').then((m) => ({ default: m.ParaguayCatalogsViewer }))
-);
-const ArchitectureViewer = lazy(() =>
-  import('./components/ArchitectureViewer.tsx').then((m) => ({ default: m.ArchitectureViewer }))
+const OwnerConsole = lazy(() =>
+  import('./components/owner/OwnerConsole.tsx').then((m) => ({ default: m.OwnerConsole }))
 );
 const BranchManagementView = lazy(() =>
   import('./components/branches/BranchManagementView.tsx').then((m) => ({ default: m.BranchManagementView }))
@@ -72,17 +61,6 @@ const AdaptiveDashboardView = lazy(() =>
 const AuditLogsView = lazy(() =>
   import('./components/audit/AuditLogsView.tsx').then((m) => ({ default: m.AuditLogsView }))
 );
-const SecurityHardeningView = lazy(() =>
-  import('./components/security/SecurityHardeningView.tsx').then((m) => ({ default: m.SecurityHardeningView }))
-);
-const AutomatedTestingView = lazy(() =>
-  import('./components/testing/AutomatedTestingView.tsx').then((m) => ({ default: m.AutomatedTestingView }))
-);
-const ProductionDeploymentView = lazy(() =>
-  import('./components/production/ProductionDeploymentView.tsx').then((m) => ({
-    default: m.ProductionDeploymentView,
-  }))
-);
 import {
   ShieldAlert,
   ArrowRight,
@@ -102,34 +80,74 @@ function MainApplication() {
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [treatmentNavTarget, setTreatmentNavTarget] = useState<{ patientId: string; toothNumber?: number } | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
-  const [showDevTools, setShowDevTools] = useState<boolean>(() => {
-    return ENABLE_DEV_TOOLS && localStorage.getItem('odontopro_dev_tools') === 'true';
-  });
+  const [pathname, setPathname] = useState<string>(() =>
+    typeof window !== 'undefined' ? window.location.pathname : '/'
+  );
+  const [isVerifiedOwner, setIsVerifiedOwner] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handlePopState = () => setPathname(window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Confirmación silenciosa en backend (/api/owner/me responde 404 para cualquier usuario que no sea OWNER_EMAIL)
+  useEffect(() => {
+    if (!isAuthenticated || !session) {
+      setIsVerifiedOwner(false);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const baseUrl = getApiBaseUrl();
+        const headers: Record<string, string> = {};
+        if (session.sessionToken && !session.sessionToken.startsWith('httpOnly_')) {
+          headers.Authorization = `Bearer ${session.sessionToken}`;
+        }
+        const res = await fetch(`${baseUrl}/api/owner/me`, {
+          method: 'GET',
+          credentials: 'include',
+          headers,
+        });
+        if (!cancelled && res.ok) {
+          const data = await res.json().catch(() => null);
+          setIsVerifiedOwner(Boolean(data?.isOwner));
+        } else if (!cancelled) {
+          setIsVerifiedOwner(false);
+        }
+      } catch {
+        if (!cancelled) setIsVerifiedOwner(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, session?.userId, session?.email, session?.sessionToken]);
+
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/';
+  const isOwnerPath = normalizedPath === '/owner';
+  const showOwnerConsole = isVerifiedOwner && isOwnerPath;
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
-      document.title = formatDocumentTitle(branding.legalName);
+      document.title = showOwnerConsole
+        ? 'ODONTOPRO · Consola del Propietario'
+        : formatDocumentTitle(branding.legalName);
     }
-  }, [branding.legalName]);
+  }, [branding.legalName, showOwnerConsole]);
 
-  const handleToggleDevTools = () => {
-    if (!ENABLE_DEV_TOOLS) return;
-    const nextVal = !showDevTools;
-    setShowDevTools(nextVal);
-    localStorage.setItem('odontopro_dev_tools', String(nextVal));
-  };
-
-  // Redireccionar automáticamente cuando el usuario cambia de rol o si una pestaña técnica no está habilitada
+  // Redireccionar automáticamente cuando el usuario cambia de rol o sus pestañas permitidas
   useEffect(() => {
     if (!session) return;
     const roleObj = dbStore.getRoles().find((r) => r.id === session.role);
     const currentNavItem = ALL_NAV_ITEMS.find((item) => item.id === activeTab);
-    const isBlockedEngineeringTab = currentNavItem?.category === 'engineering' && !ENABLE_DEV_TOOLS;
 
     let isAllowed = false;
-    if (isBlockedEngineeringTab) {
-      isAllowed = false;
-    } else if (session.role === 'SUPER_ADMIN') {
+    if (session.role === 'SUPER_ADMIN') {
       isAllowed = Boolean(currentNavItem);
     } else if (session.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0) {
       isAllowed = session.allowedNavTabs.includes(activeTab);
@@ -146,11 +164,7 @@ function MainApplication() {
       } else if (roleObj?.allowedNavTabs && roleObj.allowedNavTabs.length > 0) {
         setActiveTab(roleObj.allowedNavTabs[0] as TabType);
       } else {
-        const firstAllowed = ALL_NAV_ITEMS.find(
-          (item) =>
-            item.allowedRoles.includes(session.role) &&
-            (item.category !== 'engineering' || ENABLE_DEV_TOOLS)
-        );
+        const firstAllowed = ALL_NAV_ITEMS.find((item) => item.allowedRoles.includes(session.role));
         if (firstAllowed) {
           setActiveTab(firstAllowed.id);
         }
@@ -160,6 +174,35 @@ function MainApplication() {
 
   if (!isAuthenticated) {
     return <LoginScreen />;
+  }
+
+  const handleOpenOwnerConsole = () => {
+    if (!isVerifiedOwner) return;
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', '/owner');
+      setPathname('/owner');
+    }
+  };
+
+  const handleBackToApp = () => {
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', '/');
+      setPathname('/');
+    }
+  };
+
+  if (showOwnerConsole) {
+    return (
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-300 text-xs font-semibold">
+            Cargando Consola del Propietario...
+          </div>
+        }
+      >
+        <OwnerConsole onBackToApp={handleBackToApp} />
+      </Suspense>
+    );
   }
 
   const handleNavigateToTreatments = (patientId: string, toothNumber?: number) => {
@@ -174,12 +217,11 @@ function MainApplication() {
     setActiveTab(tab as TabType);
   };
 
-  // Verificar si la pestaña actual está autorizada para este rol y entorno
+  // Verificar si la pestaña actual está autorizada para este rol
   const roleObj = dbStore.getRoles().find((r) => r.id === session?.role);
   const currentItem = ALL_NAV_ITEMS.find((item) => item.id === activeTab);
   const isAuthorized =
     Boolean(currentItem) &&
-    (currentItem?.category !== 'engineering' || ENABLE_DEV_TOOLS) &&
     (session?.role === 'SUPER_ADMIN' ||
       (session?.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0
         ? session.allowedNavTabs.includes(activeTab)
@@ -197,8 +239,8 @@ function MainApplication() {
         onSelectTab={setActiveTab}
         isOpen={isMobileSidebarOpen}
         onClose={() => setIsMobileSidebarOpen(false)}
-        showDevTools={ENABLE_DEV_TOOLS && showDevTools}
-        onToggleDevTools={handleToggleDevTools}
+        canAccessOwnerConsole={isVerifiedOwner}
+        onOpenOwnerConsole={handleOpenOwnerConsole}
       />
 
       {/* Contenedor Principal (Con margen izquierdo para el sidebar en desktop) */}
@@ -209,7 +251,6 @@ function MainApplication() {
           onSelectBranch={setSelectedBranchId}
           onNavigateTab={handleGlobalNavigate}
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
-          showDevTools={ENABLE_DEV_TOOLS && showDevTools}
         />
 
         {/* Área de Contenido de los Módulos */}
@@ -226,10 +267,7 @@ function MainApplication() {
               <button
                 onClick={() => {
                   const firstAllowed = ALL_NAV_ITEMS.find((item) =>
-                    session?.role
-                      ? item.allowedRoles.includes(session.role) &&
-                        (item.category !== 'engineering' || ENABLE_DEV_TOOLS)
-                      : false
+                    session?.role ? item.allowedRoles.includes(session.role) : false
                   );
                   if (firstAllowed) setActiveTab(firstAllowed.id);
                 }}
@@ -256,9 +294,6 @@ function MainApplication() {
                   selectedBranchId={selectedBranchId}
                 />
               )}
-              {ENABLE_DEV_TOOLS && activeTab === 'production' && <ProductionDeploymentView />}
-              {ENABLE_DEV_TOOLS && activeTab === 'security' && <SecurityHardeningView />}
-              {ENABLE_DEV_TOOLS && activeTab === 'testing' && <AutomatedTestingView />}
               {activeTab === 'audit' && <AuditLogsView />}
               {activeTab === 'quotes' && (
                 <QuotesManagementView onNavigateToTreatments={handleNavigateToTreatments} />
@@ -287,13 +322,6 @@ function MainApplication() {
               {activeTab === 'users' && <UserManagementView />}
               {activeTab === 'branches' && <BranchManagementView />}
               {activeTab === 'organization' && <OrganizationManagementView />}
-              {ENABLE_DEV_TOOLS && activeTab === 'auth-session' && <SessionInspector />}
-              {ENABLE_DEV_TOOLS && activeTab === 'database' && <SchemaViewer />}
-              {ENABLE_DEV_TOOLS && activeTab === 'data-explorer' && (
-                <DataExplorer selectedBranchId={selectedBranchId || session?.currentBranchId || ''} />
-              )}
-              {ENABLE_DEV_TOOLS && activeTab === 'paraguay' && <ParaguayCatalogsViewer />}
-              {ENABLE_DEV_TOOLS && activeTab === 'architecture' && <ArchitectureViewer />}
             </Suspense>
           )}
         </main>

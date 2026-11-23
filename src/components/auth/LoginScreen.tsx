@@ -7,7 +7,7 @@ import {
   AlertCircle,
   CheckCircle2,
   ArrowRight,
-  Stethoscope,
+  ShieldCheck,
   KeyRound,
   User,
   X
@@ -198,7 +198,7 @@ export const LoginScreen: React.FC = () => {
             role="img"
             aria-label={APP_NAME}
           >
-            <Stethoscope className="h-7 w-7 sm:h-8 sm:w-8 text-white" aria-hidden="true" />
+            <ShieldCheck className="h-7 w-7 sm:h-8 sm:w-8 text-white" aria-hidden="true" />
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">

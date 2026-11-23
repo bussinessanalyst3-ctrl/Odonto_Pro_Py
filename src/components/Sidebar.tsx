@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Calendar,
   HeartPulse,
@@ -11,40 +11,26 @@ import {
   Users,
   Landmark,
   ShieldAlert,
-  Rocket,
   ShieldCheck,
-  CheckCheck,
-  Lock,
-  Database,
-  MapPin,
-  Shield,
-  Sparkles,
-  ChevronDown,
-  ChevronRight,
   LogOut,
-  Hospital,
-  Activity,
-  Layers,
-  Settings,
-  HelpCircle,
-  Menu,
   X,
-  Briefcase
+  Briefcase,
+  Terminal
 } from 'lucide-react';
 import { useAuth } from '../auth/authContext.tsx';
 import { useBranding } from '../branding/BrandingContext.tsx';
 import { UserRole } from '../auth/types.ts';
 import { TabType } from './Header.tsx';
 import { dbStore } from '../db/inMemoryStore.ts';
-import { APP_NAME, ENABLE_DEV_TOOLS, resolveOrganizationLegalName } from '../config/appBrand.ts';
+import { APP_NAME, resolveOrganizationLegalName } from '../config/appBrand.ts';
 
 interface SidebarProps {
   activeTab: TabType;
   onSelectTab: (tab: TabType) => void;
   isOpen: boolean;
   onClose: () => void;
-  showDevTools: boolean;
-  onToggleDevTools: () => void;
+  canAccessOwnerConsole?: boolean;
+  onOpenOwnerConsole?: () => void;
 }
 
 interface NavGroup {
@@ -64,8 +50,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   isOpen,
   onClose,
-  showDevTools,
-  onToggleDevTools,
+  canAccessOwnerConsole = false,
+  onOpenOwnerConsole,
 }) => {
   const { session, logout } = useAuth();
   const { branding } = useBranding();
@@ -74,18 +60,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Obtener rol actual y permisos dinámicos
   const currentRoleObj = dbStore.getRoles().find((r) => r.id === userRole);
-
-  // Secciones colapsables del Sidebar
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
-    engineering: true, // colapsado por defecto
-  });
-
-  const toggleGroup = (groupId: string) => {
-    setCollapsedGroups(prev => ({
-      ...prev,
-      [groupId]: !prev[groupId],
-    }));
-  };
 
   // Definición estructurada de grupos según las especificaciones
   const navGroups: NavGroup[] = [
@@ -205,22 +179,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     name: org?.name,
   });
 
-  // Herramientas internas (solo visibles si VITE_ENABLE_DEV_TOOLS=true y SUPER_ADMIN)
-  const devGroup: NavGroup = {
-    id: 'engineering',
-    label: 'HERRAMIENTAS TÉCNICAS',
-    items: [
-      { id: 'production', label: 'Entorno & Despliegue', icon: Rocket, allowedRoles: ['SUPER_ADMIN'] },
-      { id: 'security', label: 'Seguridad & ASVS', icon: ShieldCheck, allowedRoles: ['SUPER_ADMIN'] },
-      { id: 'testing', label: 'Testing Automatizado', icon: CheckCheck, allowedRoles: ['SUPER_ADMIN'] },
-      { id: 'auth-session', label: 'Tokens de Sesión', icon: Lock, allowedRoles: ['SUPER_ADMIN'] },
-      { id: 'database', label: 'Esquemas Drizzle', icon: Database, allowedRoles: ['SUPER_ADMIN'] },
-      { id: 'data-explorer', label: 'Multi-Tenant Explorer', icon: Layers, allowedRoles: ['SUPER_ADMIN'] },
-      { id: 'paraguay', label: 'Catálogos Paraguay', icon: MapPin, allowedRoles: ['SUPER_ADMIN'] },
-      { id: 'architecture', label: 'Arquitectura', icon: Shield, allowedRoles: ['SUPER_ADMIN'] },
-    ],
-  };
-
   const handleItemClick = (tabId: TabType) => {
     onSelectTab(tabId);
     if (window.innerWidth < 1024) {
@@ -248,29 +206,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Encabezado del Sidebar / Branding Dinámico */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 bg-white">
           <div className="flex items-center gap-3">
-            <div
-              className="h-10 w-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white shadow-sm font-bold overflow-hidden"
-              style={branding.customHexColor ? { background: branding.customHexColor } : undefined}
-            >
-              {branding.logoUrl ? (
-                <img src={branding.logoUrl} alt={APP_NAME} className="h-full w-full object-contain p-1" />
-              ) : branding.logoIcon === 'heart-pulse' ? (
-                <HeartPulse className="h-5 w-5" />
-              ) : branding.logoIcon === 'hospital' ? (
-                <Hospital className="h-5 w-5" />
-              ) : branding.logoIcon === 'building' ? (
-                <Building2 className="h-5 w-5" />
-              ) : branding.logoIcon === 'sparkles' ? (
-                <Sparkles className="h-5 w-5" />
-              ) : branding.logoIcon === 'shield' ? (
-                <ShieldCheck className="h-5 w-5" />
-              ) : branding.logoIcon === 'activity' ? (
-                <Activity className="h-5 w-5" />
-              ) : branding.logoIcon === 'landmark' ? (
-                <Landmark className="h-5 w-5" />
-              ) : (
-                <Stethoscope className="h-5 w-5" />
-              )}
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white shadow-sm font-bold overflow-hidden">
+              <ShieldCheck className="h-5 w-5" />
             </div>
             <div className="min-w-0">
               <div className="font-extrabold text-slate-900 text-base leading-tight tracking-tight flex items-center gap-1.5">
@@ -361,49 +298,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
             );
           })}
 
-          {/* Grupo de Herramientas Técnicas (solo visible si VITE_ENABLE_DEV_TOOLS=true) */}
-          {ENABLE_DEV_TOOLS && userRole === 'SUPER_ADMIN' && showDevTools && (
-            <div className="pt-2 border-t border-slate-100">
-              <button
-                onClick={() => toggleGroup('engineering')}
-                className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold tracking-wider text-purple-600 uppercase hover:bg-purple-50 rounded-lg transition-colors"
-              >
-                <span>{devGroup.label}</span>
-                {collapsedGroups.engineering ? (
-                  <ChevronRight className="h-3.5 w-3.5" />
-                ) : (
-                  <ChevronDown className="h-3.5 w-3.5" />
-                )}
-              </button>
-
-              {!collapsedGroups.engineering && (
-                <div className="mt-1 space-y-0.5">
-                  {devGroup.items.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = activeTab === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => handleItemClick(item.id)}
-                        className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                          isActive
-                            ? 'bg-purple-50 text-purple-800 font-semibold border border-purple-200'
-                            : 'text-slate-500 hover:text-slate-800 hover:bg-purple-50/40'
-                        }`}
-                      >
-                        <Icon className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                        <span className="truncate">{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
-        {/* Pie del Sidebar: Usuario actual y sesión */}
-        <div className="p-3 border-t border-slate-100 bg-slate-50/60">
+        {/* Pie del Sidebar: Enlace exclusivo de propietario (solo si el backend lo confirma) y usuario actual */}
+        <div className="p-3 border-t border-slate-100 bg-slate-50/60 space-y-2">
+          {canAccessOwnerConsole && onOpenOwnerConsole && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenOwnerConsole();
+                if (window.innerWidth < 1024) {
+                  onClose();
+                }
+              }}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-100 text-xs font-semibold transition-colors cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Terminal className="h-3.5 w-3.5 text-teal-400" />
+                <span>Consola del Propietario</span>
+              </span>
+              <span className="text-[10px] font-mono text-slate-400">/owner</span>
+            </button>
+          )}
           <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="h-8 w-8 rounded-lg bg-teal-100 text-teal-800 font-bold text-xs flex items-center justify-center shrink-0">

@@ -1238,7 +1238,7 @@ export function getUserEffectivePermissions(user: any, allRoles: any[] = []): Us
       revokedPermissions: [],
       activeRestrictions: [],
       effectivePermissions: ['system.all', ...allCodes],
-      allowedNavTabs: ['dashboard', 'agenda', 'appointments', 'patients', 'clinical', 'odontogram', 'treatments', 'quotes', 'cash', 'staff-payroll', 'users', 'branches', 'organization', 'audit', 'security', 'testing', 'production'],
+      allowedNavTabs: ['dashboard', 'agenda', 'appointments', 'patients', 'clinical', 'odontogram', 'treatments', 'quotes', 'cash', 'staff-payroll', 'users', 'branches', 'organization', 'audit'],
     };
   }
 
@@ -1307,7 +1307,7 @@ export function validateBackendAuthorization(params: BackendAuthorizationParams)
 } {
   const { actor, resource, action, permission, targetOrgId, targetBranchId, targetUserRole, targetUserId, newRoleToAssign } = params;
 
-  if (!actor || !actor.userId || !actor.role || !actor.organizationId) {
+  if (!actor || !actor.userId || !actor.role) {
     return {
       authorized: false,
       statusCode: 401,

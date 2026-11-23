@@ -228,6 +228,8 @@ export function buildSafeSessionPayload(
   currentBranchId?: string
 ) {
   const serverDbState = getServerDbState();
+  const ttlSeconds = Math.max(0, Math.floor((new Date(expiresAt).getTime() - new Date(issuedAt).getTime()) / 1000));
+
   const userBranches = (serverDbState.data.userBranches || []).filter((ub: any) => ub.userId === user.id);
   const defaultBranch =
     currentBranchId ||
@@ -247,13 +249,12 @@ export function buildSafeSessionPayload(
       ? (serverDbState.data.branches || []).map((b: any) => b.id)
       : userBranches.map((ub: any) => ub.branchId);
 
-  const ttlSeconds = Math.max(0, Math.floor((new Date(expiresAt).getTime() - new Date(issuedAt).getTime()) / 1000));
-
   return {
     userId: user.id,
-    organizationId: org.id,
-    organizationName: org.name,
-    organizationTaxId: org.taxId || '',
+    organizationId: org?.id || user.organizationId || 'org-default',
+    organizationName: org?.name || '',
+    organizationLegalName: org?.legalName || org?.name || '',
+    organizationTaxId: org?.taxId || '',
     role: user.roleId,
     roleName: roleObj?.name || user.roleId,
     firstName: user.firstName,

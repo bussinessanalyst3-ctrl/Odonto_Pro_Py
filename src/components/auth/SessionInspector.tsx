@@ -72,12 +72,12 @@ export const SessionInspector: React.FC = () => {
                 <ShieldCheck className="h-4 w-4" />
               </span>
               <h2 className="text-lg font-bold text-slate-900">
-                Autenticación Segura & Inspector de Sesión Activa
+                Autenticación Segura &amp; Inspector de Sesión Activa
               </h2>
             </div>
             <p className="text-xs text-slate-500 mt-1">
               Validación de sesiones con cookies seguras (HttpOnly, SameSite=Lax, Secure),
-              hashing robusto (Argon2id/bcrypt), protección contra fuerza bruta y RBAC estricto.
+              hashing robusto (PBKDF2-SHA256), protección contra fuerza bruta y RBAC estricto.
             </p>
           </div>
 
@@ -106,7 +106,7 @@ export const SessionInspector: React.FC = () => {
 
             <div className="mt-4 space-y-3 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 font-mono text-[11px] space-y-1.5 break-all">
-                <div className="text-slate-400">// Identificador enmascarado (el token real reside exclusivamente en cookie HttpOnly y PostgreSQL)</div>
+                <div className="text-slate-400">Identificador enmascarado (token real en cookie HttpOnly y PostgreSQL)</div>
                 <div className="text-teal-800 font-bold">{session.sessionToken}</div>
               </div>
 
@@ -120,7 +120,7 @@ export const SessionInspector: React.FC = () => {
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <div className="text-[10px] uppercase font-bold text-slate-400">Rol & Matriz RBAC</div>
+                  <div className="text-[10px] uppercase font-bold text-slate-400">Rol &amp; Matriz RBAC</div>
                   <div className="font-bold text-teal-800 mt-0.5">{session.roleName}</div>
                   <div className="text-slate-500 text-[11px]">
                     {session.professionalLicense || 'Licencia General'}
@@ -130,9 +130,15 @@ export const SessionInspector: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <div className="text-[10px] uppercase font-bold text-slate-400">Sucursal de Contexto</div>
-                  <div className="font-bold text-slate-900 mt-0.5">{currentBranch?.name}</div>
-                  <div className="text-slate-500 text-[11px]">{currentBranch?.city}</div>
+                  <div className="text-[10px] uppercase font-bold text-slate-400">
+                    Sucursal de Contexto
+                  </div>
+                  <div className="font-bold text-slate-900 mt-0.5">
+                    {currentBranch?.name || 'Sin asignar'}
+                  </div>
+                  <div className="text-slate-500 text-[11px]">
+                    {currentBranch?.city || ''}
+                  </div>
                 </div>
 
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">

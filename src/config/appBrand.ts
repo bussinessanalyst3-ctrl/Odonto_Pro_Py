@@ -1,13 +1,12 @@
-export const APP_NAME = 'ODONTOPRO' as const;
+export const APP_NAME = 'OdontoPro' as const;
+
+export const OFFICIAL_APP_ICON_ID = 'shield' as const;
 
 export const APP_FULL_TITLE = `${APP_NAME} | Sistema de Gestión Odontológica Multi-Sucursal`;
 
 export const APP_DESCRIPTION =
   `${APP_NAME} — Plataforma profesional de gestión clínica odontológica multi-sucursal y multi-tenant.`;
 
-export const ENABLE_DEV_TOOLS: boolean =
-  typeof import.meta !== 'undefined' &&
-  Boolean((import.meta as any).env?.VITE_ENABLE_DEV_TOOLS === 'true');
 
 export function resolveOrganizationLegalName(
   org?: { legalName?: string | null; name?: string | null } | null

@@ -55,7 +55,7 @@ export function isSessionRevoked(ctx: StoreContext, userId: string, sessionIssue
 
 export function findUserByEmailOrUsername(ctx: StoreContext, identifier: string) {
   if (!identifier) return null;
-  const users = ctx.getData().users;
+  const users = ctx.getData().users || [];
   const safe = identifier.toLowerCase().trim();
 
   const exactEmail = users.find((u) => u.email.toLowerCase() === safe);

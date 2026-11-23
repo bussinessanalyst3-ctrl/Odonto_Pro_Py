@@ -14,6 +14,7 @@ import { createDbSyncRouter } from './server/routes/dbSyncRoutes.ts';
 import { createAdminRouter } from './server/routes/adminRoutes.ts';
 import { createPatientsPayrollRouter } from './server/routes/patientsPayrollRoutes.ts';
 import { createClinicalBillingRouter } from './server/routes/clinicalBillingRoutes.ts';
+import { createOwnerRouter } from './server/routes/ownerRoutes.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +35,7 @@ export async function createConfiguredApp(options?: { skipFrontend?: boolean }):
 
   // Rutas modulares de API Backend
   app.use('/api/auth', createAuthRouter());
+  app.use('/api/owner', createOwnerRouter());
   app.use('/api', createDbSyncRouter());
   app.use('/api', createAdminRouter());
   app.use('/api', createPatientsPayrollRouter());

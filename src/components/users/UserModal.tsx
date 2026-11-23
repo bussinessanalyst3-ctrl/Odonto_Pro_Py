@@ -271,7 +271,7 @@ export const UserModal: React.FC<UserModalProps> = ({
             lastName: cleanLastName,
             email: cleanEmail,
             username: cleanUsername,
-            organizationId: isSuperAdmin && selectedOrgId ? selectedOrgId : effectiveActor?.organizationId,
+            organizationId: (isSuperAdmin && selectedOrgId ? selectedOrgId : effectiveActor?.organizationId) || undefined,
             roleId,
             status,
             phone: phone.trim(),

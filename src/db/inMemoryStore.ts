@@ -348,7 +348,7 @@ class DatabaseStore {
       permission: 'database.seed',
     });
 
-    if (!authz.authorized || !isSuperAdminRole(userInDb.roleId) || userInDb.roleId !== 'SUPER_ADMIN') {
+    if (!authz.authorized || !isSuperAdminRole(userInDb.roleId)) {
       this.data.auditLogs.unshift({
         id: crypto.randomUUID(),
         organizationId: userInDb.organizationId || this.data.organization.id,
@@ -515,7 +515,7 @@ class DatabaseStore {
     return usersRbacStore.deleteUser(this.ctx, userId, actor);
   }
   public getRoles() {
-    return this.data.roles;
+    return this.data.roles || [];
   }
   public addRole(
     roleData: Parameters<typeof usersRbacStore.addRole>[1],

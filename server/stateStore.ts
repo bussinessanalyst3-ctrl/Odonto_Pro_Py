@@ -383,7 +383,6 @@ export function filterStateForTenant(
   legacyRoleId?: string
 ): ServerDbState {
   const d = state.data || {};
-  const roles = d.roles || [];
 
   const actor: TenantActorContext =
     typeof actorOrOrgId === 'string'
@@ -401,6 +400,8 @@ export function filterStateForTenant(
   const orgId = actor.organizationId;
   const roleId = actor.role;
 
+  const roles = d.roles || [];
+
   const org =
     (state.organizationsList || []).find((o: any) => o.id === orgId) ||
     (d.organization?.id === orgId ? d.organization : null);
@@ -410,7 +411,9 @@ export function filterStateForTenant(
   const allowedBranchSet = new Set(actor.allowedBranchIds || []);
 
   const users = sanitizeUsersForClient(
-    (d.users || []).filter((u: any) => u.organizationId === orgId && !isSuperAdminRole(u.roleId))
+    (d.users || []).filter(
+      (u: any) => u.organizationId === orgId && !isSuperAdminRole(u.roleId)
+    )
   );
   const userIds = new Set(users.map((u: any) => u.id));
 
@@ -542,6 +545,7 @@ export function filterStateForTenant(
     organizationsList: org ? [org] : [],
     data: {
       ...d,
+      roles,
       organization: org || d.organization,
       branches,
       branchSettings: (d.branchSettings || []).filter((bs: any) => branchIds.has(bs.branchId)),

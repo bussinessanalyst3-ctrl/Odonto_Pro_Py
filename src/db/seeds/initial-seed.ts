@@ -66,7 +66,7 @@ export function generateInitialSeedData(options: SeedOptions = {}): SeedDataResu
     website: '',
     primaryColor: 'teal',
     customHexColor: '#0d9488',
-    logoIcon: 'stethoscope',
+    logoIcon: 'shield',
     status: 'ACTIVE',
     createdAt: new Date('2026-01-10T08:00:00.000Z'),
     updatedAt: new Date('2026-01-10T08:00:00.000Z'),

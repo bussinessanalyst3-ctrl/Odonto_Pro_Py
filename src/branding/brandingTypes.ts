@@ -27,7 +27,7 @@ export const DEFAULT_BRANDING: OrganizationBranding = {
   companyType: 'E.A.S.',
   primaryColor: 'teal',
   customHexColor: '#0d9488',
-  logoIcon: 'stethoscope',
+  logoIcon: 'shield',
   timbradoNumber: '15984260',
   timbradoVencimiento: '2026-12-31',
   currency: 'PYG',

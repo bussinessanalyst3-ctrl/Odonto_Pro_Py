@@ -98,7 +98,7 @@ export const OrganizationManagementView: React.FC = () => {
     branding.logoUrl ? (branding.logoUrl.startsWith('data:') ? 'upload' : 'url') : 'icon'
   );
   const [logoUrl, setLogoUrl] = useState(branding.logoUrl || '');
-  const [selectedIcon, setSelectedIcon] = useState(branding.logoIcon || 'stethoscope');
+  const [selectedIcon, setSelectedIcon] = useState(branding.logoIcon || 'shield');
   const [imageError, setImageError] = useState(false);
 
   // Estados de color
@@ -123,7 +123,7 @@ export const OrganizationManagementView: React.FC = () => {
     setTimbradoNumber(branding.timbradoNumber || '15984260');
     setTimbradoVencimiento(branding.timbradoVencimiento || '2026-12-31');
     setLogoUrl(branding.logoUrl || '');
-    setSelectedIcon(branding.logoIcon || 'stethoscope');
+    setSelectedIcon(branding.logoIcon || 'shield');
     setPrimaryColor(branding.primaryColor || 'teal');
     setCustomHexColor(branding.customHexColor || '#0d9488');
     setCurrency(branding.currency || 'PYG');
@@ -453,7 +453,7 @@ export const OrganizationManagementView: React.FC = () => {
     }
   };
 
-  const ActiveDentalIconComponent = DENTAL_ICONS.find((i) => i.id === selectedIcon)?.icon || Stethoscope;
+  const ActiveDentalIconComponent = DENTAL_ICONS.find((i) => i.id === selectedIcon)?.icon || ShieldCheck;
 
   return (
     <div className="space-y-6">
@@ -1181,15 +1181,8 @@ export const OrganizationManagementView: React.FC = () => {
                     <span className="text-teal-400 font-mono text-[9px]">desktop-nav</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div
-                      className="h-11 w-11 rounded-xl flex items-center justify-center text-white font-bold shadow-md overflow-hidden shrink-0"
-                      style={{ backgroundColor: activeColorHex }}
-                    >
-                      {logoMode !== 'icon' && logoUrl ? (
-                        <img src={logoUrl} alt="Logo" className="h-full w-full object-contain p-1" />
-                      ) : (
-                        <ActiveDentalIconComponent className="h-6 w-6" />
-                      )}
+                    <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white font-bold shadow-md overflow-hidden shrink-0">
+                      <ShieldCheck className="h-6 w-6" />
                     </div>
                     <div className="min-w-0">
                       <div className="font-black text-white text-sm leading-tight flex items-center gap-1.5">
@@ -1210,11 +1203,8 @@ export const OrganizationManagementView: React.FC = () => {
                 {/* Mobile Header Preview */}
                 <div className="p-3 bg-white border border-slate-200 rounded-2xl flex items-center justify-between shadow-2xs">
                   <div className="flex items-center gap-2">
-                    <div
-                      className="h-8 w-8 rounded-lg flex items-center justify-center text-white text-xs font-bold"
-                      style={{ backgroundColor: activeColorHex }}
-                    >
-                      <ActiveDentalIconComponent className="h-4 w-4" />
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white text-xs font-bold">
+                      <ShieldCheck className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
                       <span className="font-black text-xs text-slate-800">{APP_NAME}</span>

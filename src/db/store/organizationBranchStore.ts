@@ -61,7 +61,7 @@ export function getAuditLogs(ctx: StoreContext, actor?: BackendActorContext) {
     return data.auditLogs || [];
   }
   const orgId = effectiveActor?.organizationId || data.organization.id;
-  return (data.auditLogs || []).filter((l) => l.organizationId === orgId);
+  return (data.auditLogs || []).filter((l: any) => l.organizationId === orgId);
 }
 
 export function addAuditLog(ctx: StoreContext, entry: AuditLogInput) {

@@ -180,7 +180,7 @@ export async function ensureRelationalSchema(pool: pg.Pool): Promise<void> {
           token VARCHAR(128) PRIMARY KEY,
           user_id VARCHAR(64) NOT NULL,
           role VARCHAR(64) NOT NULL,
-          organization_id VARCHAR(64) NOT NULL,
+          organization_id VARCHAR(64),
           branch_id VARCHAR(64),
           issued_at TIMESTAMPTZ NOT NULL,
           expires_at TIMESTAMPTZ NOT NULL,
@@ -257,7 +257,7 @@ export async function ensureRelationalSchema(pool: pg.Pool): Promise<void> {
 
         CREATE TABLE IF NOT EXISTS users (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+          organization_id UUID REFERENCES organizations(id) ON DELETE RESTRICT,
           role_id VARCHAR(50) NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
           first_name VARCHAR(100) NOT NULL,
           last_name VARCHAR(100) NOT NULL,
@@ -1235,7 +1235,7 @@ async function upsertRow(client: pg.PoolClient, collection: string, item: any, c
            deleted_at = EXCLUDED.deleted_at`,
         [
           item.id,
-          item.organizationId,
+          normalizeUuidOrNull(item.organizationId),
           item.roleId,
           item.username ?? null,
           String(item.firstName || ''),
@@ -3368,7 +3368,7 @@ function sanitizeStateForRelationalSync(state: DbStateEnvelope): {
   const validUserIds = new Set<string>(users.map((u: any) => u.id));
   const fallbackUserByOrg = new Map<string, string>();
   for (const u of users) {
-    if (!fallbackUserByOrg.has(u.organizationId)) {
+    if (u.organizationId && !fallbackUserByOrg.has(u.organizationId)) {
       fallbackUserByOrg.set(u.organizationId, u.id);
     }
   }

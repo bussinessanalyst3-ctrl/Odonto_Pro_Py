@@ -32,29 +32,18 @@ export function createAuthRouter(): express.Router {
 
       if (!identifier || typeof identifier !== 'string' || !password || typeof password !== 'string') {
         return res.status(400).json({
-          error: 'Las credenciales ingresadas no son válidas.',
+          error: 'Debe ingresar su correo electrónico o nombre de usuario y su contraseña.',
         });
       }
 
       const cleanIdentifier = identifier.trim().toLowerCase();
       const cleanPassword = password.trim();
-
-      const ipKey = `ip_${clientIp}`;
-      const userKey = `user_${cleanIdentifier}`;
-
+      const lockoutKey = `user_${cleanIdentifier}`;
       const now = Date.now();
-      const ipTracker = failedAttemptsMap.get(ipKey);
-      const userTracker = failedAttemptsMap.get(userKey);
 
-      if (
-        (ipTracker?.lockedUntil && ipTracker.lockedUntil > now) ||
-        (userTracker?.lockedUntil && userTracker.lockedUntil > now)
-      ) {
-        const remainingMs = Math.max(
-          (ipTracker?.lockedUntil || 0) - now,
-          (userTracker?.lockedUntil || 0) - now
-        );
-        const remainingMinutes = Math.ceil(remainingMs / 60000);
+      const attemptRecord = failedAttemptsMap.get(lockoutKey);
+      if (attemptRecord?.lockedUntil && attemptRecord.lockedUntil > now) {
+        const remainingMinutes = Math.max(1, Math.ceil((attemptRecord.lockedUntil - now) / 60000));
         return res.status(429).json({
           error: `Acceso temporalmente restringido por múltiples intentos fallidos. Intente nuevamente en ${remainingMinutes} minuto(s).`,
           locked: true,
@@ -64,44 +53,38 @@ export function createAuthRouter(): express.Router {
 
       const users = serverDbState.data.users || [];
       const user = users.find((u: any) => {
-        const emailMatch = u.email && u.email.toLowerCase() === cleanIdentifier;
-        const usernameMatch = u.username && u.username.toLowerCase() === cleanIdentifier;
+        const emailMatch = Boolean(u.email && u.email.toLowerCase() === cleanIdentifier);
+        const usernameMatch = Boolean(u.username && u.username.toLowerCase() === cleanIdentifier);
         const aliasAdminMatch = cleanIdentifier === 'admin' && u.roleId === 'SUPER_ADMIN';
         const analystMatch =
           (cleanIdentifier === 'businessanalyst3' || cleanIdentifier === 'businessanalyst3@gmail.com') &&
-          (u.username === 'bussinessanalyst3' || (u.email && u.email.toLowerCase() === 'bussinessanalyst3@gmail.com'));
+          (u.username === 'bussinessanalyst3' ||
+            (u.email && u.email.toLowerCase() === 'bussinessanalyst3@gmail.com'));
         return emailMatch || usernameMatch || aliasAdminMatch || analystMatch;
       });
 
-      const isLoopback =
-        clientIp === '127.0.0.1' ||
-        clientIp === '::1' ||
-        clientIp === '::ffff:127.0.0.1' ||
-        clientIp === 'localhost';
-      const maxIpAttempts = MAX_FAILED_ATTEMPTS * 5; // Protege IPs compartidas (NAT de clínicas) contra bloqueos masivos
+      const registerFailedAttempt = () => {
+        const prev = failedAttemptsMap.get(lockoutKey);
+        const expired = Boolean(prev?.lockedUntil && prev.lockedUntil <= now);
+        const nextCount = expired ? 1 : (prev?.count || 0) + 1;
+        const lockedUntil = nextCount >= MAX_FAILED_ATTEMPTS ? now + LOCKOUT_DURATION_MS : null;
+        failedAttemptsMap.set(lockoutKey, { count: nextCount, lockedUntil });
+        return nextCount;
+      };
 
       if (!user) {
         createPbkdf2Hash(cleanPassword, 100000);
-
-        const currentIpCount = (ipTracker?.count || 0) + 1;
-        const currentUserCount = (userTracker?.count || 0) + 1;
-        const ipLockedUntil =
-          !isLoopback && currentIpCount >= maxIpAttempts ? now + LOCKOUT_DURATION_MS : null;
-        const userLockedUntil =
-          currentUserCount >= MAX_FAILED_ATTEMPTS ? now + LOCKOUT_DURATION_MS : null;
-
-        failedAttemptsMap.set(ipKey, { count: currentIpCount, lockedUntil: ipLockedUntil });
-        failedAttemptsMap.set(userKey, { count: currentUserCount, lockedUntil: userLockedUntil });
-
+        registerFailedAttempt();
         return res.status(401).json({
-          error: 'Las credenciales ingresadas no son válidas.',
+          error: 'Credenciales inválidas. Verifique su usuario y contraseña.',
         });
       }
 
       if (user.status === 'INACTIVE') {
         createPbkdf2Hash(cleanPassword, 100000);
+        registerFailedAttempt();
         return res.status(401).json({
-          error: 'Las credenciales ingresadas no son válidas.',
+          error: 'Su cuenta se encuentra inactiva. Contacte al administrador de su clínica.',
         });
       }
 
@@ -115,16 +98,7 @@ export function createAuthRouter(): express.Router {
         );
 
       if (!isValidPassword) {
-        const currentIpCount = (ipTracker?.count || 0) + 1;
-        const currentUserCount = (userTracker?.count || 0) + 1;
-        const ipLockedUntil =
-          !isLoopback && currentIpCount >= maxIpAttempts ? now + LOCKOUT_DURATION_MS : null;
-        const userLockedUntil =
-          currentUserCount >= MAX_FAILED_ATTEMPTS ? now + LOCKOUT_DURATION_MS : null;
-
-        failedAttemptsMap.set(ipKey, { count: currentIpCount, lockedUntil: ipLockedUntil });
-        failedAttemptsMap.set(userKey, { count: currentUserCount, lockedUntil: userLockedUntil });
-
+        const attemptsCount = registerFailedAttempt();
         const failedAuditLog = {
           id: crypto.randomUUID(),
           organizationId: user.organizationId,
@@ -136,7 +110,7 @@ export function createAuthRouter(): express.Router {
           ipAddress: clientIp,
           userAgent: req.headers['user-agent'] || 'API Client',
           oldValues: null,
-          newValues: { attempts: currentUserCount },
+          newValues: { attempts: attemptsCount },
           description: 'Intento de acceso fallido para cuenta protegida',
           createdAt: new Date().toISOString(),
         };
@@ -144,17 +118,17 @@ export function createAuthRouter(): express.Router {
         await saveDatabaseState({ upserts: { auditLogs: [failedAuditLog] } });
 
         return res.status(401).json({
-          error: 'Las credenciales ingresadas no son válidas.',
+          error: 'Credenciales inválidas. Verifique su usuario y contraseña.',
         });
       }
 
-      failedAttemptsMap.delete(ipKey);
-      failedAttemptsMap.delete(userKey);
+      failedAttemptsMap.delete(lockoutKey);
 
       const userBranches = (serverDbState.data.userBranches || []).filter((ub: any) => ub.userId === user.id);
       const defaultBranch =
         userBranches.find((ub: any) => ub.isDefault)?.branchId ||
         userBranches[0]?.branchId ||
+        (serverDbState.data.branches || []).find((b: any) => b.organizationId === user.organizationId)?.id ||
         serverDbState.data.branches?.[0]?.id ||
         'branch-default';
 
@@ -182,7 +156,13 @@ export function createAuthRouter(): express.Router {
       await saveDatabaseState({ upserts: { users: [user] } });
 
       setSessionCookie(req, res, sessionToken, maxAgeSeconds);
-      const safeSession = buildSafeSessionPayload(user, sessionToken, issuedAt, expiresAt, defaultBranch);
+      const safeSession = buildSafeSessionPayload(
+        user,
+        sessionToken,
+        issuedAt,
+        expiresAt,
+        defaultBranch
+      );
 
       return res.json({
         success: true,
@@ -236,7 +216,7 @@ export function createAuthRouter(): express.Router {
     const auth = authenticateServerRequest(req);
     if (!auth.authenticated || !auth.user || !auth.sessionData || !auth.token) {
       clearSessionCookie(req, res);
-      return res.status(401).json({ valid: false, error: auth.error || 'No autorizado' });
+      return res.status(auth.statusCode || 401).json({ valid: false, error: auth.error || 'No autorizado' });
     }
 
     const safeSession = buildSafeSessionPayload(

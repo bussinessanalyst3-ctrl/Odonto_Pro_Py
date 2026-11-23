@@ -29,7 +29,7 @@ export function createAdminRouter(): express.Router {
       return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado' });
     }
     const serverDbState = getServerDbState();
-    if (isSuperAdminRole(auth.user.roleId) && auth.user.roleId === 'SUPER_ADMIN') {
+    if (isSuperAdminRole(auth.user.roleId)) {
       return res.json(serverDbState.organizationsList);
     }
     const ownOrgs = (serverDbState.organizationsList || []).filter(
@@ -45,7 +45,7 @@ export function createAdminRouter(): express.Router {
       if (!auth.authenticated || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado' });
       }
-      if (!isSuperAdminRole(auth.user.roleId) || auth.user.roleId !== 'SUPER_ADMIN') {
+      if (!isSuperAdminRole(auth.user.roleId)) {
         return res.status(403).json({
           error: '403 Prohibido: Solo el Super Administrador puede crear organizaciones.',
         });
@@ -141,7 +141,7 @@ export function createAdminRouter(): express.Router {
       }
 
       const { id } = req.params;
-      const isSuperAdmin = isSuperAdminRole(auth.user.roleId) && auth.user.roleId === 'SUPER_ADMIN';
+      const isSuperAdmin = isSuperAdminRole(auth.user.roleId);
       if (!isSuperAdmin && (auth.actor.organizationId !== id || auth.actor.role !== 'ADMIN_ORGANIZACION')) {
         return res.status(403).json({
           error: '403 Prohibido: No tiene autorización para modificar esta organización.',
@@ -188,7 +188,7 @@ export function createAdminRouter(): express.Router {
       if (!auth.authenticated || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado' });
       }
-      if (!isSuperAdminRole(auth.user.roleId) || auth.user.roleId !== 'SUPER_ADMIN') {
+      if (!isSuperAdminRole(auth.user.roleId)) {
         return res.status(403).json({
           error: '403 Prohibido: Solo el Super Administrador puede dar de baja organizaciones.',
         });
@@ -232,7 +232,7 @@ export function createAdminRouter(): express.Router {
         error: auth.error || '401 No autorizado. Se requiere inicio de sesión.',
       });
     }
-    const isSuperAdmin = isSuperAdminRole(auth.user.roleId) && auth.user.roleId === 'SUPER_ADMIN';
+    const isSuperAdmin = isSuperAdminRole(auth.user.roleId);
     if (!isSuperAdmin && !hasPermission(auth.actor, 'users.view')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso users.view.' });
     }
@@ -253,7 +253,6 @@ export function createAdminRouter(): express.Router {
       if (!auth.authenticated || !auth.user || !auth.actor) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado' });
       }
-
       const serverDbState = getServerDbState();
       const { id } = req.params;
       const { overrides } = req.body || {};
@@ -263,7 +262,7 @@ export function createAdminRouter(): express.Router {
         return res.status(404).json({ error: 'Usuario no encontrado.' });
       }
 
-      const isSuperAdmin = isSuperAdminRole(auth.user.roleId) && auth.user.roleId === 'SUPER_ADMIN';
+      const isSuperAdmin = isSuperAdminRole(auth.user.roleId);
 
       if (!isSuperAdmin) {
         if (user.organizationId !== auth.actor.organizationId) {
@@ -379,7 +378,7 @@ export function createAdminRouter(): express.Router {
         return res.status(404).json({ error: 'Usuario no encontrado.' });
       }
 
-      const isSuperAdmin = isSuperAdminRole(auth.user.roleId) && auth.user.roleId === 'SUPER_ADMIN';
+      const isSuperAdmin = isSuperAdminRole(auth.user.roleId);
       if (!isSuperAdmin) {
         if (user.organizationId !== auth.actor.organizationId) {
           return res.status(403).json({ error: '403 Prohibido: Violación de aislamiento multiempresa.' });
@@ -464,7 +463,7 @@ export function createAdminRouter(): express.Router {
         return res.status(404).json({ error: 'Usuario no encontrado.' });
       }
 
-      const isSuperAdmin = isSuperAdminRole(auth.user.roleId) && auth.user.roleId === 'SUPER_ADMIN';
+      const isSuperAdmin = isSuperAdminRole(auth.user.roleId);
       if (!isSuperAdmin) {
         if (user.organizationId !== auth.actor.organizationId) {
           return res.status(403).json({ error: '403 Prohibido: Violación de aislamiento multiempresa.' });
@@ -534,7 +533,7 @@ export function createAdminRouter(): express.Router {
 
       const serverDbState = getServerDbState();
       const roles = serverDbState.data?.roles || [];
-      const isSuperAdmin = isSuperAdminRole(auth.user.roleId) && auth.user.roleId === 'SUPER_ADMIN';
+      const isSuperAdmin = isSuperAdminRole(auth.user.roleId);
       const canViewAll = isSuperAdmin || actorHasDynamicPermission(auth.actor, 'audit.view', roles);
       const canViewOwnBranch = actorHasDynamicPermission(auth.actor, 'audit.view_own_branch', roles);
 
