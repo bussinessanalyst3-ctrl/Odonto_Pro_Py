@@ -20,21 +20,13 @@ import { UserSessionMenu } from './auth/UserSessionMenu.tsx';
 import { useAuth } from '../auth/authContext.tsx';
 import { UserRole } from '../auth/types.ts';
 import { APP_NAME, resolveOrganizationLegalName } from '../config/appBrand.ts';
+import {
+  SystemModuleId,
+  SYSTEM_MODULES,
+  hasModuleAccess,
+} from '../security/moduleCatalog.ts';
 
-export type TabType =
-  | 'dashboard'
-  | 'audit'
-  | 'quotes'
-  | 'cash'
-  | 'staff-payroll'
-  | 'odontogram'
-  | 'treatments'
-  | 'agenda'
-  | 'clinical'
-  | 'patients'
-  | 'users'
-  | 'branches'
-  | 'organization';
+export type TabType = SystemModuleId;
 
 interface NavItem {
   id: TabType;
@@ -45,115 +37,33 @@ interface NavItem {
   color: string;
 }
 
-export const ALL_NAV_ITEMS: NavItem[] = [
-  // Módulos Clínicos
-  {
-    id: 'agenda',
-    label: 'Agenda & Citas',
-    icon: Calendar,
-    category: 'clinical',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION'],
-    color: 'bg-teal-600',
-  },
-  {
-    id: 'patients',
-    label: 'Pacientes',
-    icon: HeartPulse,
-    category: 'clinical',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
-    color: 'bg-teal-600',
-  },
-  {
-    id: 'odontogram',
-    label: 'Odontograma FDI',
-    icon: Stethoscope,
-    category: 'clinical',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
-    color: 'bg-teal-600',
-  },
-  {
-    id: 'clinical',
-    label: 'Historias Clínicas',
-    icon: FileText,
-    category: 'clinical',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
-    color: 'bg-teal-600',
-  },
-  {
-    id: 'treatments',
-    label: 'Tratamientos & Tarifas',
-    icon: Building2,
-    category: 'clinical',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
-    color: 'bg-teal-600',
-  },
-  {
-    id: 'quotes',
-    label: 'Presupuestos & Planes',
-    icon: Calculator,
-    category: 'clinical',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
-    color: 'bg-teal-600',
-  },
+const MODULE_VISUALS: Record<
+  SystemModuleId,
+  { icon: React.ComponentType<{ className?: string }>; color: string }
+> = {
+  dashboard: { icon: BarChart3, color: 'bg-teal-600' },
+  agenda: { icon: Calendar, color: 'bg-teal-600' },
+  patients: { icon: HeartPulse, color: 'bg-teal-600' },
+  odontogram: { icon: Stethoscope, color: 'bg-teal-600' },
+  treatments: { icon: Building2, color: 'bg-teal-600' },
+  clinical: { icon: FileText, color: 'bg-teal-600' },
+  quotes: { icon: Calculator, color: 'bg-teal-600' },
+  cash: { icon: DollarSign, color: 'bg-emerald-600' },
+  'staff-payroll': { icon: Briefcase, color: 'bg-teal-600' },
+  branches: { icon: Landmark, color: 'bg-teal-600' },
+  organization: { icon: Building2, color: 'bg-teal-600' },
+  users: { icon: Users, color: 'bg-teal-600' },
+  audit: { icon: ShieldAlert, color: 'bg-purple-600' },
+};
 
-  // Módulos de Caja y Gestión
-  {
-    id: 'cash',
-    label: 'Caja & Facturación',
-    icon: DollarSign,
-    category: 'management',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'RECEPCION', 'CAJA'],
-    color: 'bg-emerald-600',
-  },
-  {
-    id: 'staff-payroll',
-    label: 'Finanzas Personal',
-    icon: Briefcase,
-    category: 'management',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR', 'VENDEDOR', 'ODONTOLOGO', 'CAJA'],
-    color: 'bg-teal-600',
-  },
-  {
-    id: 'dashboard',
-    label: 'Dashboard & Reportes',
-    icon: BarChart3,
-    category: 'management',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
-    color: 'bg-teal-600',
-  },
-  {
-    id: 'users',
-    label: 'Equipo & Roles MSPBS',
-    icon: Users,
-    category: 'management',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
-    color: 'bg-teal-600',
-  },
-  {
-    id: 'branches',
-    label: 'Sucursales & Sillones',
-    icon: Landmark,
-    category: 'management',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
-    color: 'bg-teal-600',
-  },
-  {
-    id: 'organization',
-    label: 'Empresa & Branding',
-    icon: Building2,
-    category: 'management',
-    allowedRoles: ['SUPER_ADMIN'], // Exclusivo Super Administrador
-    color: 'bg-teal-600',
-  },
-  {
-    id: 'audit',
-    label: 'Auditoría MSPBS',
-    icon: ShieldAlert,
-    category: 'management',
-    allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
-    color: 'bg-purple-600',
-  },
-];
+export const ALL_NAV_ITEMS: NavItem[] = SYSTEM_MODULES.map((mod) => ({
+  id: mod.id,
+  label: mod.sidebarLabel,
+  icon: MODULE_VISUALS[mod.id]?.icon || BarChart3,
+  category: mod.category,
+  allowedRoles: mod.defaultRoles,
+  color: MODULE_VISUALS[mod.id]?.color || 'bg-teal-600',
+}));
 
 interface HeaderProps {
   selectedBranchId: string;
@@ -175,20 +85,20 @@ export const Header: React.FC<HeaderProps> = ({
   const orgLegalName = resolveOrganizationLegalName(org);
 
   const userRole: UserRole | null = session?.role || null;
+  const currentRoleObj = dbStore.getRoles().find((r) => r.id === userRole);
 
-  // Filtrado de pestañas según el ROL del usuario
-  const visibleTabs = ALL_NAV_ITEMS.filter((item) => {
-    if (!userRole) return false;
-    return item.allowedRoles.includes(userRole);
-  });
+  // Filtrado de pestañas según catálogo único y permisos efectivos
+  const visibleTabs = ALL_NAV_ITEMS.filter((item) =>
+    hasModuleAccess(session, item.id, currentRoleObj)
+  );
 
-  // Si la pestaña actual no está en las pestañas visibles para este rol, redirigir a la primera permitida
+  // Si la pestaña actual no está en las pestañas visibles para este usuario, redirigir a la primera permitida
   useEffect(() => {
     const isCurrentTabAllowed = visibleTabs.some((t) => t.id === activeTab);
     if (!isCurrentTabAllowed && visibleTabs.length > 0) {
       onSelectTab(visibleTabs[0].id);
     }
-  }, [userRole]);
+  }, [userRole, session?.permissionsVersion]);
 
   return (
     <header className="bg-white/95 backdrop-blur-md border-b border-cyan-100/70 sticky top-0 z-50 shadow-xs">

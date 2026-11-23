@@ -23,6 +23,28 @@ import { UserRole } from '../auth/types.ts';
 import { TabType } from './Header.tsx';
 import { dbStore } from '../db/inMemoryStore.ts';
 import { APP_NAME, resolveOrganizationLegalName } from '../config/appBrand.ts';
+import {
+  MODULE_GROUPS,
+  SYSTEM_MODULES,
+  SystemModuleId,
+  hasModuleAccess,
+} from '../security/moduleCatalog.ts';
+
+const SIDEBAR_MODULE_ICONS: Record<SystemModuleId, React.ComponentType<{ className?: string }>> = {
+  dashboard: BarChart3,
+  agenda: Calendar,
+  patients: HeartPulse,
+  odontogram: Stethoscope,
+  treatments: Building2,
+  clinical: FileText,
+  quotes: Calculator,
+  cash: DollarSign,
+  'staff-payroll': Briefcase,
+  branches: Landmark,
+  organization: Building2,
+  users: Users,
+  audit: ShieldAlert,
+};
 
 interface SidebarProps {
   activeTab: TabType;
@@ -61,118 +83,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Obtener rol actual y permisos dinámicos
   const currentRoleObj = dbStore.getRoles().find((r) => r.id === userRole);
 
-  // Definición estructurada de grupos según las especificaciones
-  const navGroups: NavGroup[] = [
-    {
-      id: 'principal',
-      label: 'PANEL PRINCIPAL',
-      items: [
-        {
-          id: 'dashboard',
-          label: 'Dashboard & Métricas',
-          icon: BarChart3,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
-        },
-      ],
-    },
-    {
-      id: 'operacion',
-      label: 'OPERACIÓN CLÍNICA',
-      items: [
-        {
-          id: 'agenda',
-          label: 'Agenda de Citas',
-          icon: Calendar,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION'],
-        },
-        {
-          id: 'patients',
-          label: 'Fichas de Pacientes',
-          icon: HeartPulse,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
-        },
-      ],
-    },
-    {
-      id: 'clinica',
-      label: 'ODONTOLOGÍA & TRATAMIENTOS',
-      items: [
-        {
-          id: 'odontogram',
-          label: 'Odontograma FDI',
-          icon: Stethoscope,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
-          badge: 'FDI',
-        },
-        {
-          id: 'treatments',
-          label: 'Planes & Tratamientos',
-          icon: Building2,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
-        },
-        {
-          id: 'clinical',
-          label: 'Historias Clínicas MSPBS',
-          icon: FileText,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO'],
-        },
-      ],
-    },
-    {
-      id: 'administracion',
-      label: 'ADMINISTRACIÓN & CAJA',
-      items: [
-        {
-          id: 'quotes',
-          label: 'Presupuestos & Planes',
-          icon: Calculator,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'ODONTOLOGO', 'RECEPCION', 'CAJA'],
-        },
-        {
-          id: 'cash',
-          label: 'Caja & Facturación',
-          icon: DollarSign,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'RECEPCION', 'CAJA'],
-        },
-        {
-          id: 'staff-payroll',
-          label: 'Finanzas del Personal',
-          icon: Briefcase,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR', 'VENDEDOR', 'ODONTOLOGO', 'CAJA'],
-        },
-      ],
-    },
-    {
-      id: 'sistema',
-      label: 'GESTIÓN & SEGURIDAD',
-      items: [
-        {
-          id: 'branches',
-          label: 'Sucursales & Sillones',
-          icon: Landmark,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
-        },
-        {
-          id: 'organization',
-          label: 'Empresa & Branding',
-          icon: Building2,
-          allowedRoles: ['SUPER_ADMIN'], // Exclusivo Super Administrador
-        },
-        {
-          id: 'users',
-          label: 'Equipo, Roles & Accesos',
-          icon: Users,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
-        },
-        {
-          id: 'audit',
-          label: 'Auditoría & Logs',
-          icon: ShieldAlert,
-          allowedRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL'],
-        },
-      ],
-    },
-  ];
+  // Grupos construidos dinámicamente desde el catálogo único de módulos (moduleCatalog.ts)
+  const navGroups: NavGroup[] = MODULE_GROUPS.map((group) => ({
+    id: group.id,
+    label: group.label,
+    items: SYSTEM_MODULES.filter((mod) => mod.groupId === group.id).map((mod) => ({
+      id: mod.id,
+      label: mod.sidebarLabel,
+      icon: SIDEBAR_MODULE_ICONS[mod.id] || BarChart3,
+      allowedRoles: mod.defaultRoles,
+      badge: mod.badge,
+    })),
+  }));
 
   const companyLegalName = resolveOrganizationLegalName({
     legalName: branding.legalName,
@@ -238,17 +160,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Lista de navegación con scroll táctil suave */}
         <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin" style={{ WebkitOverflowScrolling: 'touch' }}>
           {navGroups.map((group) => {
-            // Filtrar ítems permitidos para este usuario / rol
-            const allowedItems = group.items.filter((item) => {
-              if (userRole === 'SUPER_ADMIN') return true;
-              if (session?.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0) {
-                return session.allowedNavTabs.includes(item.id);
-              }
-              if (Array.isArray(currentRoleObj?.allowedNavTabs) && currentRoleObj.allowedNavTabs.length > 0) {
-                return currentRoleObj.allowedNavTabs.includes(item.id);
-              }
-              return item.allowedRoles.includes(userRole);
-            });
+            // Filtrar ítems permitidos usando el catálogo único (con normalización de alias y herencia de rol)
+            const allowedItems = group.items.filter((item) =>
+              hasModuleAccess(session, item.id, currentRoleObj)
+            );
             if (allowedItems.length === 0) return null;
 
             return (

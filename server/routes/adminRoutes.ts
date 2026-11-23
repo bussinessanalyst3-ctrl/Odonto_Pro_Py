@@ -6,6 +6,10 @@ import {
   hasPermission,
   isSuperAdminRole,
 } from '../../src/security/rbacHierarchy.ts';
+import {
+  ALL_SYSTEM_MODULE_IDS,
+  normalizeModuleId,
+} from '../../src/security/moduleCatalog.ts';
 import { createPbkdf2Hash, sanitizeUsersForClient } from '../crypto.ts';
 import {
   actorHasDynamicPermission,
@@ -302,7 +306,13 @@ export function createAdminRouter(): express.Router {
 
       // Regla 3: Un administrador no puede asignar permisos ni módulos que él mismo no posea
       const actorEffective = getUserEffectivePermissions(auth.user, roles);
-      const actorAllowedTabsSet = new Set(actorEffective.allowedNavTabs || []);
+      const actorAllowedTabsSet = new Set<string>(
+        isSuperAdminRole(auth.user.roleId)
+          ? ALL_SYSTEM_MODULE_IDS
+          : (actorEffective.allowedNavTabs || [])
+              .map((t) => normalizeModuleId(t))
+              .filter((t): t is NonNullable<typeof t> => Boolean(t))
+      );
       const actorEffectivePermsSet = new Set(actorEffective.effectivePermissions || []);
       const actorHasAllPerms = actorEffectivePermsSet.has('system.all');
 
@@ -319,14 +329,21 @@ export function createAdminRouter(): express.Router {
         }
       }
 
+      let normalizedNextAllowedNavTabs: string[] | undefined = nextAllowedNavTabs;
       if (nextAllowedNavTabs && nextAllowedNavTabs.length > 0) {
+        const canonicalList: string[] = [];
         for (const tabId of nextAllowedNavTabs) {
-          if (!actorAllowedTabsSet.has(tabId)) {
+          const canonical = normalizeModuleId(tabId);
+          if (!canonical || !actorAllowedTabsSet.has(canonical)) {
             return res.status(403).json({
               error: `403 Prohibido: No puede asignar el módulo "${tabId}" porque su cuenta no lo posee.`,
             });
           }
+          if (!canonicalList.includes(canonical)) {
+            canonicalList.push(canonical);
+          }
         }
+        normalizedNextAllowedNavTabs = canonicalList;
       }
 
       const previousSnapshot = {
@@ -357,8 +374,8 @@ export function createAdminRouter(): express.Router {
       if (nextAssignedRestrictions !== undefined) {
         user.assignedRestrictions = nextAssignedRestrictions;
       }
-      if (nextAllowedNavTabs !== undefined) {
-        user.allowedNavTabs = nextAllowedNavTabs;
+      if (normalizedNextAllowedNavTabs !== undefined) {
+        user.allowedNavTabs = normalizedNextAllowedNavTabs;
       }
 
       user.permissionsVersion = previousSnapshot.permissionsVersion + 1;

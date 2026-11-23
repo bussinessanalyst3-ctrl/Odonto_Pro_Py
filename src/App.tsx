@@ -4,10 +4,15 @@ import { BrandingProvider, useBranding } from './branding/BrandingContext.tsx';
 import { LoginScreen } from './components/auth/LoginScreen.tsx';
 import { Sidebar } from './components/Sidebar.tsx';
 import { AppHeader } from './components/AppHeader.tsx';
-import { ALL_NAV_ITEMS, TabType } from './components/Header.tsx';
+import { TabType } from './components/Header.tsx';
 import { dbStore } from './db/inMemoryStore.ts';
 import { formatDocumentTitle } from './config/appBrand.ts';
 import { getApiBaseUrl } from './config/apiConfig.ts';
+import {
+  getFirstAllowedModule,
+  getModuleById,
+  hasModuleAccess,
+} from './security/moduleCatalog.ts';
 
 const OwnerConsole = lazy(() =>
   import('./components/owner/OwnerConsole.tsx').then((m) => ({ default: m.OwnerConsole }))
@@ -153,19 +158,8 @@ function MainApplication() {
     }
 
     const roleObj = dbStore.getRoles().find((r) => r.id === session.role);
-    const currentNavItem = ALL_NAV_ITEMS.find((item) => item.id === activeTab);
-    const validTabIds = new Set(ALL_NAV_ITEMS.map((item) => item.id));
-
-    let isAllowed = false;
-    if (session.role === 'SUPER_ADMIN') {
-      isAllowed = Boolean(currentNavItem);
-    } else if (session.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0) {
-      isAllowed = session.allowedNavTabs.includes(activeTab);
-    } else if (roleObj?.allowedNavTabs && roleObj.allowedNavTabs.length > 0) {
-      isAllowed = roleObj.allowedNavTabs.includes(activeTab);
-    } else if (currentNavItem) {
-      isAllowed = currentNavItem.allowedRoles.includes(session.role);
-    }
+    const currentMod = getModuleById(activeTab);
+    const isAllowed = Boolean(currentMod) && hasModuleAccess(session, activeTab, roleObj);
 
     const prevTracker = activePermUserRef.current;
     const isSameUserLiveUpdate = Boolean(
@@ -174,24 +168,11 @@ function MainApplication() {
     activePermUserRef.current = { userId: session.userId, initialized: true };
 
     if (!isAllowed) {
-      let nextTab: TabType | null = null;
-      if (session.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0) {
-        nextTab = (session.allowedNavTabs.find((id) => validTabIds.has(id as TabType)) as TabType) || null;
-      }
-      if (!nextTab && roleObj?.allowedNavTabs && roleObj.allowedNavTabs.length > 0) {
-        nextTab = (roleObj.allowedNavTabs.find((id: string) => validTabIds.has(id as TabType)) as TabType) || null;
-      }
-      if (!nextTab) {
-        const firstAllowed = ALL_NAV_ITEMS.find((item) => item.allowedRoles.includes(session.role));
-        if (firstAllowed) {
-          nextTab = firstAllowed.id;
-        }
-      }
-
+      const nextTab = getFirstAllowedModule(session, roleObj);
       if (nextTab && nextTab !== activeTab) {
         if (isSameUserLiveUpdate) {
-          const removedLabel = currentNavItem?.label || activeTab;
-          const nextLabel = ALL_NAV_ITEMS.find((item) => item.id === nextTab)?.label || nextTab;
+          const removedLabel = currentMod?.label || activeTab;
+          const nextLabel = getModuleById(nextTab)?.label || nextTab;
           setPermissionRedirectNotice(
             `Tus permisos fueron actualizados por el administrador y ya no tenés acceso a "${removedLabel}". Te redirigimos a "${nextLabel}" sin cerrar tu sesión.`
           );
@@ -246,19 +227,9 @@ function MainApplication() {
     setActiveTab(tab as TabType);
   };
 
-  // Verificar si la pestaña actual está autorizada para este rol
+  // Verificar si la pestaña actual está autorizada para este usuario
   const roleObj = dbStore.getRoles().find((r) => r.id === session?.role);
-  const currentItem = ALL_NAV_ITEMS.find((item) => item.id === activeTab);
-  const isAuthorized =
-    Boolean(currentItem) &&
-    (session?.role === 'SUPER_ADMIN' ||
-      (session?.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0
-        ? session.allowedNavTabs.includes(activeTab)
-        : Array.isArray(roleObj?.allowedNavTabs) && roleObj.allowedNavTabs.length > 0
-        ? roleObj.allowedNavTabs.includes(activeTab)
-        : currentItem
-        ? Boolean(session?.role && currentItem.allowedRoles.includes(session.role))
-        : false));
+  const isAuthorized = Boolean(getModuleById(activeTab)) && hasModuleAccess(session, activeTab, roleObj);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex">
@@ -314,17 +285,7 @@ function MainApplication() {
                 Tu perfil actual (<span className="font-semibold text-teal-800">{session?.roleName}</span>) no tiene permisos de acceso para este módulo según las políticas RBAC y el Ministerio de Salud (MSPBS).
               </p>
               <button
-                onClick={() => {
-                  const firstTabId =
-                    (session?.allowedNavTabs && session.allowedNavTabs.length > 0
-                      ? session.allowedNavTabs[0]
-                      : roleObj?.allowedNavTabs && roleObj.allowedNavTabs.length > 0
-                      ? roleObj.allowedNavTabs[0]
-                      : ALL_NAV_ITEMS.find((item) =>
-                          session?.role ? item.allowedRoles.includes(session.role) : false
-                        )?.id) as TabType | undefined;
-                  if (firstTabId) setActiveTab(firstTabId);
-                }}
+                onClick={() => setActiveTab(getFirstAllowedModule(session, roleObj))}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors shadow-xs"
               >
                 <span>Ir a mis módulos asignados</span>
