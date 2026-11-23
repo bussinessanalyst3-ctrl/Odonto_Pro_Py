@@ -124,6 +124,22 @@ export function createAuthRouter(): express.Router {
 
       failedAttemptsMap.delete(lockoutKey);
 
+      // Si la organización de la clínica está suspendida, solo se impide iniciar sesión nueva (sin afectar sesiones activas ni clínicas activas)
+      const configuredOwnerEmail = String(process.env.OWNER_EMAIL || '').trim().toLowerCase();
+      const isConfiguredOwner = Boolean(
+        configuredOwnerEmail && String(user.email || '').trim().toLowerCase() === configuredOwnerEmail
+      );
+      const userOrg = (serverDbState.organizationsList || []).find(
+        (o: any) => o.id === user.organizationId
+      );
+      if (!isConfiguredOwner && userOrg && String(userOrg.status || '').toUpperCase() === 'SUSPENDED') {
+        return res.status(403).json({
+          success: false,
+          error:
+            'El acceso de su clínica se encuentra temporalmente suspendido. Por favor, comuníquese con el equipo de soporte de OdontoPro para regularizar y reactivar el servicio.',
+        });
+      }
+
       const userBranches = (serverDbState.data.userBranches || []).filter((ub: any) => ub.userId === user.id);
       const defaultBranch =
         userBranches.find((ub: any) => ub.isDefault)?.branchId ||

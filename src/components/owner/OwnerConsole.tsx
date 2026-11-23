@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import {
   ShieldCheck,
+  Building2,
   Map as MapIcon,
   Database,
   FlaskConical,
@@ -12,6 +13,9 @@ import {
 import { useAuth } from '../../auth/authContext.tsx';
 import { getApiBaseUrl } from '../../config/apiConfig.ts';
 
+const OwnerClientsPanel = lazy(() =>
+  import('./OwnerClientsPanel.tsx').then((m) => ({ default: m.OwnerClientsPanel }))
+);
 const RoadmapViewer = lazy(() =>
   import('../RoadmapViewer.tsx').then((m) => ({ default: m.RoadmapViewer }))
 );
@@ -32,7 +36,7 @@ const SecurityHardeningView = lazy(() =>
   }))
 );
 
-type OwnerModuleTab = 'roadmap' | 'schema' | 'testing' | 'production' | 'security';
+type OwnerModuleTab = 'clients' | 'roadmap' | 'schema' | 'testing' | 'production' | 'security';
 
 interface OwnerConsoleProps {
   onBackToApp: () => void;
@@ -44,6 +48,7 @@ const OWNER_TABS: Array<{
   shortLabel: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
+  { id: 'clients', label: 'Empresas y Clientes', shortLabel: 'Empresas', icon: Building2 },
   { id: 'roadmap', label: 'Fases y Roadmap', shortLabel: 'Roadmap', icon: MapIcon },
   { id: 'schema', label: 'Esquema SQL', shortLabel: 'Esquema', icon: Database },
   { id: 'testing', label: 'Pruebas Automatizadas', shortLabel: 'Pruebas', icon: FlaskConical },
@@ -53,7 +58,7 @@ const OWNER_TABS: Array<{
 
 export const OwnerConsole: React.FC<OwnerConsoleProps> = ({ onBackToApp }) => {
   const { session, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<OwnerModuleTab>('roadmap');
+  const [activeTab, setActiveTab] = useState<OwnerModuleTab>('clients');
 
   // Registrar acceso y cambio de módulo en la auditoría existente (sin cambios en BD)
   useEffect(() => {
@@ -104,7 +109,7 @@ export const OwnerConsole: React.FC<OwnerConsoleProps> = ({ onBackToApp }) => {
                 ODONTOPRO · Consola del Propietario
               </h1>
               <p className="text-[11px] text-slate-400 truncate">
-                Herramientas técnicas de plataforma · {session?.email || ''}
+                Gestión de plataforma y herramientas técnicas · {session?.email || ''}
               </p>
             </div>
           </div>
@@ -131,7 +136,7 @@ export const OwnerConsole: React.FC<OwnerConsoleProps> = ({ onBackToApp }) => {
           </div>
         </div>
 
-        {/* Navegación interna de vistas técnicas */}
+        {/* Navegación interna de módulos de plataforma */}
         <div className="border-t border-slate-800/80 bg-slate-900/90">
           <nav
             aria-label="Módulos de la Consola del Propietario"
@@ -161,18 +166,19 @@ export const OwnerConsole: React.FC<OwnerConsoleProps> = ({ onBackToApp }) => {
         </div>
       </header>
 
-      {/* Contenido de la vista técnica seleccionada (sin datos clínicos de pacientes) */}
+      {/* Contenido del módulo seleccionado (sin datos clínicos de pacientes) */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6">
         <Suspense
           fallback={
             <div className="bg-white rounded-2xl border border-slate-200 p-10 flex items-center justify-center min-h-[260px]">
               <div className="flex flex-col items-center gap-3 text-slate-500">
                 <div className="h-7 w-7 rounded-full border-2 border-teal-600 border-t-transparent animate-spin" />
-                <span className="text-xs font-semibold">Cargando módulo técnico...</span>
+                <span className="text-xs font-semibold">Cargando módulo...</span>
               </div>
             </div>
           }
         >
+          {activeTab === 'clients' && <OwnerClientsPanel />}
           {activeTab === 'roadmap' && <RoadmapViewer />}
           {activeTab === 'schema' && <SchemaViewer />}
           {activeTab === 'testing' && <AutomatedTestingView />}

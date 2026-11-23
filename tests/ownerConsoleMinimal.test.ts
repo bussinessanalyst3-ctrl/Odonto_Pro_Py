@@ -39,7 +39,7 @@ async function apiRequest(
   };
 }
 
-test('Consola del Propietario mínima: OWNER_EMAIL, 404 oculto para clínicas y flujo normal intacto', async () => {
+test('Consola del Propietario mínima + Fase 2 (Clientes): OWNER_EMAIL, 404 oculto, suspender/reactivar y flujo normal intacto', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'odontopro-owner-min-'));
   const prevOwnerEmail = process.env.OWNER_EMAIL;
   process.env.DATA_DIR = tmpDir;
@@ -70,13 +70,40 @@ test('Consola del Propietario mínima: OWNER_EMAIL, 404 oculto para clínicas y 
     superAdmin.passwordSalt = ownerHash.salt;
     superAdmin.passwordIterations = ownerHash.iterations;
 
-    // Configurar un usuario de clínica normal (ADMIN_ORGANIZACION)
+    // Crear una segunda clínica cliente para probar suspensión/reactivación sin afectar la org del propietario
+    const clientOrgId = '33333333-3333-4333-8333-333333333333';
+    const clientBranchId = '44444444-4444-4444-8444-444444444444';
+    state.organizationsList.push({
+      id: clientOrgId,
+      code: 'CLI-SONRISA-02',
+      name: 'Clínica Sonrisa Sur',
+      legalName: 'Clínica Odontológica Sonrisa Sur S.R.L.',
+      taxId: '80055544-2',
+      countryCode: 'PRY',
+      defaultCurrency: 'PYG',
+      timezone: 'America/Asuncion',
+      status: 'ACTIVE',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    state.data.branches.push({
+      id: clientBranchId,
+      organizationId: clientOrgId,
+      code: 'SUC-01',
+      name: 'Casa Central Sur',
+      department: 'Central',
+      city: 'Lambaré',
+      address: 'Av. Cacique Lambaré 123',
+      phone: '+595 21 555 000',
+      status: 'ACTIVE',
+    });
+
     const clinicPass = 'ClinicAdmin#2026';
     const clinicHash = createPbkdf2Hash(clinicPass);
     const clinicAdminId = '11111111-1111-4111-8111-111111111111';
     state.data.users.push({
       id: clinicAdminId,
-      organizationId: orgId,
+      organizationId: clientOrgId,
       roleId: 'ADMIN_ORGANIZACION',
       username: 'admin.clinica',
       firstName: 'María',
@@ -88,11 +115,13 @@ test('Consola del Propietario mínima: OWNER_EMAIL, 404 oculto para clínicas y 
       status: 'ACTIVE',
       permissionsVersion: 1,
     });
-    state.data.userBranches.push({ userId: clinicAdminId, branchId, isDefault: true });
+    state.data.userBranches.push({ userId: clinicAdminId, branchId: clientBranchId, isDefault: true });
 
-    // 1. Sin sesión -> /api/owner/me y /api/owner/audit responden 404
+    // 1. Sin sesión -> /api/owner/* responde 404
     const unauthMe = await apiRequest(baseUrl, '/api/owner/me');
     assert.equal(unauthMe.status, 404);
+    const unauthOrgs = await apiRequest(baseUrl, '/api/owner/organizations');
+    assert.equal(unauthOrgs.status, 404);
     const unauthAudit = await apiRequest(baseUrl, '/api/owner/audit', {
       method: 'POST',
       body: JSON.stringify({ module: 'roadmap' }),
@@ -113,7 +142,7 @@ test('Consola del Propietario mínima: OWNER_EMAIL, 404 oculto para clínicas y 
     });
     assert.equal(meWithoutEnv.status, 404);
 
-    // 3. Al configurar OWNER_EMAIL con el correo del propietario -> /api/owner/me responde 200
+    // 3. Al configurar OWNER_EMAIL -> /api/owner/me responde 200
     process.env.OWNER_EMAIL = `  ${String(superAdmin.email).toUpperCase()}  `;
     const meAsOwner = await apiRequest(baseUrl, '/api/owner/me', {
       cookie: ownerLogin.sidCookie,
@@ -127,7 +156,7 @@ test('Consola del Propietario mínima: OWNER_EMAIL, 404 oculto para clínicas y 
     const ownerAuditRes = await apiRequest(baseUrl, '/api/owner/audit', {
       method: 'POST',
       cookie: ownerLogin.sidCookie,
-      body: JSON.stringify({ action: 'OWNER_CONSOLE_VIEW', module: 'schema' }),
+      body: JSON.stringify({ action: 'OWNER_CONSOLE_VIEW', module: 'clients' }),
     });
     assert.equal(ownerAuditRes.status, 200);
     assert.equal(ownerAuditRes.json?.success, true);
@@ -149,12 +178,17 @@ test('Consola del Propietario mínima: OWNER_EMAIL, 404 oculto para clínicas y 
     });
     assert.equal(clinicOwnerMe.status, 404);
 
-    const clinicOwnerAudit = await apiRequest(baseUrl, '/api/owner/audit', {
-      method: 'POST',
+    const clinicOwnerOrgs = await apiRequest(baseUrl, '/api/owner/organizations', {
       cookie: clinicLogin.sidCookie,
-      body: JSON.stringify({ module: 'roadmap' }),
     });
-    assert.equal(clinicOwnerAudit.status, 404);
+    assert.equal(clinicOwnerOrgs.status, 404);
+
+    const clinicPatchStatus = await apiRequest(baseUrl, `/api/owner/organizations/${clientOrgId}/status`, {
+      method: 'PATCH',
+      cookie: clinicLogin.sidCookie,
+      body: JSON.stringify({ status: 'SUSPENDED' }),
+    });
+    assert.equal(clinicPatchStatus.status, 404);
 
     const clinicState = await apiRequest(baseUrl, '/api/db/state', {
       cookie: clinicLogin.sidCookie,
@@ -172,7 +206,7 @@ test('Consola del Propietario mínima: OWNER_EMAIL, 404 oculto para clínicas y 
           users: [
             {
               id: newDoctorId,
-              organizationId: orgId,
+              organizationId: clientOrgId,
               roleId: 'ODONTOLOGO',
               username: 'dr.nuevo',
               firstName: 'Carlos',
@@ -189,6 +223,76 @@ test('Consola del Propietario mínima: OWNER_EMAIL, 404 oculto para clínicas y 
     assert.equal(deltaRes.status, 200);
     assert.equal(deltaRes.json?.success, true);
     assert.ok(state.data.users.some((u: any) => u.id === newDoctorId));
+
+    // 6. Fase 2: Listar empresas desde /api/owner/organizations (solo metadatos, cero pacientes)
+    const orgsRes = await apiRequest(baseUrl, '/api/owner/organizations', {
+      cookie: ownerLogin.sidCookie,
+    });
+    assert.equal(orgsRes.status, 200);
+    assert.ok(Array.isArray(orgsRes.json?.organizations));
+    const clientSummary = orgsRes.json.organizations.find((o: any) => o.id === clientOrgId);
+    assert.ok(clientSummary);
+    assert.equal(clientSummary.name, 'Clínica Sonrisa Sur');
+    assert.equal(clientSummary.legalName, 'Clínica Odontológica Sonrisa Sur S.R.L.');
+    assert.equal(clientSummary.status, 'ACTIVE');
+    assert.equal(clientSummary.branchesCount, 1);
+    assert.equal(clientSummary.usersCount, 2); // admin.clinica + dr.nuevo
+    assert.equal(clientSummary.isOwnerOrganization, false);
+    assert.equal('patientsCount' in clientSummary, false, 'No debe exponer datos clínicos de pacientes');
+
+    // 7. Protección: propietario no puede suspender su propia organización
+    const selfSuspend = await apiRequest(baseUrl, `/api/owner/organizations/${orgId}/status`, {
+      method: 'PATCH',
+      cookie: ownerLogin.sidCookie,
+      body: JSON.stringify({ status: 'SUSPENDED' }),
+    });
+    assert.equal(selfSuspend.status, 400);
+
+    // 8. Suspender clínica cliente -> solo impide NUEVO login con mensaje amable, sin romper sesión ya abierta
+    const suspendRes = await apiRequest(baseUrl, `/api/owner/organizations/${clientOrgId}/status`, {
+      method: 'PATCH',
+      cookie: ownerLogin.sidCookie,
+      body: JSON.stringify({ status: 'SUSPENDED' }),
+    });
+    assert.equal(suspendRes.status, 200);
+    assert.equal(suspendRes.json?.organization?.status, 'SUSPENDED');
+    assert.equal(state.data.auditLogs[0].action, 'OWNER_ORG_SUSPEND');
+    assert.equal(state.data.auditLogs[0].organizationId, clientOrgId);
+
+    // Sesión ya abierta sigue funcionando sin interrupción abrupta
+    const existingSessionCheck = await apiRequest(baseUrl, '/api/auth/session', {
+      cookie: clinicLogin.sidCookie,
+    });
+    assert.equal(existingSessionCheck.status, 200);
+
+    // Nuevo intento de inicio de sesión es bloqueado con mensaje claro y amable
+    const blockedNewLogin = await apiRequest(baseUrl, '/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ identifier: 'admin.clinica@clinicatest.com.py', password: clinicPass }),
+    });
+    assert.equal(blockedNewLogin.status, 403);
+    assert.equal(blockedNewLogin.json?.success, false);
+    assert.match(String(blockedNewLogin.json?.error || ''), /suspendido.*soporte/i);
+
+    // 9. Reactivar clínica cliente -> permite iniciar sesión nuevamente y registra auditoría
+    const reactivateRes = await apiRequest(baseUrl, `/api/owner/organizations/${clientOrgId}/status`, {
+      method: 'PATCH',
+      cookie: ownerLogin.sidCookie,
+      body: JSON.stringify({ status: 'ACTIVE' }),
+    });
+    assert.equal(reactivateRes.status, 200);
+    assert.equal(reactivateRes.json?.organization?.status, 'ACTIVE');
+    assert.equal(state.data.auditLogs[0].action, 'OWNER_ORG_REACTIVATE');
+
+    const restoredLogin = await apiRequest(baseUrl, '/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ identifier: 'admin.clinica@clinicatest.com.py', password: clinicPass }),
+    });
+    assert.equal(restoredLogin.status, 200);
+    assert.equal(restoredLogin.json?.success, true);
+
+    // Referencia limpia para branchId original
+    assert.ok(branchId);
   } finally {
     if (prevOwnerEmail === undefined) {
       delete process.env.OWNER_EMAIL;
@@ -200,12 +304,13 @@ test('Consola del Propietario mínima: OWNER_EMAIL, 404 oculto para clínicas y 
   }
 });
 
-test('Consola del Propietario mínima: integridad de vistas lazy, título y cero artefactos de BD', () => {
+test('Consola del Propietario mínima + Fase 2: integridad de vistas lazy, título y cero artefactos de BD', () => {
   const ownerConsoleSrc = fs.readFileSync(
     path.join(process.cwd(), 'src/components/owner/OwnerConsole.tsx'),
     'utf-8'
   );
   assert.ok(ownerConsoleSrc.includes('ODONTOPRO · Consola del Propietario'));
+  assert.ok(ownerConsoleSrc.includes('OwnerClientsPanel'));
   assert.ok(ownerConsoleSrc.includes('RoadmapViewer'));
   assert.ok(ownerConsoleSrc.includes('SchemaViewer'));
   assert.ok(ownerConsoleSrc.includes('AutomatedTestingView'));
@@ -213,6 +318,13 @@ test('Consola del Propietario mínima: integridad de vistas lazy, título y cero
   assert.ok(ownerConsoleSrc.includes('SecurityHardeningView'));
   assert.ok(ownerConsoleSrc.includes('lazy('));
   assert.equal(/\b(window\.)?(alert|confirm|open)\s*\(/.test(ownerConsoleSrc), false);
+
+  const clientsPanelSrc = fs.readFileSync(
+    path.join(process.cwd(), 'src/components/owner/OwnerClientsPanel.tsx'),
+    'utf-8'
+  );
+  assert.ok(clientsPanelSrc.includes('/api/owner/organizations'));
+  assert.equal(/\b(window\.)?(alert|confirm|open)\s*\(/.test(clientsPanelSrc), false);
 
   const appSrc = fs.readFileSync(path.join(process.cwd(), 'src/App.tsx'), 'utf-8');
   assert.ok(appSrc.includes('/api/owner/me'));
