@@ -21,18 +21,28 @@ import {
   Award,
   Building2,
   RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import { dbStore, BackendActorContext } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { getApiBaseUrl } from '../../config/apiConfig.ts';
 import {
   SYSTEM_PERMISSION_MODULES,
   REGULATORY_RESTRICTIONS_CATALOG,
   RegulatoryRestrictionItem,
-  canManageRole,
   isSuperAdminRole,
   getUserEffectivePermissions,
 } from '../../security/rbacHierarchy.ts';
 import { ConfirmDialog } from '../common/ConfirmDialog.tsx';
+import { ALL_NAV_ITEMS } from '../Header.tsx';
+
+function getRoleDefaultNavTabs(roleObj: any, roleId: string): string[] {
+  if (Array.isArray(roleObj?.allowedNavTabs) && roleObj.allowedNavTabs.length > 0) {
+    return [...roleObj.allowedNavTabs];
+  }
+  const byRole = ALL_NAV_ITEMS.filter((item) => item.allowedRoles.includes(roleId)).map((i) => i.id);
+  return byRole.length > 0 ? byRole : ['dashboard'];
+}
 
 interface UserPermissionsModalProps {
   isOpen: boolean;
@@ -87,6 +97,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
   const [allowedNavTabs, setAllowedNavTabs] = useState<string[]>([]);
 
   const [hasChanges, setHasChanges] = useState<boolean>(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -103,7 +114,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
     setAssignedRestrictions(Array.isArray(freshUser.assignedRestrictions) ? [...freshUser.assignedRestrictions] : []);
 
     const roleObj = dbStore.getRoles().find((r) => r.id === freshUser.roleId);
-    const defaultNavTabs = roleObj?.allowedNavTabs || ['dashboard'];
+    const defaultNavTabs = getRoleDefaultNavTabs(roleObj, freshUser.roleId);
     setAllowedNavTabs(
       Array.isArray(freshUser.allowedNavTabs) && freshUser.allowedNavTabs.length > 0
         ? [...freshUser.allowedNavTabs]
@@ -111,6 +122,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
     );
 
     setHasChanges(false);
+    setSaveStatus('idle');
     setNotification(null);
     setErrorMsg(null);
     setActiveTab('permissions');
@@ -121,16 +133,10 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
   const freshUser = dbStore.findUserById(targetUser.id) || targetUser;
   const isTargetSuperAdmin = isSuperAdminRole(freshUser.roleId);
   const isActorSuperAdmin = effectiveActor?.role === 'SUPER_ADMIN';
+  const isSelf = Boolean(effectiveActor?.userId && freshUser.id === effectiveActor.userId);
 
-  // Validación de gobernanza: ¿Puede el actor administrar a este usuario?
-  const canEditUserSecurity = (): boolean => {
-    if (!effectiveActor) return false;
-    if (isActorSuperAdmin) return true;
-    if (isTargetSuperAdmin) return false; // Solo Super Admin puede modificar a otro Super Admin
-    return canManageRole(effectiveActor.role, freshUser.roleId);
-  };
-
-  const isEditable = canEditUserSecurity();
+  // Validación de gobernanza: solo SUPER_ADMIN puede editar permisos y nunca los propios
+  const isEditable = Boolean(effectiveActor && isActorSuperAdmin && !isSelf);
 
   // Calcular permisos efectivos en tiempo real con los cambios temporales locales
   const mockUserForEffective = {
@@ -162,10 +168,17 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
     'data.export_sensitive',
   ]);
 
+  const markDirty = () => {
+    setHasChanges(true);
+    setSaveStatus('idle');
+    setNotification(null);
+    setErrorMsg(null);
+  };
+
   // Manejador: Conceder permiso explícito (Custom Grant)
   const handleGrantPermission = (permCode: string) => {
     if (!isEditable) {
-      setErrorMsg('403 Prohibido: No tiene jerarquía para alterar los permisos de este usuario.');
+      setErrorMsg('403 Prohibido: Solo el Super Administrador puede alterar los permisos de otros usuarios.');
       return;
     }
     if (!isActorSuperAdmin && superAdminExclusivePermissions.has(permCode)) {
@@ -177,13 +190,13 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
     if (!customPermissions.includes(permCode) && !baseRolePermSet.has(permCode)) {
       setCustomPermissions((prev) => [...prev, permCode]);
     }
-    setHasChanges(true);
+    markDirty();
   };
 
   // Manejador: Revocar permiso explícito (Deny overrides Allow)
   const handleRevokePermission = (permCode: string) => {
     if (!isEditable) {
-      setErrorMsg('403 Prohibido: No tiene jerarquía para alterar los permisos de este usuario.');
+      setErrorMsg('403 Prohibido: Solo el Super Administrador puede alterar los permisos de otros usuarios.');
       return;
     }
 
@@ -191,7 +204,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
     if (!revokedPermissions.includes(permCode)) {
       setRevokedPermissions((prev) => [...prev, permCode]);
     }
-    setHasChanges(true);
+    markDirty();
   };
 
   // Manejador: Restablecer a estándar del rol
@@ -199,12 +212,13 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
     if (!isEditable) return;
     setCustomPermissions((prev) => prev.filter((p) => p !== permCode));
     setRevokedPermissions((prev) => prev.filter((p) => p !== permCode));
-    setHasChanges(true);
+    markDirty();
   };
 
   // Manejador: Toggle de módulo de navegación
   const handleToggleNavTab = (tabId: string) => {
     if (!isEditable) return;
+    let changed = false;
     setAllowedNavTabs((prev) => {
       const exists = prev.includes(tabId);
       if (exists) {
@@ -212,12 +226,16 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
           setErrorMsg('El usuario debe tener como mínimo un módulo del sistema visible.');
           return prev;
         }
+        changed = true;
         return prev.filter((t) => t !== tabId);
       } else {
+        changed = true;
         return [...prev, tabId];
       }
     });
-    setHasChanges(true);
+    if (changed) {
+      markDirty();
+    }
   };
 
   // Manejador: Toggle de Restricción Sanitaria MSPBS
@@ -231,31 +249,80 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
         return [...prev, restId];
       }
     });
-    setHasChanges(true);
+    markDirty();
   };
 
-  // Guardar cambios permanentemente
-  const handleSave = () => {
+  // Guardar cambios permanentemente en el servidor (PostgreSQL + sesiones activas)
+  const handleSave = async () => {
+    if (!isEditable || saveStatus === 'saving') return;
+
     setErrorMsg(null);
+    setNotification(null);
+    setSaveStatus('saving');
+
     try {
-      dbStore.updateUserPermissions(
-        freshUser.id,
+      const baseUrl = getApiBaseUrl();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.sessionToken && !session.sessionToken.startsWith('httpOnly_')) {
+        headers.Authorization = `Bearer ${session.sessionToken}`;
+      }
+
+      const response = await fetch(
+        `${baseUrl}/api/users/${encodeURIComponent(freshUser.id)}/permissions`,
         {
-          customPermissions,
-          revokedPermissions,
-          assignedRestrictions,
-          allowedNavTabs,
-        },
-        effectiveActor
+          method: 'PUT',
+          credentials: 'include',
+          headers,
+          body: JSON.stringify({
+            overrides: {
+              customPermissions,
+              revokedPermissions,
+              assignedRestrictions,
+              allowedNavTabs,
+            },
+          }),
+        }
       );
 
-      setHasChanges(false);
-      setNotification(
-        `¡Políticas de seguridad, permisos y restricciones actualizadas inmediatamente para ${freshUser.firstName} ${freshUser.lastName}! Nueva versión: v${(freshUser.permissionsVersion || 1) + 1}.`
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data?.success || !data?.user) {
+        setSaveStatus('error');
+        setErrorMsg(
+          data?.error ||
+            'No se pudieron guardar los permisos en el servidor. Ningún cambio fue aplicado.'
+        );
+        return;
+      }
+
+      const upserts: Record<string, any[]> = { users: [data.user] };
+      if (data.auditLog) {
+        upserts.auditLogs = [data.auditLog];
+      }
+      dbStore.applyAuthoritativeSync(upserts, data.stateVersion);
+
+      const savedUser = data.user;
+      const defaultNavTabs = getRoleDefaultNavTabs(roleObj, freshUser.roleId);
+      setCustomPermissions(Array.isArray(savedUser.customPermissions) ? [...savedUser.customPermissions] : []);
+      setRevokedPermissions(Array.isArray(savedUser.revokedPermissions) ? [...savedUser.revokedPermissions] : []);
+      setAssignedRestrictions(Array.isArray(savedUser.assignedRestrictions) ? [...savedUser.assignedRestrictions] : []);
+      setAllowedNavTabs(
+        Array.isArray(savedUser.allowedNavTabs) && savedUser.allowedNavTabs.length > 0
+          ? [...savedUser.allowedNavTabs]
+          : [...defaultNavTabs]
       );
-      setTimeout(() => setNotification(null), 5000);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Error al persistir cambios de permisos.');
+
+      const newVersion = data.permissionsVersion || savedUser.permissionsVersion || (freshUser.permissionsVersion || 1) + 1;
+      setHasChanges(false);
+      setSaveStatus('saved');
+      setNotification(
+        `Guardado correctamente. Los permisos de ${freshUser.firstName} ${freshUser.lastName} se actualizaron (v${newVersion}).`
+      );
+    } catch {
+      setSaveStatus('error');
+      setErrorMsg(
+        'No se pudo conectar con el servidor para guardar los permisos. Verifique su conexión e intente nuevamente.'
+      );
     }
   };
 
@@ -270,9 +337,9 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
     setCustomPermissions([]);
     setRevokedPermissions([]);
     setAssignedRestrictions([]);
-    const defaultNav = roleObj?.allowedNavTabs || ['dashboard'];
+    const defaultNav = getRoleDefaultNavTabs(roleObj, freshUser.roleId);
     setAllowedNavTabs([...defaultNav]);
-    setHasChanges(true);
+    markDirty();
   };
 
   return (
@@ -326,6 +393,22 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
         </div>
 
         {/* Notificaciones & Errores */}
+        {!isEditable && (
+          <div className="px-6 py-2.5 bg-amber-50 border-b border-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-2 shrink-0">
+            <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+            <span>
+              {isSelf
+                ? 'Modo solo lectura: por seguridad no podés modificar tus propios permisos.'
+                : 'Modo solo lectura: solo el Super Administrador puede modificar los permisos de los usuarios.'}
+            </span>
+          </div>
+        )}
+        {saveStatus === 'saving' && (
+          <div className="px-6 py-2.5 bg-teal-50 border-b border-teal-200 text-teal-800 text-xs font-semibold flex items-center gap-2 shrink-0">
+            <Loader2 className="h-4 w-4 text-teal-600 animate-spin shrink-0" />
+            <span>Guardando…</span>
+          </div>
+        )}
         {notification && (
           <div className="px-6 py-2.5 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 shrink-0 animate-in fade-in">
             <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
@@ -648,7 +731,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {ALL_SYSTEM_NAV_TABS.map((tab) => {
                   const isChecked = allowedNavTabs.includes(tab.id);
-                  const isRoleDefault = (roleObj?.allowedNavTabs || []).includes(tab.id);
+                  const isRoleDefault = getRoleDefaultNavTabs(roleObj, freshUser.roleId).includes(tab.id);
 
                   return (
                     <div
@@ -871,10 +954,25 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
         {/* Footer con Acciones */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
           <div className="text-xs text-slate-500">
-            {hasChanges ? (
+            {saveStatus === 'saving' ? (
+              <span className="font-semibold text-teal-700 flex items-center gap-1.5">
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                <span>Guardando…</span>
+              </span>
+            ) : saveStatus === 'error' ? (
+              <span className="font-semibold text-rose-700 flex items-center gap-1.5">
+                <ShieldAlert className="h-4 w-4 shrink-0" />
+                <span>Error al guardar. Los cambios no se aplicaron.</span>
+              </span>
+            ) : saveStatus === 'saved' && !hasChanges ? (
+              <span className="font-semibold text-emerald-700 flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>Guardado correctamente.</span>
+              </span>
+            ) : hasChanges ? (
               <span className="font-semibold text-amber-700 flex items-center gap-1.5">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
-                <span>Modificaciones pendientes de persistir.</span>
+                <span>Modificaciones pendientes de guardar.</span>
               </span>
             ) : (
               <span className="text-slate-400 flex items-center gap-1.5">
@@ -888,7 +986,8 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 sm:flex-none px-4 py-2.5 min-h-[42px] sm:min-h-[44px] text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors shadow-2xs flex items-center justify-center cursor-pointer"
+              disabled={saveStatus === 'saving'}
+              className="flex-1 sm:flex-none px-4 py-2.5 min-h-[42px] sm:min-h-[44px] text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl transition-colors shadow-2xs flex items-center justify-center cursor-pointer disabled:opacity-50"
             >
               Cerrar
             </button>
@@ -897,15 +996,24 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={!hasChanges}
+                disabled={!hasChanges || saveStatus === 'saving'}
                 className={`flex-1 sm:flex-none px-5 py-2.5 min-h-[42px] sm:min-h-[44px] text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-xs ${
-                  hasChanges
+                  hasChanges && saveStatus !== 'saving'
                     ? 'bg-teal-600 hover:bg-teal-700 text-white cursor-pointer hover:shadow-md'
                     : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                 }`}
               >
-                <Save className="h-4 w-4 shrink-0" />
-                <span>Guardar Cambios</span>
+                {saveStatus === 'saving' ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                    <span>Guardando…</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 shrink-0" />
+                    <span>Guardar Cambios</span>
+                  </>
+                )}
               </button>
             )}
           </div>

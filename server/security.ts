@@ -7,6 +7,7 @@ import {
   SESSIONS_FILE,
   TenantActorContext,
 } from './stateStore.ts';
+import { getUserEffectivePermissions } from '../src/security/rbacHierarchy.ts';
 
 export const SESSION_COOKIE_NAME = 'odontopro_sid';
 
@@ -146,6 +147,44 @@ export function deleteUserSessionsFromDb(userId: string): void {
     .catch((err: any) => console.error('[PostgreSQL Sessions] Error deleting user sessions:', err.message));
 }
 
+export async function updateUserSessionsPermissionsVersion(
+  userId: string,
+  permissionsVersion: number,
+  role?: string
+): Promise<void> {
+  let updatedMemory = false;
+  for (const sess of activeServerSessions.values()) {
+    if (sess.userId === userId) {
+      sess.permissionsVersion = permissionsVersion;
+      if (role) {
+        sess.role = role;
+      }
+      updatedMemory = true;
+    }
+  }
+  if (updatedMemory) {
+    saveServerSessions();
+  }
+
+  const pgPool = getPgPool();
+  if (!pgPool) return;
+  try {
+    if (role) {
+      await pgPool.query(
+        'UPDATE user_sessions SET permissions_version = $1, role = $2 WHERE user_id = $3',
+        [permissionsVersion, role, userId]
+      );
+    } else {
+      await pgPool.query(
+        'UPDATE user_sessions SET permissions_version = $1 WHERE user_id = $2',
+        [permissionsVersion, userId]
+      );
+    }
+  } catch (err: any) {
+    console.error('[PostgreSQL Sessions] Error updating permissions_version:', err.message);
+  }
+}
+
 export async function loadServerSessions(): Promise<void> {
   const pgPool = getPgPool();
   if (pgPool) {
@@ -239,7 +278,9 @@ export function buildSafeSessionPayload(
     serverDbState.data.branches?.[0]?.id ||
     'branch-default';
 
-  const roleObj = (serverDbState.data.roles || []).find((r: any) => r.id === user.roleId);
+  const roles = serverDbState.data.roles || [];
+  const roleObj = roles.find((r: any) => r.id === user.roleId);
+  const effective = getUserEffectivePermissions(user, roles);
   const org =
     (serverDbState.organizationsList || []).find((o: any) => o.id === user.organizationId) ||
     serverDbState.data.organization;
@@ -248,6 +289,17 @@ export function buildSafeSessionPayload(
     user.roleId === 'SUPER_ADMIN'
       ? (serverDbState.data.branches || []).map((b: any) => b.id)
       : userBranches.map((ub: any) => ub.branchId);
+
+  const userHasCustomTabs = Array.isArray(user.allowedNavTabs) && user.allowedNavTabs.length > 0;
+  const roleHasCustomTabs = Array.isArray(roleObj?.allowedNavTabs) && roleObj.allowedNavTabs.length > 0;
+  const resolvedAllowedNavTabs =
+    user.roleId === 'SUPER_ADMIN'
+      ? effective.allowedNavTabs
+      : userHasCustomTabs
+      ? user.allowedNavTabs
+      : roleHasCustomTabs
+      ? roleObj.allowedNavTabs
+      : undefined;
 
   return {
     userId: user.id,
@@ -267,10 +319,11 @@ export function buildSafeSessionPayload(
     currentBranchId: defaultBranch,
     allowedBranchIds,
     permissionsVersion: user.permissionsVersion || 1,
-    customPermissions: user.customPermissions || [],
-    revokedPermissions: user.revokedPermissions || [],
-    assignedRestrictions: user.assignedRestrictions || [],
-    allowedNavTabs: user.allowedNavTabs || roleObj?.allowedNavTabs || [],
+    effectivePermissions: effective.effectivePermissions,
+    customPermissions: Array.isArray(user.customPermissions) ? user.customPermissions : [],
+    revokedPermissions: Array.isArray(user.revokedPermissions) ? user.revokedPermissions : [],
+    assignedRestrictions: Array.isArray(user.assignedRestrictions) ? user.assignedRestrictions : [],
+    allowedNavTabs: resolvedAllowedNavTabs,
     sessionToken: maskSessionToken(rawToken),
     issuedAt,
     expiresAt,
@@ -354,6 +407,8 @@ export function authenticateServerRequest(req: express.Request): {
       ? (serverDbState.data.branches || []).map((b: any) => b.id)
       : userBranches;
 
+  const effective = getUserEffectivePermissions(user, serverDbState.data.roles || []);
+
   return {
     authenticated: true,
     statusCode: 200,
@@ -365,9 +420,10 @@ export function authenticateServerRequest(req: express.Request): {
       role: user.roleId,
       organizationId: user.organizationId,
       allowedBranchIds,
-      customPermissions: user.customPermissions || [],
-      revokedPermissions: user.revokedPermissions || [],
-      assignedRestrictions: user.assignedRestrictions || [],
+      customPermissions: Array.isArray(user.customPermissions) ? user.customPermissions : [],
+      revokedPermissions: Array.isArray(user.revokedPermissions) ? user.revokedPermissions : [],
+      assignedRestrictions: Array.isArray(user.assignedRestrictions) ? user.assignedRestrictions : [],
+      allowedNavTabs: effective.allowedNavTabs,
       professionalLicense: user.professionalLicense || null,
     },
   };

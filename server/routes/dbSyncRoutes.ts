@@ -651,13 +651,57 @@ export function createDbSyncRouter(): express.Router {
                 error: `403 Prohibido: Jerarquía insuficiente para crear o editar un usuario con rol ${item.roleId}.`,
               });
             }
-            item = normalizeUserRecord(item);
-            if (!isSuperAdmin && item.id === authUser.id) {
-              item.roleId = authUser.roleId;
-              item.customPermissions = authUser.customPermissions || [];
-              item.revokedPermissions = authUser.revokedPermissions || [];
-              item.assignedRestrictions = authUser.assignedRestrictions || [];
+            const existingTarget = existingUserMap.get(item.id);
+            const sameList = (a: unknown, b: unknown): boolean => {
+              const arrA = Array.isArray(a) ? Array.from(new Set(a.map((v) => String(v)))).sort() : [];
+              const arrB = Array.isArray(b) ? Array.from(new Set(b.map((v) => String(v)))).sort() : [];
+              if (arrA.length !== arrB.length) return false;
+              return arrA.every((val, idx) => val === arrB[idx]);
+            };
+
+            if (existingTarget) {
+              const triesToChangeOverrides =
+                (rawItem.customPermissions !== undefined &&
+                  !sameList(rawItem.customPermissions, existingTarget.customPermissions)) ||
+                (rawItem.revokedPermissions !== undefined &&
+                  !sameList(rawItem.revokedPermissions, existingTarget.revokedPermissions)) ||
+                (rawItem.assignedRestrictions !== undefined &&
+                  !sameList(rawItem.assignedRestrictions, existingTarget.assignedRestrictions)) ||
+                (rawItem.allowedNavTabs !== undefined &&
+                  !sameList(rawItem.allowedNavTabs, existingTarget.allowedNavTabs));
+
+              if (item.id === authUser.id) {
+                // Prevenir auto-escalamiento incluso en allowedNavTabs
+                item.roleId = existingTarget.roleId;
+                item.customPermissions = Array.isArray(existingTarget.customPermissions)
+                  ? [...existingTarget.customPermissions]
+                  : [];
+                item.revokedPermissions = Array.isArray(existingTarget.revokedPermissions)
+                  ? [...existingTarget.revokedPermissions]
+                  : [];
+                item.assignedRestrictions = Array.isArray(existingTarget.assignedRestrictions)
+                  ? [...existingTarget.assignedRestrictions]
+                  : [];
+                item.allowedNavTabs = Array.isArray(existingTarget.allowedNavTabs)
+                  ? [...existingTarget.allowedNavTabs]
+                  : [];
+                item.permissionsVersion = Number(existingTarget.permissionsVersion) || 1;
+              } else if (triesToChangeOverrides) {
+                return res.status(403).json({
+                  error:
+                    '403 Prohibido: Los permisos individuales de usuarios solo pueden modificarse mediante PUT /api/users/:id/permissions.',
+                });
+              }
+            } else {
+              // Alta nueva por delta: sin inyección directa de overrides de permisos
+              item.customPermissions = [];
+              item.revokedPermissions = [];
+              item.assignedRestrictions = [];
+              item.allowedNavTabs = [];
+              item.permissionsVersion = 1;
             }
+
+            item = normalizeUserRecord(item);
           } else if (col === 'branches' && !isSuperAdmin) {
             const exists = existingBranchesMap.has(item.id);
             if (!exists && !actorHasDynamicPermission(actor, 'branches.create', roles)) {

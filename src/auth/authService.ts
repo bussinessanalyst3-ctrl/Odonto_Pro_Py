@@ -121,12 +121,18 @@ class AuthService {
   /**
    * Hidrata y valida la sesión activa desde el servidor usando la cookie HttpOnly
    */
-  public async getCurrentSession(): Promise<UserSession | null> {
+  public async getCurrentSession(sessionToken?: string | null): Promise<UserSession | null> {
     try {
       const baseUrl = getApiBaseUrl();
+      const headers: Record<string, string> = {};
+      if (sessionToken && !sessionToken.startsWith('httpOnly_')) {
+        headers.Authorization = `Bearer ${sessionToken}`;
+      }
       const response = await fetch(`${baseUrl}/api/auth/session`, {
         method: 'GET',
         credentials: 'include',
+        cache: 'no-store',
+        headers,
       });
       if (!response.ok) return null;
       const data = await response.json();
@@ -136,6 +142,49 @@ class AuthService {
       return null;
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Consulta liviana de versión de permisos y rol vigente sin recargar toda la sesión
+   */
+  public async getPermissionsVersion(
+    sessionToken?: string | null
+  ): Promise<
+    | { status: 'ok'; permissionsVersion: number; role: string; updatedAt?: string }
+    | { status: 'unauthorized' }
+    | { status: 'error' }
+  > {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const headers: Record<string, string> = {};
+      if (sessionToken && !sessionToken.startsWith('httpOnly_')) {
+        headers.Authorization = `Bearer ${sessionToken}`;
+      }
+      const response = await fetch(`${baseUrl}/api/auth/permissions-version`, {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+        headers,
+      });
+      if (response.status === 401) {
+        return { status: 'unauthorized' };
+      }
+      if (!response.ok) {
+        return { status: 'error' };
+      }
+      const data = await response.json().catch(() => null);
+      if (data?.valid) {
+        return {
+          status: 'ok',
+          permissionsVersion: Number(data.permissionsVersion) || 1,
+          role: String(data.role || ''),
+          updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : undefined,
+        };
+      }
+      return { status: 'error' };
+    } catch {
+      return { status: 'error' };
     }
   }
 

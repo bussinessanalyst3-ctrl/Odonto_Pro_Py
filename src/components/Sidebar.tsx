@@ -244,7 +244,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               if (session?.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0) {
                 return session.allowedNavTabs.includes(item.id);
               }
-              if (currentRoleObj?.allowedNavTabs) {
+              if (Array.isArray(currentRoleObj?.allowedNavTabs) && currentRoleObj.allowedNavTabs.length > 0) {
                 return currentRoleObj.allowedNavTabs.includes(item.id);
               }
               return item.allowedRoles.includes(userRole);

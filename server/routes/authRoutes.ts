@@ -252,6 +252,22 @@ export function createAuthRouter(): express.Router {
     });
   });
 
+  // GET /api/auth/permissions-version - Chequeo liviano de versión de permisos
+  router.get('/permissions-version', (req, res) => {
+    const auth = authenticateServerRequest(req);
+    if (!auth.authenticated || !auth.user) {
+      return res.status(auth.statusCode || 401).json({ valid: false, error: auth.error || 'No autorizado' });
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({
+      valid: true,
+      userId: auth.user.id,
+      role: auth.user.roleId,
+      permissionsVersion: Number(auth.user.permissionsVersion) || 1,
+      updatedAt: auth.user.updatedAt || null,
+    });
+  });
+
   // POST /api/auth/change-password
   router.post('/change-password', async (req, res, next) => {
     try {

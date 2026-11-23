@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { UserSession, UserRole, AuthCredentials, LoginResult, PasswordChangeResult } from './types.ts';
 import { authService } from './authService.ts';
 import { dbStore } from '../db/inMemoryStore.ts';
@@ -21,6 +21,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const LEGACY_SESSION_STORAGE_KEY = 'odontopro_auth_session';
 const LEGACY_DB_STORAGE_KEY = 'odontopro_db_state_v3';
+const PERMISSIONS_POLL_INTERVAL_MS = 10000;
 
 function purgeLegacyBrowserSecrets() {
   try {
@@ -33,9 +34,34 @@ function purgeLegacyBrowserSecrets() {
   }
 }
 
+function mergeRefreshedSession(current: UserSession, fresh: UserSession): UserSession {
+  const isSuperAdmin = fresh.role === 'SUPER_ADMIN';
+  const preserveSwitchedOrg =
+    isSuperAdmin && current.organizationId && current.organizationId !== fresh.organizationId;
+
+  const allowedBranchIds = preserveSwitchedOrg ? current.allowedBranchIds : fresh.allowedBranchIds;
+  const canKeepBranch =
+    Boolean(current.currentBranchId) &&
+    (isSuperAdmin || allowedBranchIds.includes(current.currentBranchId));
+
+  return {
+    ...fresh,
+    organizationId: preserveSwitchedOrg ? current.organizationId : fresh.organizationId,
+    organizationName: preserveSwitchedOrg ? current.organizationName : fresh.organizationName,
+    organizationTaxId: preserveSwitchedOrg ? current.organizationTaxId : fresh.organizationTaxId,
+    allowedBranchIds,
+    currentBranchId: canKeepBranch ? current.currentBranchId : fresh.currentBranchId,
+  };
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<UserSession | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const sessionRef = useRef<UserSession | null>(null);
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   // Hidratar sesión segura desde cookie HttpOnly en el backend y purgar residuos inseguros de localStorage
   useEffect(() => {
@@ -69,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Sincronización reactiva inmediata de cambios de permisos, revocación y versionado
+  // Mantener sincronizado el contexto del actor en dbStore
   useEffect(() => {
     if (!session) {
       dbStore.setSessionToken(null);
@@ -89,59 +115,159 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       allowedNavTabs: session.allowedNavTabs,
       permissionsVersion: session.permissionsVersion,
     });
+  }, [session]);
 
-    // Verificación periódica de expiración y revocación contra el servidor
-    const interval = setInterval(async () => {
-      if (!authService.isSessionValid(session)) {
-        logout();
+  // Sincronización reactiva de cambios de permisos (polling liviano cada 10s + foco + cambios locales)
+  useEffect(() => {
+    const activeUserId = session?.userId;
+    if (!activeUserId) return;
+
+    let cancelled = false;
+    let isChecking = false;
+
+    const handleUnauthorized = () => {
+      const current = sessionRef.current;
+      authService.logout(current);
+      dbStore.setSessionToken(null);
+      dbStore.setBackendActorContext(null);
+      setSession(null);
+      purgeLegacyBrowserSecrets();
+    };
+
+    const checkPermissionsVersion = async () => {
+      if (cancelled || isChecking) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+
+      const current = sessionRef.current;
+      if (!current) return;
+
+      if (!authService.isSessionValid(current)) {
+        handleUnauthorized();
         return;
       }
-      const checked = await authService.getCurrentSession();
-      if (!checked) {
-        logout();
-      }
-    }, 30000);
 
-    // Suscripción reactiva instantánea a cambios en base de datos
+      isChecking = true;
+      try {
+        const check = await authService.getPermissionsVersion(current.sessionToken);
+        if (cancelled) return;
+
+        if (check.status === 'unauthorized') {
+          handleUnauthorized();
+          return;
+        }
+
+        if (check.status !== 'ok') {
+          return;
+        }
+
+        const currentVersion = current.permissionsVersion || 1;
+        const versionChanged = check.permissionsVersion !== currentVersion;
+        const roleChanged = Boolean(check.role) && check.role !== current.role;
+
+        if (versionChanged || roleChanged) {
+          const refreshed = await authService.getCurrentSession(current.sessionToken);
+          if (cancelled || !refreshed) return;
+
+          const latestCurrent = sessionRef.current || current;
+          const merged = mergeRefreshedSession(latestCurrent, refreshed);
+
+          dbStore.setSessionToken(merged.sessionToken || null);
+          dbStore.setBackendActorContext({
+            userId: merged.userId,
+            role: merged.role,
+            organizationId: merged.organizationId,
+            allowedBranchIds: merged.allowedBranchIds,
+            customPermissions: merged.customPermissions,
+            revokedPermissions: merged.revokedPermissions,
+            assignedRestrictions: merged.assignedRestrictions,
+            allowedNavTabs: merged.allowedNavTabs,
+            permissionsVersion: merged.permissionsVersion,
+          });
+          setSession(merged);
+          void dbStore.syncFromServer();
+        }
+      } finally {
+        isChecking = false;
+      }
+    };
+
+    const interval = setInterval(() => {
+      void checkPermissionsVersion();
+    }, PERMISSIONS_POLL_INTERVAL_MS);
+
+    const handleWindowFocus = () => {
+      void checkPermissionsVersion();
+    };
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        void checkPermissionsVersion();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleWindowFocus);
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    // Suscripción reactiva instantánea a cambios en base de datos local sincronizada
     const unsubscribe = dbStore.subscribe(() => {
-      const userInDb = dbStore.findUserById(session.userId);
+      const current = sessionRef.current;
+      if (!current) return;
+
+      const userInDb = dbStore.findUserById(current.userId);
       if (!userInDb || userInDb.status === 'INACTIVE') {
-        logout();
+        handleUnauthorized();
         return;
       }
 
-      if (dbStore.isSessionRevoked(session.userId, session.issuedAt)) {
-        logout();
+      if (dbStore.isSessionRevoked(current.userId, current.issuedAt)) {
+        handleUnauthorized();
         return;
       }
 
       const dbPermVersion = (userInDb as any).permissionsVersion || 1;
-      const sessionPermVersion = session.permissionsVersion || 1;
-      const roleChanged = userInDb.roleId !== session.role;
+      const sessionPermVersion = current.permissionsVersion || 1;
+      const roleChanged = userInDb.roleId !== current.role;
       const activeOrg = dbStore.getActiveOrganization();
-      const orgMissing = !dbStore.getOrganizations().some((o) => o.id === session.organizationId);
+      const orgMissing = !dbStore.getOrganizations().some((o) => o.id === current.organizationId);
       const orgNameChanged =
         activeOrg &&
         (orgMissing ||
-          session.organizationName !== activeOrg.name ||
-          session.organizationTaxId !== activeOrg.taxId);
+          current.organizationName !== activeOrg.name ||
+          current.organizationTaxId !== activeOrg.taxId);
 
       if (dbPermVersion !== sessionPermVersion || roleChanged || orgNameChanged) {
         const effective = dbStore.getUserEffectivePermissions(userInDb.id);
         const roleObj = dbStore.getRoles().find((r) => r.id === userInDb.roleId);
 
+        const userHasCustomTabs =
+          Array.isArray((userInDb as any).allowedNavTabs) && (userInDb as any).allowedNavTabs.length > 0;
+        const roleHasCustomTabs =
+          Array.isArray((roleObj as any)?.allowedNavTabs) && (roleObj as any).allowedNavTabs.length > 0;
+        const resolvedNavTabs =
+          userInDb.roleId === 'SUPER_ADMIN'
+            ? effective.allowedNavTabs
+            : userHasCustomTabs
+            ? (userInDb as any).allowedNavTabs
+            : roleHasCustomTabs
+            ? (roleObj as any).allowedNavTabs
+            : undefined;
+
         const updatedSession: UserSession = {
-          ...session,
+          ...current,
           role: userInDb.roleId as any,
           roleName: roleObj?.name || userInDb.roleId,
-          organizationId: orgMissing && activeOrg ? activeOrg.id : session.organizationId,
-          organizationName: activeOrg?.name || session.organizationName,
-          organizationTaxId: activeOrg?.taxId || session.organizationTaxId,
+          organizationId: orgMissing && activeOrg ? activeOrg.id : current.organizationId,
+          organizationName: activeOrg?.name || current.organizationName,
+          organizationTaxId: activeOrg?.taxId || current.organizationTaxId,
           effectivePermissions: effective.effectivePermissions,
           customPermissions: effective.customPermissions,
           revokedPermissions: effective.revokedPermissions,
           assignedRestrictions: effective.activeRestrictions,
-          allowedNavTabs: effective.allowedNavTabs,
+          allowedNavTabs: resolvedNavTabs,
           permissionsVersion: dbPermVersion,
         };
 
@@ -150,10 +276,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => {
+      cancelled = true;
       clearInterval(interval);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleWindowFocus);
+      }
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
       unsubscribe();
     };
-  }, [session]);
+  }, [session?.userId]);
 
   const login = async (credentials: AuthCredentials): Promise<LoginResult> => {
     setIsLoading(true);

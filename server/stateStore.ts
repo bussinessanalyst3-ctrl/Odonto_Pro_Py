@@ -360,6 +360,7 @@ export interface TenantActorContext {
   customPermissions?: string[];
   revokedPermissions?: string[];
   assignedRestrictions?: string[];
+  allowedNavTabs?: string[];
   professionalLicense?: string | null;
 }
 

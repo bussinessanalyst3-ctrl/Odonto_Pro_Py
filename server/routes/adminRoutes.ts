@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import {
   canManageRole,
+  getUserEffectivePermissions,
   hasPermission,
   isSuperAdminRole,
 } from '../../src/security/rbacHierarchy.ts';
@@ -11,12 +12,14 @@ import {
   getPgPool,
   getServerDbState,
   saveDatabaseState,
+  saveDatabaseStateStrict,
 } from '../stateStore.ts';
 import {
   activeServerSessions,
   authenticateServerRequest,
   deleteUserSessionsFromDb,
   saveServerSessions,
+  updateUserSessionsPermissionsVersion,
 } from '../security.ts';
 
 export function createAdminRouter(): express.Router {
@@ -254,78 +257,114 @@ export function createAdminRouter(): express.Router {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado' });
       }
       const serverDbState = getServerDbState();
+      const roles = serverDbState.data?.roles || [];
       const { id } = req.params;
       const { overrides } = req.body || {};
+
+      // Regla 1: Solo SUPER_ADMIN puede gestionar permisos de otros usuarios
+      if (!isSuperAdminRole(auth.user.roleId)) {
+        return res.status(403).json({
+          error: '403 Prohibido: Solo el Super Administrador puede modificar permisos de usuarios.',
+        });
+      }
 
       const user = serverDbState.data.users?.find((u: any) => u.id === id);
       if (!user) {
         return res.status(404).json({ error: 'Usuario no encontrado.' });
       }
 
-      const isSuperAdmin = isSuperAdminRole(auth.user.roleId);
-
-      if (!isSuperAdmin) {
-        if (user.organizationId !== auth.actor.organizationId) {
-          return res.status(403).json({ error: '403 Prohibido: Violación de aislamiento multiempresa.' });
-        }
-        if (!hasPermission(auth.actor, 'roles.manage') && !hasPermission(auth.actor, 'users.update')) {
-          return res.status(403).json({
-            error: '403 Prohibido: Permiso insuficiente para modificar permisos de usuario.',
-          });
-        }
-        if (isSuperAdminRole(user.roleId)) {
-          return res.status(403).json({
-            error: '403 Prohibido: El usuario Super Administrador está estrictamente protegido y no puede ser alterado.',
-          });
-        }
-        if (!canManageRole(auth.actor.role, user.roleId)) {
-          return res.status(403).json({
-            error: `403 Prohibido: Su rol (${auth.actor.role}) no tiene jerarquía para alterar los permisos de un usuario con rol ${user.roleId}.`,
-          });
-        }
-        const superAdminExclusives = new Set([
-          'system.all',
-          'organization.create',
-          'organization.manage',
-          'organization.branding',
-          'super_admin.manage',
-          'security.manage',
-          'database.seed',
-          'data.export_sensitive',
-        ]);
-        if (overrides?.customPermissions?.some((p: string) => superAdminExclusives.has(p))) {
-          return res.status(403).json({
-            error: '403 Prohibido: No puede asignar permisos exclusivos del Super Administrador.',
-          });
-        }
+      // Regla 2: Nadie puede editar sus propios permisos
+      if (user.id === auth.user.id) {
+        return res.status(403).json({
+          error: '403 Prohibido: Por seguridad, ningún usuario puede modificar sus propios permisos.',
+        });
       }
 
-      const oldValues = {
-        customPermissions: user.customPermissions || [],
-        revokedPermissions: user.revokedPermissions || [],
-        assignedRestrictions: user.assignedRestrictions || [],
-        allowedNavTabs: user.allowedNavTabs || [],
-        permissionsVersion: user.permissionsVersion || 1,
+      if (!overrides || typeof overrides !== 'object') {
+        return res.status(400).json({ error: 'Debe enviar un objeto overrides válido.' });
+      }
+
+      const normalizeStringList = (val: unknown): string[] | undefined => {
+        if (!Array.isArray(val)) return undefined;
+        return Array.from(
+          new Set(
+            val
+              .map((v) => String(v || '').trim())
+              .filter(Boolean)
+          )
+        );
       };
 
-      if (overrides) {
-        if (Array.isArray(overrides.customPermissions)) {
-          user.customPermissions = [...overrides.customPermissions];
-        }
-        if (Array.isArray(overrides.revokedPermissions)) {
-          user.revokedPermissions = [...overrides.revokedPermissions];
-        }
-        if (Array.isArray(overrides.assignedRestrictions)) {
-          user.assignedRestrictions = [...overrides.assignedRestrictions];
-        }
-        if (Array.isArray(overrides.allowedNavTabs)) {
-          user.allowedNavTabs = [...overrides.allowedNavTabs];
+      const nextCustomPermissions = normalizeStringList(overrides.customPermissions);
+      const nextRevokedPermissions = normalizeStringList(overrides.revokedPermissions);
+      const nextAssignedRestrictions = normalizeStringList(overrides.assignedRestrictions);
+      const nextAllowedNavTabs = normalizeStringList(overrides.allowedNavTabs);
+
+      // Regla 3: Un administrador no puede asignar permisos ni módulos que él mismo no posea
+      const actorEffective = getUserEffectivePermissions(auth.user, roles);
+      const actorAllowedTabsSet = new Set(actorEffective.allowedNavTabs || []);
+      const actorEffectivePermsSet = new Set(actorEffective.effectivePermissions || []);
+      const actorHasAllPerms = actorEffectivePermsSet.has('system.all');
+
+      if (nextCustomPermissions) {
+        for (const perm of nextCustomPermissions) {
+          const actorOwnsPerm = actorHasAllPerms
+            ? actorHasDynamicPermission(auth.actor, perm, roles)
+            : actorEffectivePermsSet.has(perm) && actorHasDynamicPermission(auth.actor, perm, roles);
+          if (!actorOwnsPerm) {
+            return res.status(403).json({
+              error: `403 Prohibido: No puede asignar el permiso "${perm}" porque su cuenta no lo posee.`,
+            });
+          }
         }
       }
 
-      user.permissionsVersion = (user.permissionsVersion || 0) + 1;
+      if (nextAllowedNavTabs && nextAllowedNavTabs.length > 0) {
+        for (const tabId of nextAllowedNavTabs) {
+          if (!actorAllowedTabsSet.has(tabId)) {
+            return res.status(403).json({
+              error: `403 Prohibido: No puede asignar el módulo "${tabId}" porque su cuenta no lo posee.`,
+            });
+          }
+        }
+      }
+
+      const previousSnapshot = {
+        customPermissions: Array.isArray(user.customPermissions) ? [...user.customPermissions] : [],
+        revokedPermissions: Array.isArray(user.revokedPermissions) ? [...user.revokedPermissions] : [],
+        assignedRestrictions: Array.isArray(user.assignedRestrictions) ? [...user.assignedRestrictions] : [],
+        allowedNavTabs: Array.isArray(user.allowedNavTabs) ? [...user.allowedNavTabs] : [],
+        permissionsVersion: Number(user.permissionsVersion) || 1,
+        updatedAt: user.updatedAt,
+      };
+
+      const oldEffective = getUserEffectivePermissions(user, roles);
+      const oldValues = {
+        customPermissions: previousSnapshot.customPermissions,
+        revokedPermissions: previousSnapshot.revokedPermissions,
+        assignedRestrictions: previousSnapshot.assignedRestrictions,
+        allowedNavTabs: previousSnapshot.allowedNavTabs,
+        effectiveNavTabs: oldEffective.allowedNavTabs,
+        permissionsVersion: previousSnapshot.permissionsVersion,
+      };
+
+      if (nextCustomPermissions !== undefined) {
+        user.customPermissions = nextCustomPermissions;
+      }
+      if (nextRevokedPermissions !== undefined) {
+        user.revokedPermissions = nextRevokedPermissions;
+      }
+      if (nextAssignedRestrictions !== undefined) {
+        user.assignedRestrictions = nextAssignedRestrictions;
+      }
+      if (nextAllowedNavTabs !== undefined) {
+        user.allowedNavTabs = nextAllowedNavTabs;
+      }
+
+      user.permissionsVersion = previousSnapshot.permissionsVersion + 1;
       user.updatedAt = new Date().toISOString();
 
+      const newEffective = getUserEffectivePermissions(user, roles);
       const permAuditLog = {
         id: crypto.randomUUID(),
         organizationId: user.organizationId,
@@ -342,17 +381,51 @@ export function createAdminRouter(): express.Router {
           revokedPermissions: user.revokedPermissions,
           assignedRestrictions: user.assignedRestrictions,
           allowedNavTabs: user.allowedNavTabs,
+          effectiveNavTabs: newEffective.allowedNavTabs,
           permissionsVersion: user.permissionsVersion,
         },
-        description: `Ajuste granular en Backend de permisos y restricciones para ${user.firstName} ${user.lastName} (Versión ${user.permissionsVersion})`,
-        createdAt: new Date().toISOString(),
+        description: `Actualización de permisos de ${user.firstName} ${user.lastName} por ${auth.user.firstName} ${auth.user.lastName} (v${previousSnapshot.permissionsVersion} → v${user.permissionsVersion})`,
+        createdAt: user.updatedAt,
       };
+
+      if (!Array.isArray(serverDbState.data.auditLogs)) {
+        serverDbState.data.auditLogs = [];
+      }
       serverDbState.data.auditLogs.unshift(permAuditLog);
 
-      await saveDatabaseState({ upserts: { users: [user], auditLogs: [permAuditLog] } });
+      let committedVersion: number;
+      try {
+        committedVersion = await saveDatabaseStateStrict({
+          upserts: { users: [user], auditLogs: [permAuditLog] },
+        });
+      } catch (persistErr: any) {
+        // Rollback exacto en memoria si falla PostgreSQL: nunca dejar cambios fantasmas ni reportar éxito falso
+        user.customPermissions = previousSnapshot.customPermissions;
+        user.revokedPermissions = previousSnapshot.revokedPermissions;
+        user.assignedRestrictions = previousSnapshot.assignedRestrictions;
+        user.allowedNavTabs = previousSnapshot.allowedNavTabs;
+        user.permissionsVersion = previousSnapshot.permissionsVersion;
+        user.updatedAt = previousSnapshot.updatedAt;
+        serverDbState.data.auditLogs = serverDbState.data.auditLogs.filter(
+          (al: any) => al.id !== permAuditLog.id
+        );
+        console.error('[Permissions] Error estricto al persistir en PostgreSQL:', persistErr?.message || persistErr);
+        return res.status(500).json({
+          error: 'No se pudieron guardar los permisos en la base de datos. Ningún cambio fue aplicado; intente nuevamente.',
+        });
+      }
+
+      // Actualizar permissionsVersion en las sesiones activas (memoria y PostgreSQL) sin cerrar sesión
+      await updateUserSessionsPermissionsVersion(user.id, user.permissionsVersion, user.roleId);
 
       const { passwordHash, passwordSalt, passwordIterations, ...safeUser } = user;
-      return res.json({ success: true, user: safeUser, permissionsVersion: user.permissionsVersion });
+      return res.json({
+        success: true,
+        user: safeUser,
+        auditLog: permAuditLog,
+        permissionsVersion: user.permissionsVersion,
+        stateVersion: committedVersion,
+      });
     } catch (err) {
       return next(err);
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { AuthProvider, useAuth } from './auth/authContext.tsx';
 import { BrandingProvider, useBranding } from './branding/BrandingContext.tsx';
 import { LoginScreen } from './components/auth/LoginScreen.tsx';
@@ -70,7 +70,9 @@ import {
   UserCheck,
   Menu,
   WalletCards,
-  Stethoscope
+  Stethoscope,
+  Info,
+  X
 } from 'lucide-react';
 
 function MainApplication() {
@@ -84,6 +86,8 @@ function MainApplication() {
     typeof window !== 'undefined' ? window.location.pathname : '/'
   );
   const [isVerifiedOwner, setIsVerifiedOwner] = useState<boolean>(false);
+  const [permissionRedirectNotice, setPermissionRedirectNotice] = useState<string | null>(null);
+  const activePermUserRef = useRef<{ userId: string; initialized: boolean } | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -142,35 +146,60 @@ function MainApplication() {
 
   // Redireccionar automáticamente cuando el usuario cambia de rol o sus pestañas permitidas
   useEffect(() => {
-    if (!session) return;
+    if (!session) {
+      activePermUserRef.current = null;
+      setPermissionRedirectNotice(null);
+      return;
+    }
+
     const roleObj = dbStore.getRoles().find((r) => r.id === session.role);
     const currentNavItem = ALL_NAV_ITEMS.find((item) => item.id === activeTab);
+    const validTabIds = new Set(ALL_NAV_ITEMS.map((item) => item.id));
 
     let isAllowed = false;
     if (session.role === 'SUPER_ADMIN') {
       isAllowed = Boolean(currentNavItem);
     } else if (session.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0) {
       isAllowed = session.allowedNavTabs.includes(activeTab);
-    } else if (roleObj?.allowedNavTabs) {
+    } else if (roleObj?.allowedNavTabs && roleObj.allowedNavTabs.length > 0) {
       isAllowed = roleObj.allowedNavTabs.includes(activeTab);
     } else if (currentNavItem) {
       isAllowed = currentNavItem.allowedRoles.includes(session.role);
     }
 
+    const prevTracker = activePermUserRef.current;
+    const isSameUserLiveUpdate = Boolean(
+      prevTracker && prevTracker.userId === session.userId && prevTracker.initialized
+    );
+    activePermUserRef.current = { userId: session.userId, initialized: true };
+
     if (!isAllowed) {
-      // Buscar la primera pestaña permitida para su usuario o rol
+      let nextTab: TabType | null = null;
       if (session.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0) {
-        setActiveTab(session.allowedNavTabs[0] as TabType);
-      } else if (roleObj?.allowedNavTabs && roleObj.allowedNavTabs.length > 0) {
-        setActiveTab(roleObj.allowedNavTabs[0] as TabType);
-      } else {
+        nextTab = (session.allowedNavTabs.find((id) => validTabIds.has(id as TabType)) as TabType) || null;
+      }
+      if (!nextTab && roleObj?.allowedNavTabs && roleObj.allowedNavTabs.length > 0) {
+        nextTab = (roleObj.allowedNavTabs.find((id: string) => validTabIds.has(id as TabType)) as TabType) || null;
+      }
+      if (!nextTab) {
         const firstAllowed = ALL_NAV_ITEMS.find((item) => item.allowedRoles.includes(session.role));
         if (firstAllowed) {
-          setActiveTab(firstAllowed.id);
+          nextTab = firstAllowed.id;
         }
       }
+
+      if (nextTab && nextTab !== activeTab) {
+        if (isSameUserLiveUpdate) {
+          const removedLabel = currentNavItem?.label || activeTab;
+          const nextLabel = ALL_NAV_ITEMS.find((item) => item.id === nextTab)?.label || nextTab;
+          setPermissionRedirectNotice(
+            `Tus permisos fueron actualizados por el administrador y ya no tenés acceso a "${removedLabel}". Te redirigimos a "${nextLabel}" sin cerrar tu sesión.`
+          );
+        }
+        setActiveTab(nextTab);
+      }
     }
-  }, [session?.role, session?.permissionsVersion, session?.allowedNavTabs, activeTab]);
+  }, [session?.userId, session?.role, session?.permissionsVersion, session?.allowedNavTabs, activeTab]);
 
   if (!isAuthenticated) {
     return <LoginScreen />;
@@ -225,7 +254,7 @@ function MainApplication() {
     (session?.role === 'SUPER_ADMIN' ||
       (session?.allowedNavTabs && Array.isArray(session.allowedNavTabs) && session.allowedNavTabs.length > 0
         ? session.allowedNavTabs.includes(activeTab)
-        : roleObj?.allowedNavTabs
+        : Array.isArray(roleObj?.allowedNavTabs) && roleObj.allowedNavTabs.length > 0
         ? roleObj.allowedNavTabs.includes(activeTab)
         : currentItem
         ? Boolean(session?.role && currentItem.allowedRoles.includes(session.role))
@@ -255,6 +284,26 @@ function MainApplication() {
 
         {/* Área de Contenido de los Módulos */}
         <main className="flex-1 p-3 sm:p-5 lg:p-7 max-w-7xl w-full mx-auto pb-28 lg:pb-8 transition-all">
+          {permissionRedirectNotice && (
+            <div
+              role="status"
+              className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 text-xs sm:text-sm font-medium flex items-start justify-between gap-3 shadow-2xs"
+            >
+              <div className="flex items-start gap-2.5">
+                <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>{permissionRedirectNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPermissionRedirectNotice(null)}
+                aria-label="Cerrar aviso"
+                className="p-1 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors shrink-0 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
           {!isAuthorized ? (
             <div className="max-w-lg mx-auto my-12 p-8 bg-white border border-amber-200 rounded-2xl shadow-sm text-center">
               <div className="h-12 w-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-4">
@@ -266,10 +315,15 @@ function MainApplication() {
               </p>
               <button
                 onClick={() => {
-                  const firstAllowed = ALL_NAV_ITEMS.find((item) =>
-                    session?.role ? item.allowedRoles.includes(session.role) : false
-                  );
-                  if (firstAllowed) setActiveTab(firstAllowed.id);
+                  const firstTabId =
+                    (session?.allowedNavTabs && session.allowedNavTabs.length > 0
+                      ? session.allowedNavTabs[0]
+                      : roleObj?.allowedNavTabs && roleObj.allowedNavTabs.length > 0
+                      ? roleObj.allowedNavTabs[0]
+                      : ALL_NAV_ITEMS.find((item) =>
+                          session?.role ? item.allowedRoles.includes(session.role) : false
+                        )?.id) as TabType | undefined;
+                  if (firstTabId) setActiveTab(firstTabId);
                 }}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-semibold hover:bg-teal-700 transition-colors shadow-xs"
               >

@@ -143,11 +143,8 @@ export const UserManagementView: React.FC = () => {
     isSuperAdmin ||
     hasPermission(session?.role || '', 'roles.manage');
 
-  const canManageUserSecurity =
-    isSuperAdmin ||
-    hasPermission(session?.role || '', 'roles.manage') ||
-    hasPermission(session?.role || '', 'users.update') ||
-    hasPermission(session?.role || '', 'users.edit');
+  // Solo SUPER_ADMIN puede gestionar permisos individuales de otros usuarios
+  const canManageUserSecurity = isSuperAdmin;
 
   const handleOpenAddUser = () => {
     if (!canCreateUser) {
@@ -194,6 +191,16 @@ export const UserManagementView: React.FC = () => {
   };
 
   const handleOpenUserPermissions = (user: any) => {
+    if (!isSuperAdmin) {
+      setErrorMessage('Solo el Super Administrador puede gestionar permisos de usuarios.');
+      setTimeout(() => setErrorMessage(null), 5000);
+      return;
+    }
+    if (user.id === session?.userId) {
+      setErrorMessage('Por seguridad no podés modificar tus propios permisos.');
+      setTimeout(() => setErrorMessage(null), 5000);
+      return;
+    }
     setUserForPermissions(user);
     setIsUserPermissionsModalOpen(true);
   };
@@ -669,11 +676,11 @@ export const UserManagementView: React.FC = () => {
                             </button>
                           )}
 
-                          {canManageUserSecurity && (
+                          {canManageUserSecurity && u.id !== session?.userId && (
                             <button
                               type="button"
                               onClick={() => handleOpenUserPermissions(u)}
-                              title="Gobernanza de permisos y restricciones MSPBS"
+                              title="Gestionar permisos del usuario"
                               className="p-2 min-h-[38px] min-w-[38px] flex items-center justify-center text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-xl transition-colors cursor-pointer"
                             >
                               <Sliders className="h-4 w-4" />
@@ -887,11 +894,11 @@ export const UserManagementView: React.FC = () => {
                       </button>
                     )}
 
-                    {canManageUserSecurity && (
+                    {canManageUserSecurity && u.id !== session?.userId && (
                       <button
                         type="button"
                         onClick={() => handleOpenUserPermissions(u)}
-                        title="Gobernanza de permisos dinámicos y restricciones sanitarias MSPBS"
+                        title="Gestionar permisos del usuario"
                         className="p-2.5 min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center rounded-xl border border-teal-200 text-teal-700 bg-teal-50 hover:bg-teal-100 transition-colors cursor-pointer"
                       >
                         <Sliders className="h-4 w-4" />
@@ -946,7 +953,9 @@ export const UserManagementView: React.FC = () => {
         onClose={() => setIsUserModalOpen(false)}
         userToEdit={userToEdit}
         actor={actor}
-        onOpenPermissions={handleOpenUserPermissions}
+        onOpenPermissions={
+          isSuperAdmin && userToEdit?.id !== session?.userId ? handleOpenUserPermissions : undefined
+        }
         onOpenResetPassword={handleOpenResetPassword}
       />
 
