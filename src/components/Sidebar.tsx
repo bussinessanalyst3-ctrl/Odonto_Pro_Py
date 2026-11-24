@@ -125,18 +125,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Barra lateral fija */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 w-72 max-w-[85vw] bg-white border-r border-slate-200/80 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-50 w-64 max-w-[82vw] md:w-72 bg-white border-r border-slate-200/80 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
           isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
         }`}
       >
         {/* Encabezado del Sidebar / Branding Dinámico */}
-        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 bg-white">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white shadow-sm font-bold overflow-hidden">
-              <ShieldCheck className="h-5 w-5" />
+        <div className="h-14 md:h-16 flex items-center justify-between px-3.5 md:px-5 border-b border-slate-100 bg-white">
+          <div className="flex items-center gap-2.5 md:gap-3 min-w-0">
+            <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white shadow-sm font-bold overflow-hidden shrink-0">
+              <ShieldCheck className="h-4 w-4 md:h-5 md:w-5" />
             </div>
             <div className="min-w-0">
-              <div className="font-extrabold text-slate-900 text-base leading-tight tracking-tight flex items-center gap-1.5">
+              <div className="font-extrabold text-slate-900 text-sm md:text-base leading-tight tracking-tight flex items-center gap-1.5">
                 <span className="truncate max-w-[130px]" title={APP_NAME}>
                   {APP_NAME}
                 </span>
@@ -162,7 +162,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Lista de navegación con scroll táctil suave */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6 scrollbar-thin" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex-1 overflow-y-auto px-2.5 md:px-3 py-3 md:py-4 space-y-4 md:space-y-6 scrollbar-thin" style={{ WebkitOverflowScrolling: 'touch' }}>
           {navGroups.map((group) => {
             // Filtrar ítems permitidos usando el catálogo único (con normalización de alias y herencia de rol)
             const allowedItems = group.items.filter((item) =>
@@ -172,7 +172,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             return (
               <div key={group.id} className="space-y-1">
-                <div className="px-3 pb-1.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase select-none">
+                <div className="px-3 pb-1 md:pb-1.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase select-none">
                   {group.label}
                 </div>
                 {allowedItems.map((item) => {
@@ -183,7 +183,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       key={item.id}
                       onClick={() => handleItemClick(item.id)}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 min-h-[42px] rounded-xl text-xs font-semibold transition-all group cursor-pointer touch-manipulation ${
+                      className={`w-full flex items-center justify-between px-3 py-2 md:py-2.5 min-h-[44px] md:min-h-[42px] rounded-xl text-xs font-semibold transition-all group cursor-pointer touch-manipulation ${
                         isActive
                           ? 'bg-teal-50 text-teal-800 border border-teal-200/80 shadow-xs'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -257,7 +257,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={logout}
               title="Cerrar sesión segura"
-              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+              className="p-2.5 md:p-1.5 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
             >
               <LogOut className="h-4 w-4" />
             </button>

@@ -58,29 +58,29 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in duration-150 font-sans">
-      <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 md:p-4 backdrop-blur-xs animate-in fade-in duration-150 font-sans">
+      <div className="bg-white rounded-2xl md:rounded-3xl border border-slate-200 max-w-md w-full shadow-2xl overflow-hidden max-h-[92dvh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-          <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center">
-              <KeyRound className="h-5 w-5" />
+        <div className="flex items-center justify-between px-4 py-3 md:px-6 md:py-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="h-8 w-8 md:h-9 md:w-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
+              <KeyRound className="h-4 w-4 md:h-5 md:w-5" />
             </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Cambiar Mi Contraseña</h3>
-              <p className="text-xs text-slate-500">Actualización segura de credenciales de usuario</p>
+            <div className="min-w-0">
+              <h3 className="text-sm md:text-base font-bold text-slate-900 truncate">Cambiar Mi Contraseña</h3>
+              <p className="text-[11px] md:text-xs text-slate-500 truncate">Actualización segura de credenciales de usuario</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 rounded-lg p-1 transition-colors"
+            className="text-slate-400 hover:text-slate-600 rounded-lg p-2 md:p-1 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center transition-colors shrink-0"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 md:p-6 space-y-3 md:space-y-4 overflow-y-auto">
           <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
             <span className="text-slate-500">Usuario activo: </span>
             <span className="font-bold text-slate-900">{session.firstName} {session.lastName}</span>
@@ -104,7 +104,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="Ingrese su contraseña actual..."
-              className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 font-medium text-slate-900 focus:ring-2 focus:ring-teal-500"
+              className="w-full text-base md:text-xs bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 font-medium text-slate-900 focus:ring-2 focus:ring-teal-500 min-h-[44px] md:min-h-0"
             />
           </div>
 
@@ -128,7 +128,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Mínimo 8 caracteres..."
-              className="w-full text-xs font-mono bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 font-medium text-slate-900 focus:ring-2 focus:ring-teal-500"
+              className="w-full text-base md:text-xs font-mono bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 font-medium text-slate-900 focus:ring-2 focus:ring-teal-500 min-h-[44px] md:min-h-0"
             />
           </div>
 
@@ -142,7 +142,7 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repetir nueva contraseña..."
-              className="w-full text-xs font-mono bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 font-medium text-slate-900 focus:ring-2 focus:ring-teal-500"
+              className="w-full text-base md:text-xs font-mono bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 font-medium text-slate-900 focus:ring-2 focus:ring-teal-500 min-h-[44px] md:min-h-0"
             />
           </div>
 
@@ -151,14 +151,14 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
               type="button"
               onClick={onClose}
               disabled={isProcessing}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors min-h-[44px] md:min-h-0"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isProcessing}
-              className="px-5 py-2.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
+              className="px-4 md:px-5 py-2.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm flex items-center gap-1.5 min-h-[44px] md:min-h-0"
             >
               {isProcessing ? (
                 <>

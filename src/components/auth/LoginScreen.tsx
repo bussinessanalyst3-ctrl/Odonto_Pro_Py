@@ -184,7 +184,7 @@ export const LoginScreen: React.FC = () => {
   const companyLegalName = (branding.legalName || '').trim();
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 flex flex-col justify-center py-6 px-4 sm:py-12 sm:px-6 lg:px-8 font-sans antialiased text-slate-800 relative overflow-x-hidden selection:bg-teal-500 selection:text-white">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 flex flex-col justify-center py-4 px-3.5 md:py-12 md:px-6 lg:px-8 font-sans antialiased text-slate-800 relative overflow-x-hidden selection:bg-teal-500 selection:text-white">
       {/* Luces difusas de fondo */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] sm:w-[900px] h-[350px] sm:h-[500px] bg-teal-500/10 blur-[130px] rounded-full pointer-events-none" />
       <div className="absolute bottom-0 right-0 w-[350px] sm:w-[450px] h-[350px] sm:h-[450px] bg-cyan-600/10 blur-[100px] rounded-full pointer-events-none" />
@@ -192,22 +192,22 @@ export const LoginScreen: React.FC = () => {
       {/* Contenedor Principal */}
       <div className="w-full max-w-md mx-auto relative z-10">
         {/* Cabecera Institucional */}
-        <div className="text-center mb-6">
+        <div className="text-center mb-4 md:mb-6">
           <div
-            className="inline-flex items-center justify-center h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-xl shadow-teal-500/20 mb-3 sm:mb-4 border border-teal-300/30 overflow-hidden"
+            className="inline-flex items-center justify-center h-11 w-11 md:h-16 md:w-16 rounded-xl md:rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-xl shadow-teal-500/20 mb-2 md:mb-4 border border-teal-300/30 overflow-hidden"
             role="img"
             aria-label={APP_NAME}
           >
-            <ShieldCheck className="h-7 w-7 sm:h-8 sm:w-8 text-white" aria-hidden="true" />
+            <ShieldCheck className="h-5 w-5 md:h-8 md:w-8 text-white" aria-hidden="true" />
           </div>
 
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+          <h1 className="text-xl md:text-3xl font-extrabold text-white tracking-tight">
             {APP_NAME}
           </h1>
 
           {companyLegalName && (
             <p
-              className="mt-1.5 text-xs sm:text-sm font-medium text-teal-200/90 max-w-[280px] sm:max-w-sm mx-auto truncate px-2"
+              className="mt-1 md:mt-1.5 text-xs md:text-sm font-medium text-teal-200/90 max-w-[280px] sm:max-w-sm mx-auto truncate px-2"
               title={companyLegalName}
             >
               Empresa: {companyLegalName}
@@ -216,11 +216,11 @@ export const LoginScreen: React.FC = () => {
         </div>
 
         {/* Tarjeta de Inicio de Sesión */}
-        <div className="bg-white/95 backdrop-blur-md py-6 px-5 sm:py-8 sm:px-8 shadow-2xl rounded-2xl sm:rounded-3xl border border-white/20">
+        <div className="bg-white/95 backdrop-blur-md py-4 px-4 md:py-8 md:px-8 shadow-2xl rounded-2xl md:rounded-3xl border border-white/20">
           {/* Mensaje de Error / Bloqueo */}
           {errorMsg && (
             <div
-              className={`mb-5 p-3.5 rounded-2xl text-xs flex items-start gap-2.5 animate-in fade-in duration-200 border ${
+              className={`mb-3.5 md:mb-5 p-3 md:p-3.5 rounded-2xl text-xs flex items-start gap-2.5 animate-in fade-in duration-200 border ${
                 isLocked
                   ? 'bg-amber-50 border-amber-200 text-amber-900'
                   : 'bg-rose-50 border-rose-200 text-rose-800'
@@ -235,12 +235,12 @@ export const LoginScreen: React.FC = () => {
           )}
 
           {/* Formulario Estándar y Seguro con Autocompletado del Navegador */}
-          <form onSubmit={handleSubmit} method="post" autoComplete="on" className="space-y-4">
+          <form onSubmit={handleSubmit} method="post" autoComplete="on" className="space-y-3 md:space-y-4">
             {/* Campo 1: Correo electrónico o nombre de usuario */}
             <div>
               <label
                 htmlFor="login-identifier"
-                className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5"
+                className="block text-[11px] md:text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 md:mb-1.5"
               >
                 Correo electrónico o nombre de usuario
               </label>
@@ -258,7 +258,7 @@ export const LoginScreen: React.FC = () => {
                   placeholder="usuario@clinica.com.py o nombre de usuario"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-3 text-base sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white focus:outline-none transition-all font-medium text-slate-800 min-h-[46px]"
+                  className="block w-full pl-10 pr-3 py-2.5 md:py-3 text-base md:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white focus:outline-none transition-all font-medium text-slate-800 min-h-[44px] md:min-h-[46px]"
                 />
               </div>
             </div>
@@ -267,7 +267,7 @@ export const LoginScreen: React.FC = () => {
             <div>
               <label
                 htmlFor="login-password"
-                className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5"
+                className="block text-[11px] md:text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 md:mb-1.5"
               >
                 Contraseña
               </label>
@@ -282,7 +282,7 @@ export const LoginScreen: React.FC = () => {
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-12 py-3 text-base sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white focus:outline-none transition-all font-medium text-slate-800 min-h-[46px]"
+                  className="block w-full pl-10 pr-12 py-2.5 md:py-3 text-base md:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white focus:outline-none transition-all font-medium text-slate-800 min-h-[44px] md:min-h-[46px]"
                 />
                 <button
                   type="button"
@@ -320,7 +320,7 @@ export const LoginScreen: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-3 py-3 px-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-sm font-bold tracking-wide transition-all shadow-md shadow-teal-700/20 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer min-h-[48px] active:scale-[0.99]"
+              className="w-full mt-2 md:mt-3 py-2.5 md:py-3 px-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-sm font-bold tracking-wide transition-all shadow-md shadow-teal-700/20 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer min-h-[44px] md:min-h-[48px] active:scale-[0.99]"
             >
               {isLoading ? (
                 <span>Validando credenciales...</span>
@@ -335,32 +335,32 @@ export const LoginScreen: React.FC = () => {
         </div>
 
         {/* Pie Institucional Discreto */}
-        <p className="mt-5 text-center text-xs text-slate-400">
+        <p className="mt-3.5 md:mt-5 text-center text-[11px] md:text-xs text-slate-400 px-2">
           Protección de datos y confidencialidad médica conforme a normativas del MSPBS de Paraguay.
         </p>
       </div>
 
       {/* Modal Seguro para Recuperación de Acceso */}
       {isForgotModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full shadow-2xl p-4 sm:p-6 relative max-h-[92vh] overflow-y-auto flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 md:p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl md:rounded-3xl border border-slate-200 max-w-md w-full shadow-2xl p-4 md:p-6 relative max-h-[92vh] overflow-y-auto flex flex-col">
             {/* Botón de cierre */}
             <button
               type="button"
               onClick={() => setIsForgotModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors"
+              className="absolute top-3 right-3 md:top-4 md:right-4 text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors"
               aria-label="Cerrar"
             >
               <X className="h-4 w-4" />
             </button>
 
             {/* Cabecera del Modal */}
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-10 w-10 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
-                <KeyRound className="h-5 w-5" />
+            <div className="flex items-center gap-2.5 md:gap-3 mb-3.5 md:mb-4 pr-8">
+              <div className="h-9 w-9 md:h-10 md:w-10 rounded-xl md:rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
+                <KeyRound className="h-4 w-4 md:h-5 md:w-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-900">
+                <h3 className="text-sm md:text-base font-bold text-slate-900">
                   Recuperación de Contraseña
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -436,7 +436,7 @@ export const LoginScreen: React.FC = () => {
                       placeholder="usuario@clinica.com.py"
                       value={recoveryEmail}
                       onChange={(e) => setRecoveryEmail(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-2.5 text-base sm:text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white text-slate-800 min-h-[44px]"
+                      className="block w-full pl-10 pr-3 py-2.5 text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white text-slate-800 min-h-[44px]"
                     />
                   </div>
                 </div>
@@ -477,7 +477,7 @@ export const LoginScreen: React.FC = () => {
                     placeholder="rst_..."
                     value={recoveryToken}
                     onChange={(e) => setRecoveryToken(e.target.value)}
-                    className="block w-full px-3 py-2.5 text-base sm:text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white font-mono text-slate-800 min-h-[44px]"
+                    className="block w-full px-3 py-2.5 text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white font-mono text-slate-800 min-h-[44px]"
                   />
                 </div>
 
@@ -491,7 +491,7 @@ export const LoginScreen: React.FC = () => {
                     placeholder="••••••••••••"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="block w-full px-3 py-2.5 text-base sm:text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white text-slate-800 min-h-[44px]"
+                    className="block w-full px-3 py-2.5 text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white text-slate-800 min-h-[44px]"
                   />
                 </div>
 
@@ -505,7 +505,7 @@ export const LoginScreen: React.FC = () => {
                     placeholder="••••••••••••"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="block w-full px-3 py-2.5 text-base sm:text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white text-slate-800 min-h-[44px]"
+                    className="block w-full px-3 py-2.5 text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white text-slate-800 min-h-[44px]"
                   />
                 </div>
 

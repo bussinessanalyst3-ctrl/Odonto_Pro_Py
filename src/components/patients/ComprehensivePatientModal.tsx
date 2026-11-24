@@ -162,18 +162,18 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
   )}`;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6">
-      <div className="bg-white rounded-3xl w-full max-w-5xl h-[90vh] shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-2 md:p-6">
+      <div className="bg-white rounded-2xl md:rounded-3xl w-full max-w-5xl h-[92dvh] md:h-[90vh] shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Cabecera Superior de la Ficha */}
-        <div className="p-6 border-b border-slate-100 bg-slate-50/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-2xl bg-teal-600 text-white flex items-center justify-center font-black text-2xl shadow-md shadow-teal-700/20 shrink-0">
+        <div className="p-3.5 md:p-6 border-b border-slate-100 bg-slate-50/80 flex flex-col md:flex-row md:items-center justify-between gap-2.5 md:gap-4">
+          <div className="flex items-center gap-3 md:gap-4 min-w-0">
+            <div className="h-11 w-11 md:h-16 md:w-16 rounded-xl md:rounded-2xl bg-teal-600 text-white flex items-center justify-center font-black text-base md:text-2xl shadow-md shadow-teal-700/20 shrink-0">
               {patient.firstName.charAt(0)}
               {patient.lastName.charAt(0)}
             </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl font-bold text-slate-900">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
+                <h2 className="text-base md:text-xl font-bold text-slate-900">
                   {patient.firstName} {patient.lastName}
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 border border-teal-200">
@@ -198,12 +198,12 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 md:gap-3 text-xs text-slate-500 mt-1">
                 <span>{patient.city}, {patient.department}</span>
                 <span>•</span>
                 <span>Tel: {patient.phone}</span>
                 <span>•</span>
-                <span>{patient.email || 'Sin correo registrado'}</span>
+                <span className="break-all">{patient.email || 'Sin correo registrado'}</span>
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600 mt-1.5">
                 <span>
@@ -248,9 +248,9 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
 
         {/* Alerta Médica Destacada si existe */}
         {(hasSevereAllergy || hasSystemicCondition) && (
-          <div className="px-6 py-2.5 bg-rose-50 border-b border-rose-200/80 flex items-center gap-3 text-xs text-rose-900">
+          <div className="px-3.5 md:px-6 py-2 md:py-2.5 bg-rose-50 border-b border-rose-200/80 flex items-center gap-2.5 md:gap-3 text-xs text-rose-900">
             <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
-            <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2 md:gap-4 flex-wrap">
               <span className="font-bold uppercase tracking-wider">Alerta Médica Activa:</span>
               {hasSevereAllergy && (
                 <span>Alergias: <strong>{patient.allergies}</strong></span>
@@ -263,7 +263,7 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
         )}
 
         {/* Barra de Pestañas Unificadas (filtrada por módulos habilitados) */}
-        <div className="flex border-b border-slate-200 px-6 gap-2 sm:gap-6 bg-white overflow-x-auto text-xs font-bold text-slate-600 scrollbar-none">
+        <div className="flex border-b border-slate-200 px-3.5 md:px-6 gap-3 md:gap-6 bg-white overflow-x-auto text-xs font-bold text-slate-600 scrollbar-none">
           {[
             { id: 'summary', label: 'Resumen Clínico', icon: HeartPulse, allowed: true },
             { id: 'odontogram', label: `Odontograma FDI (${odontogramItems.length})`, icon: Stethoscope, allowed: canOdontogram },
@@ -294,16 +294,16 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
         </div>
 
         {/* Contenido Dinámico de la Pestaña */}
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+        <div className="flex-1 overflow-y-auto p-3.5 md:p-6 bg-slate-50/50">
           {activeTab === 'summary' && (
-            <div className="space-y-6">
+            <div className="space-y-4 md:space-y-6">
               {/* Resumen Financiero Rápido (visible solo si tiene Presupuestos o Caja) */}
               {(canQuotes || canCash) && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
                   {canQuotes && (
-                    <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+                    <div className="p-3.5 md:p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
                       <span className="text-[11px] font-bold text-slate-400 uppercase">Presupuestado</span>
-                      <div className="text-xl font-black text-slate-900 mt-1">
+                      <div className="text-base md:text-xl font-black text-slate-900 mt-1">
                         {formatPYG(totalBilledPyg)}
                       </div>
                       <span className="text-xs text-slate-500">{patientQuotes.length} presupuestos emitidos</span>
@@ -311,9 +311,9 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                   )}
 
                   {canCash && (
-                    <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+                    <div className="p-3.5 md:p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
                       <span className="text-[11px] font-bold text-slate-400 uppercase">Abonado / Cobrado</span>
-                      <div className="text-xl font-black text-emerald-700 mt-1">
+                      <div className="text-base md:text-xl font-black text-emerald-700 mt-1">
                         {formatPYG(totalPaidPyg)}
                       </div>
                       <span className="text-xs text-emerald-600 font-semibold">{patientPayments.length} pagos registrados</span>
@@ -321,9 +321,9 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                   )}
 
                   {canCash && (
-                    <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+                    <div className="p-3.5 md:p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
                       <span className="text-[11px] font-bold text-slate-400 uppercase">Saldo Pendiente</span>
-                      <div className={`text-xl font-black mt-1 ${pendingBalancePyg > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
+                      <div className={`text-base md:text-xl font-black mt-1 ${pendingBalancePyg > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
                         {formatPYG(pendingBalancePyg)}
                       </div>
                       <span className="text-xs text-slate-500">

@@ -412,13 +412,13 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
   const normalizedModuleSearch = moduleSearch.trim().toLowerCase();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-3 sm:p-4 backdrop-blur-xs">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-5xl h-[92vh] max-h-[860px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-2 md:p-4 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl md:rounded-3xl shadow-2xl border border-slate-200 w-full max-w-5xl h-[94dvh] md:h-[92vh] max-h-[860px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Encabezado */}
-        <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-2xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-300 shrink-0">
-              <Sliders className="h-5 w-5" />
+        <div className="px-3.5 md:px-6 py-3 md:py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 md:gap-3 min-w-0">
+            <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl md:rounded-2xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-300 shrink-0">
+              <Sliders className="h-4 w-4 md:h-5 md:w-5" />
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -883,22 +883,22 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 min-w-[200px]">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                <div className="relative flex-1 min-w-0 w-full md:w-auto md:min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
                     placeholder="Buscar acción por nombre, código o área..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-teal-500 outline-none"
+                    className="w-full pl-9 pr-4 py-2 text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-teal-500 outline-none min-h-[44px] md:min-h-0"
                   />
                 </div>
 
                 <select
                   value={selectedModuleCategory}
                   onChange={(e) => setSelectedModuleCategory(e.target.value)}
-                  className="px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-teal-500 outline-none"
+                  className="w-full md:w-auto px-3 py-2 text-base md:text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-teal-500 outline-none min-h-[44px] md:min-h-0"
                 >
                   <option value="ALL">Todas las áreas</option>
                   {SYSTEM_PERMISSION_MODULES.map((m) => (
@@ -911,7 +911,7 @@ export const UserPermissionsModal: React.FC<UserPermissionsModalProps> = ({
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as any)}
-                  className="px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-teal-500 outline-none"
+                  className="w-full md:w-auto px-3 py-2 text-base md:text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-teal-500 outline-none min-h-[44px] md:min-h-0"
                 >
                   <option value="ALL">Todos los estados</option>
                   <option value="ALLOWED">Autorizados</option>

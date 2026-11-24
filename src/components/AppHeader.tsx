@@ -174,7 +174,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-2.5 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-1.5 sm:gap-4 transition-all">
+    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-2 md:px-6 lg:px-8 h-13 md:h-16 flex items-center justify-between gap-1.5 md:gap-4 transition-all">
       {/* Barra de búsqueda móvil expandida */}
       {isMobileSearchOpen ? (
         <div className="flex items-center gap-2 w-full sm:hidden animate-in fade-in duration-150 py-1">
@@ -186,7 +186,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar paciente, C.I., presupuesto..."
-              className="w-full pl-9 pr-8 py-2 bg-slate-100 border border-slate-300 rounded-xl text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 min-h-[40px]"
+              className="w-full pl-9 pr-8 py-2 bg-slate-100 border border-slate-300 rounded-xl text-base text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 min-h-[44px]"
             />
             {searchTerm && (
               <button
@@ -206,7 +206,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               setSearchTerm('');
               setResults([]);
             }}
-            className="p-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 shrink-0 min-h-[40px] flex items-center justify-center cursor-pointer"
+            className="px-2.5 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 shrink-0 min-h-[44px] flex items-center justify-center cursor-pointer"
           >
             Cerrar
           </button>
@@ -256,13 +256,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           <div className="flex items-center gap-1 sm:gap-2 lg:hidden shrink-0">
             <button
               onClick={onOpenMobileSidebar}
-              className="p-1.5 sm:p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center cursor-pointer"
+              className="p-1.5 md:p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
               aria-label="Abrir menú de navegación"
             >
               <Menu className="h-5 w-5" />
             </button>
             <span
-              className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight flex items-center gap-0.5 truncate max-w-[120px] min-[360px]:max-w-[170px]"
+              className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight flex items-center gap-0.5 truncate max-w-[110px] min-[360px]:max-w-[155px]"
               title={
                 resolveOrganizationLegalName({ legalName: branding.legalName, name: org?.name })
                   ? `${APP_NAME} — ${resolveOrganizationLegalName({ legalName: branding.legalName, name: org?.name })}`
@@ -273,7 +273,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             </span>
             <button
               onClick={() => setIsMobileSearchOpen(true)}
-              className="p-1.5 sm:p-2 text-slate-600 hover:text-teal-700 rounded-xl hover:bg-slate-100 transition-colors min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center sm:hidden cursor-pointer"
+              className="p-1.5 md:p-2 text-slate-600 hover:text-teal-700 rounded-xl hover:bg-slate-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center sm:hidden cursor-pointer"
               aria-label="Buscar pacientes y citas"
               title="Buscar pacientes y citas"
             >

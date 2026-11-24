@@ -149,17 +149,17 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-2.5 md:p-4">
+      <div className="bg-white rounded-2xl md:rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[92dvh] flex flex-col">
         {/* Modal Header */}
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-teal-600 text-white shadow-md shadow-teal-700/20">
-              <Calendar className="h-5 w-5" />
+        <div className="p-3.5 md:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 shrink-0 gap-2">
+          <div className="flex items-center gap-2.5 md:gap-3 min-w-0">
+            <div className="p-2 md:p-2.5 rounded-xl md:rounded-2xl bg-teal-600 text-white shadow-md shadow-teal-700/20 shrink-0">
+              <Calendar className="h-4 w-4 md:h-5 md:w-5" />
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">Agendar Cita Odontológica</h2>
-              <p className="text-xs text-slate-500">
+            <div className="min-w-0">
+              <h2 className="text-base md:text-lg font-bold text-slate-900 truncate">Agendar Cita Odontológica</h2>
+              <p className="text-[11px] md:text-xs text-slate-500 truncate">
                 Validación activa de horario con prevención de Double Booking
               </p>
             </div>
@@ -167,14 +167,14 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl transition-colors"
+            className="p-2 md:p-1.5 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-slate-400 hover:text-slate-600 rounded-xl transition-colors shrink-0"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Modal Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-3.5 md:p-6 space-y-3 md:space-y-4 overflow-y-auto">
           {errorMessage && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2.5 text-xs text-rose-800">
               <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
@@ -193,7 +193,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
             <select
               value={patientId}
               onChange={(e) => setPatientId(e.target.value)}
-              className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+              className="w-full text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none min-h-[44px] md:min-h-0"
               required
             >
               {patients.map((p) => (
@@ -216,7 +216,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
                   setBranchId(e.target.value);
                   setDentalChairId('');
                 }}
-                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                className="w-full text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none min-h-[44px] md:min-h-0"
                 required
               >
                 {branches.map((b) => (
@@ -234,7 +234,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
               <select
                 value={dentalChairId}
                 onChange={(e) => setDentalChairId(e.target.value)}
-                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                className="w-full text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none min-h-[44px] md:min-h-0"
               >
                 <option value="">Automático (Primer sillón libre)</option>
                 {availableChairs.map((c) => (
@@ -255,7 +255,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
               <select
                 value={odontologistId}
                 onChange={(e) => setOdontologistId(e.target.value)}
-                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                className="w-full text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none min-h-[44px] md:min-h-0"
                 required
               >
                 {dentists.map((d) => (
@@ -273,7 +273,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
               <select
                 value={serviceId}
                 onChange={(e) => handleServiceChange(e.target.value)}
-                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                className="w-full text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none min-h-[44px] md:min-h-0"
                 required
               >
                 {services.map((s) => (
@@ -295,7 +295,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
                 type="date"
                 value={appointmentDate}
                 onChange={(e) => setAppointmentDate(e.target.value)}
-                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                className="w-full text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none min-h-[44px] md:min-h-0"
                 required
               />
             </div>
@@ -309,7 +309,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
                 step="900"
-                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                className="w-full text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none min-h-[44px] md:min-h-0"
                 required
               />
             </div>
@@ -321,7 +321,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
               <select
                 value={durationMin}
                 onChange={(e) => setDurationMin(Number(e.target.value))}
-                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                className="w-full text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none min-h-[44px] md:min-h-0"
               >
                 <option value={15}>15 minutos</option>
                 <option value={30}>30 minutos</option>
@@ -343,17 +343,17 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Ej. Dolor agudo en molar superior derecho, requiere evaluación y radiografía periapical..."
-              className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+              className="w-full text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:outline-none"
             />
           </div>
 
           {/* Footer actions */}
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          <div className="pt-3 md:pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
             <button
               type="button"
               disabled={isSubmitting}
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50 min-h-[44px] md:min-h-0"
             >
               Cancelar
             </button>
@@ -361,7 +361,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md shadow-teal-700/20 transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 md:px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md shadow-teal-700/20 transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] md:min-h-0"
             >
               <CheckCircle2 className="h-4 w-4" />
               <span>{isSubmitting ? 'Validando...' : 'Confirmar y Agendar'}</span>

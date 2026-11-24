@@ -152,11 +152,11 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto print:p-0 print:bg-white">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-3xl w-full my-6 overflow-hidden print:shadow-none print:border-none print:m-0 print:max-w-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-2.5 md:p-4 overflow-y-auto print:p-0 print:bg-white">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-3xl w-full my-2 md:my-6 overflow-hidden print:shadow-none print:border-none print:m-0 print:max-w-none">
         {/* Actions Bar (Hidden when printing) */}
-        <div className="px-6 py-3 bg-slate-800 text-white flex items-center justify-between print:hidden">
-          <div className="flex items-center gap-2">
+        <div className="px-3 py-2.5 md:px-6 md:py-3 bg-slate-800 text-white flex flex-wrap items-center justify-between gap-2 print:hidden">
+          <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
               Presupuesto Clínico
             </span>
@@ -166,12 +166,12 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
             {getStatusBadge(quote.status)}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 md:gap-2">
             <a
               href={waUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors"
+              className="inline-flex items-center gap-1 px-2.5 md:px-3 py-1.5 md:py-1 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors"
             >
               <Send className="h-3.5 w-3.5" />
               WhatsApp
@@ -179,7 +179,7 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
 
             <button
               onClick={handlePrint}
-              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+              className="inline-flex items-center gap-1 px-2.5 md:px-3 py-1.5 md:py-1 text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
             >
               <Printer className="h-3.5 w-3.5" />
               Imprimir
@@ -187,7 +187,7 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
 
             <button
               onClick={onClose}
-              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700"
+              className="p-1.5 md:p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700"
             >
               <X className="h-5 w-5" />
             </button>
@@ -195,12 +195,12 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
         </div>
 
         {/* Printable Document Sheet */}
-        <div className="p-8 print:p-4 space-y-6">
+        <div className="p-4 md:p-8 print:p-4 space-y-4 md:space-y-6">
           {/* Clinic Header */}
-          <div className="border-b-2 border-slate-800 pb-6 flex items-start justify-between">
+          <div className="border-b-2 border-slate-800 pb-4 md:pb-6 flex flex-col md:flex-row items-start justify-between gap-3">
             <div>
               {orgLegalName && (
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                <h1 className="text-lg md:text-2xl font-black text-slate-900 tracking-tight">
                   {orgLegalName}
                 </h1>
               )}

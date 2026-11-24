@@ -205,29 +205,29 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-xs">
-      <div className="bg-white rounded-3xl border border-slate-200 max-w-4xl w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-2.5 md:p-4 backdrop-blur-xs">
+      <div className="bg-white rounded-2xl md:rounded-3xl border border-slate-200 max-w-4xl w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92dvh] md:max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center shadow-xs">
-              <ShieldPlus className="h-5 w-5" />
+        <div className="flex items-center justify-between px-4 py-3 md:px-6 md:py-4 border-b border-slate-100 bg-slate-50/70 gap-2">
+          <div className="flex items-center gap-2.5 md:gap-3 min-w-0">
+            <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl md:rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center shadow-xs shrink-0">
+              <ShieldPlus className="h-4 w-4 md:h-5 md:w-5" />
             </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <div className="min-w-0">
+              <h3 className="text-sm md:text-base font-bold text-slate-900 flex flex-wrap items-center gap-1.5 md:gap-2">
                 <span>Autoridad de Roles y Permisos (RBAC Dinámico)</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
                   {roles.length} Roles Activos
                 </span>
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-[11px] md:text-xs text-slate-500">
                 Crea roles a medida (ej. Vendedor de Servicios, Supervisor) y define a qué módulos tienen acceso.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 rounded-lg p-1.5 transition-colors hover:bg-slate-100"
+            className="text-slate-400 hover:text-slate-600 rounded-lg p-2 md:p-1.5 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center transition-colors hover:bg-slate-100 shrink-0"
           >
             <X className="h-5 w-5" />
           </button>
@@ -235,23 +235,23 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
 
         {/* Notificaciones */}
         {successMsg && (
-          <div className="mx-6 mt-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
+          <div className="mx-3.5 md:mx-6 mt-3 md:mt-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
             <Check className="h-4 w-4 text-emerald-600 shrink-0" />
             <span>{successMsg}</span>
           </div>
         )}
         {error && (
-          <div className="mx-6 mt-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2">
+          <div className="mx-3.5 md:mx-6 mt-3 md:mt-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         {/* Content body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1">
+        <div className="p-3.5 md:p-6 overflow-y-auto space-y-4 md:space-y-6 flex-1">
           {/* Formulario de Creación / Edición */}
           {isCreating ? (
-            <form onSubmit={handleSaveRole} className="p-5 rounded-2xl border border-teal-200 bg-teal-50/40 space-y-4">
+            <form onSubmit={handleSaveRole} className="p-3.5 md:p-5 rounded-2xl border border-teal-200 bg-teal-50/40 space-y-3 md:space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-teal-100">
                 <div className="flex items-center gap-2 text-teal-900 font-bold text-sm">
                   <Sparkles className="h-4 w-4 text-teal-600" />
@@ -278,7 +278,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
                     placeholder="Ej. VENDEDOR_SERVICIOS, SUPERVISOR_ZONAL"
                     value={roleCode}
                     onChange={(e) => setRoleCode(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
-                    className="w-full text-xs font-mono font-bold bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500 disabled:bg-slate-100"
+                    className="w-full text-base md:text-xs font-mono font-bold bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500 disabled:bg-slate-100 min-h-[44px] md:min-h-0"
                   />
                   <p className="text-[11px] text-slate-500 mt-1">
                     Identificador único para base de datos y auditoría.
@@ -295,7 +295,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
                     placeholder="Ej. Asesor de Ventas & Planes"
                     value={roleName}
                     onChange={(e) => setRoleName(e.target.value)}
-                    className="w-full text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500"
+                    className="w-full text-base md:text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500 min-h-[44px] md:min-h-0"
                   />
                   <p className="text-[11px] text-slate-500 mt-1">
                     Nombre comercial que verá el usuario en su perfil.
@@ -312,7 +312,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
                   placeholder="Ej. Encargado de cotizar tratamientos, seguimiento de pacientes y presupuestos."
                   value={roleDescription}
                   onChange={(e) => setRoleDescription(e.target.value)}
-                  className="w-full text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500"
+                  className="w-full text-base md:text-xs bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500 min-h-[44px] md:min-h-0"
                 />
               </div>
 
@@ -373,9 +373,9 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
               </div>
             </form>
           ) : (
-            <div className="flex items-center justify-between p-4 rounded-2xl bg-teal-50/70 border border-teal-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 md:p-4 rounded-2xl bg-teal-50/70 border border-teal-100">
               <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs">
+                <div className="h-9 w-9 rounded-xl bg-teal-600 text-white flex items-center justify-center shadow-xs shrink-0">
                   <ShieldPlus className="h-5 w-5" />
                 </div>
                 <div>
@@ -388,7 +388,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
               <button
                 type="button"
                 onClick={handleStartCreate}
-                className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-colors shrink-0"
+                className="w-full sm:w-auto justify-center px-4 py-2 min-h-[44px] md:min-h-0 bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-colors shrink-0"
               >
                 <ShieldPlus className="h-4 w-4" />
                 <span>+ Crear Nuevo Rol</span>
