@@ -192,7 +192,9 @@ export class StoreSyncEngine {
     };
   }
 
-  public async executeDeltaFlush(): Promise<void> {
+  private lastFlushError: Error | null = null;
+
+  public async executeDeltaFlush(throwOnError = false): Promise<void> {
     const actor = this.ctx.getCurrentActor();
     const token = this.ctx.getSessionToken();
     if (typeof fetch === 'undefined' || (!actor && !token)) {
@@ -207,7 +209,10 @@ export class StoreSyncEngine {
       hasChanges,
     } = this.computeDeltaAgainstSynced();
 
-    if (!hasChanges) return;
+    if (!hasChanges) {
+      this.lastFlushError = null;
+      return;
+    }
 
     try {
       const baseUrl = getApiBaseUrl();
@@ -223,6 +228,7 @@ export class StoreSyncEngine {
       });
 
       if (res.ok) {
+        this.lastFlushError = null;
         const payload = await res.json().catch(() => ({}));
         if (typeof payload?.stateVersion === 'number') {
           this.serverStateVersion = payload.stateVersion;
@@ -251,14 +257,43 @@ export class StoreSyncEngine {
         if (delta.regulatoryRestrictions !== undefined) {
           this.lastSyncedRestrictionsJson = nextRestrictionsJson;
         }
-      } else if (res.status === 409) {
-        // Conflicto optimista o de invariante en servidor: rehidratar estado autoritativo sin marcar como sincronizado
-        void this.syncFromServer();
-      } else if (res.status === 401 || res.status === 403) {
-        this.commitSyncedSnapshot();
+      } else {
+        const errPayload = await res.json().catch(() => ({}));
+        const errMessage =
+          errPayload?.error ||
+          (res.status === 403
+            ? 'No tiene permisos para guardar este cambio en la base de datos.'
+            : res.status === 401
+              ? 'Sesión expirada. Vuelva a iniciar sesión para guardar los cambios.'
+              : res.status === 409
+                ? 'Conflicto de actualización: otro usuario modificó este registro. Se actualizaron los datos.'
+                : `No se pudo guardar en el servidor (HTTP ${res.status}).`);
+        const flushErr = new Error(errMessage);
+        this.lastFlushError = flushErr;
+
+        if (res.status === 409) {
+          await this.syncFromServer();
+        } else if (res.status === 401 || res.status === 403) {
+          if (throwOnError) {
+            await this.syncFromServer();
+          } else {
+            this.commitSyncedSnapshot();
+          }
+        }
+        if (throwOnError) {
+          throw flushErr;
+        }
       }
-    } catch {
-      // Desconexión transitoria: conservar lastSyncedSnapshots sin actualizar para reintentar
+    } catch (err: any) {
+      const flushErr =
+        err instanceof Error
+          ? err
+          : new Error('No se pudo conectar con el servidor para guardar los cambios en la base de datos.');
+      this.lastFlushError = flushErr;
+      if (throwOnError) {
+        throw flushErr;
+      }
+      // Desconexión transitoria en modo silencioso: conservar lastSyncedSnapshots para reintentar
     }
   }
 
@@ -275,10 +310,11 @@ export class StoreSyncEngine {
     this.deltaFlushScheduled = true;
 
     const runFlush = () => {
+      if (!this.deltaFlushScheduled) return;
       this.deltaFlushScheduled = false;
       this.deltaFlushQueue = this.deltaFlushQueue
         .then(async () => {
-          await this.executeDeltaFlush();
+          await this.executeDeltaFlush(false);
         })
         .catch(() => {});
     };
@@ -296,9 +332,43 @@ export class StoreSyncEngine {
     await this.deltaFlushQueue;
     if (this.computeDeltaAgainstSynced().hasChanges) {
       this.deltaFlushQueue = this.deltaFlushQueue
-        .then(() => this.executeDeltaFlush())
+        .then(() => this.executeDeltaFlush(false))
         .catch(() => {});
       await this.deltaFlushQueue;
+    }
+  }
+
+  public async flushPendingSyncStrict(): Promise<void> {
+    const actor = this.ctx.getCurrentActor();
+    const token = this.ctx.getSessionToken();
+    if (typeof fetch === 'undefined' || (!actor && !token) || !this.hasSyncedFromServer) {
+      return;
+    }
+
+    // Tomar control del flush pendiente para esperar confirmación real del servidor
+    this.deltaFlushScheduled = false;
+    this.lastFlushError = null;
+    await this.deltaFlushQueue;
+
+    if (this.computeDeltaAgainstSynced().hasChanges) {
+      let strictError: Error | null = null;
+      this.deltaFlushQueue = this.deltaFlushQueue
+        .then(async () => {
+          try {
+            await this.executeDeltaFlush(true);
+          } catch (err: any) {
+            strictError = err instanceof Error ? err : new Error(String(err || 'Error al sincronizar cambios.'));
+          }
+        })
+        .catch(() => {});
+      await this.deltaFlushQueue;
+      if (strictError) {
+        throw strictError;
+      }
+    } else if (this.lastFlushError) {
+      const err = this.lastFlushError;
+      this.lastFlushError = null;
+      throw err;
     }
   }
 

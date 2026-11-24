@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, DollarSign, History, AlertCircle } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { EmployeeRecord, PaymentFrequency, getEmployeeDisplayName } from '../../db/payrollEngine.ts';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 
 interface SalaryUpdateModalProps {
   isOpen: boolean;
@@ -18,7 +19,7 @@ export const SalaryUpdateModal: React.FC<SalaryUpdateModalProps> = ({
 }) => {
   const [baseSalary, setBaseSalary] = useState('');
   const [paymentFrequency, setPaymentFrequency] = useState<PaymentFrequency>('MENSUAL');
-  const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().split('T')[0]);
+  const [effectiveDate, setEffectiveDate] = useState(getTodayAsuncionISO());
   const [observations, setObservations] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -30,7 +31,7 @@ export const SalaryUpdateModal: React.FC<SalaryUpdateModalProps> = ({
     const active = dbStore.getActiveSalary(employee.id);
     setBaseSalary(active ? String(active.baseSalary) : '');
     setPaymentFrequency(active?.paymentFrequency || 'MENSUAL');
-    setEffectiveDate(new Date().toISOString().split('T')[0]);
+    setEffectiveDate(getTodayAsuncionISO());
     setObservations('');
   }, [isOpen, employee]);
 

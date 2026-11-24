@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   User,
@@ -24,6 +24,12 @@ import { ClinicalRecordDetailModal } from './ClinicalRecordDetailModal.tsx';
 
 export const ClinicalRecordsView: React.FC = () => {
   const { session } = useAuth();
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    return dbStore.subscribe(() => setTick((t) => t + 1));
+  }, []);
+
   const snapshot = dbStore.getSnapshot();
 
   const userRole = session?.role || 'ODONTOLOGO';
@@ -54,30 +60,37 @@ export const ClinicalRecordsView: React.FC = () => {
 
   const patients = snapshot.patients;
   const branches = snapshot.branches;
-  const dentists = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO');
+  const activeDentists = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO');
+  const dentists = activeDentists.length > 0
+    ? activeDentists
+    : snapshot.users.filter((u) => u.roleId === 'SUPER_ADMIN' || u.roleId === 'ADMIN_SUCURSAL');
   const records = snapshot.clinicalRecords || [];
 
-  // Filter clinical evolutions
-  const filteredRecords = records.filter((r) => {
-    if (selectedPatientId !== 'ALL' && r.patientId !== selectedPatientId) return false;
-    if (selectedBranchId !== 'ALL' && r.branchId !== selectedBranchId) return false;
-    if (selectedOdontologistId !== 'ALL' && r.odontologistId !== selectedOdontologistId) return false;
+  // Filter and sort clinical evolutions chronologically (most recent date first)
+  const filteredRecords = records
+    .filter((r) => {
+      if (selectedPatientId !== 'ALL' && r.patientId !== selectedPatientId) return false;
+      if (selectedBranchId !== 'ALL' && r.branchId !== selectedBranchId) return false;
+      if (selectedOdontologistId !== 'ALL' && r.odontologistId !== selectedOdontologistId) return false;
 
-    if (searchTerm.trim()) {
-      const patient = patients.find((p) => p.id === r.patientId);
-      const search = searchTerm.toLowerCase();
-      const patientMatch = patient && (
-        patient.firstName.toLowerCase().includes(search) ||
-        patient.lastName.toLowerCase().includes(search) ||
-        patient.documentNumber.includes(search)
-      );
-      const diagMatch = r.diagnosis.toLowerCase().includes(search);
-      const treatMatch = r.treatmentPerformed.toLowerCase().includes(search);
-      return patientMatch || diagMatch || treatMatch;
-    }
+      if (searchTerm.trim()) {
+        const patient = patients.find((p) => p.id === r.patientId);
+        const search = searchTerm.trim().toLowerCase();
+        const patientMatch = Boolean(
+          patient &&
+            ((patient.firstName || '').toLowerCase().includes(search) ||
+              (patient.lastName || '').toLowerCase().includes(search) ||
+              `${patient.firstName || ''} ${patient.lastName || ''}`.toLowerCase().includes(search) ||
+              (patient.documentNumber || '').toLowerCase().includes(search))
+        );
+        const diagMatch = (r.diagnosis || '').toLowerCase().includes(search);
+        const treatMatch = (r.treatmentPerformed || '').toLowerCase().includes(search);
+        return patientMatch || diagMatch || treatMatch;
+      }
 
-    return true;
-  });
+      return true;
+    })
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
   return (
     <div className="space-y-6">
@@ -232,7 +245,7 @@ export const ClinicalRecordsView: React.FC = () => {
         <div className="space-y-4">
           {filteredRecords.map((rec) => {
             const patient = patients.find((p) => p.id === rec.patientId);
-            const dentist = dentists.find((d) => d.id === rec.odontologistId);
+            const dentist = snapshot.users.find((u) => u.id === rec.odontologistId);
             const branch = branches.find((b) => b.id === rec.branchId);
 
             const hasAllergy =
@@ -241,6 +254,7 @@ export const ClinicalRecordsView: React.FC = () => {
               patient.allergies.toLowerCase() !== 'ninguna conocida';
 
             const recordDate = new Date(rec.createdAt).toLocaleDateString('es-PY', {
+              timeZone: 'America/Asuncion',
               year: 'numeric',
               month: 'long',
               day: 'numeric',
@@ -299,7 +313,7 @@ export const ClinicalRecordsView: React.FC = () => {
                         <span>Dr(a). {dentist ? `${dentist.firstName} ${dentist.lastName}` : ((rec as any).historicalDoctorName || 'Odontólogo Tratante')}</span>
                       </div>
                       <div className="text-[11px] text-teal-700 font-semibold">
-                        Reg. Profesional: {dentist?.professionalLicense || 'MSPBS N° 9.155'}
+                        Reg. Profesional: {(rec as any).odontologistLicenseSnapshot || dentist?.professionalLicense || 'Sin registro cargado'}
                       </div>
                     </div>
 

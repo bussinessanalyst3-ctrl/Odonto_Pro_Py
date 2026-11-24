@@ -29,6 +29,7 @@ import { useBranding } from '../../branding/BrandingContext.tsx';
 import { PatientModal } from './PatientModal.tsx';
 import { ComprehensivePatientModal } from './ComprehensivePatientModal.tsx';
 import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
+import { hasBackendSession, putAuthoritativeAction } from '../../services/authoritativeApi.ts';
 
 interface PatientManagementViewProps {
   onNavigateToTab?: (tab: string, payload?: any) => void;
@@ -44,6 +45,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   const [alertFilter, setAlertFilter] = useState('ALL');
   const [modalityFilter, setModalityFilter] = useState<'ALL' | 'PARTICULAR' | 'PLAN_SEGURO'>('ALL');
   const [advisorFilter, setAdvisorFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -51,6 +53,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [patientToEdit, setPatientToEdit] = useState<any | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsub = dbStore.subscribe(() => setTick((t) => t + 1));
@@ -76,22 +79,54 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleToggleStatus = (patientId: string) => {
-    dbStore.togglePatientStatus(patientId);
+  const handleToggleStatus = async (patientId: string) => {
+    setActionError(null);
+    const target = patients.find((p) => p.id === patientId);
+    if (!target) return;
+    const isCurrentlyActive = target.status === 'ACTIVE' || target.status === 'ACTIVO';
+    const nextStatus = isCurrentlyActive ? 'INACTIVE' : 'ACTIVE';
+    try {
+      if (hasBackendSession()) {
+        const res = await putAuthoritativeAction<{
+          patient?: any;
+          auditLogs?: any[];
+          stateVersion?: number;
+        }>(`/api/patients/${patientId}`, { status: nextStatus });
+        dbStore.applyAuthoritativeSync(
+          {
+            ...(res.patient ? { patients: [res.patient] } : {}),
+            ...(res.auditLogs?.length ? { auditLogs: res.auditLogs } : {}),
+          },
+          res.stateVersion
+        );
+      } else {
+        dbStore.togglePatientStatus(patientId);
+      }
+    } catch (err: any) {
+      setActionError(err.message || 'No se pudo actualizar el estado del paciente.');
+    }
   };
 
   // Filter logic memorized
   const filteredPatients = useMemo(() => {
     return patients.filter((p) => {
-      const term = searchTerm.toLowerCase();
+      const term = searchTerm.trim().toLowerCase();
       const matchesSearch =
-        p.firstName.toLowerCase().includes(term) ||
-        p.lastName.toLowerCase().includes(term) ||
-        p.documentNumber.toLowerCase().includes(term) ||
-        p.phone.toLowerCase().includes(term) ||
-        p.city.toLowerCase().includes(term);
+        !term ||
+        (p.firstName || '').toLowerCase().includes(term) ||
+        (p.lastName || '').toLowerCase().includes(term) ||
+        `${p.firstName || ''} ${p.lastName || ''}`.toLowerCase().includes(term) ||
+        (p.documentNumber || '').toLowerCase().includes(term) ||
+        (p.phone || '').toLowerCase().includes(term) ||
+        (p.city || '').toLowerCase().includes(term);
 
       const matchesBranch = branchFilter === 'ALL' || p.primaryBranchId === branchFilter;
+
+      const isActive = p.status !== 'INACTIVE';
+      const matchesStatus =
+        statusFilter === 'ALL' ||
+        (statusFilter === 'ACTIVE' && isActive) ||
+        (statusFilter === 'INACTIVE' && !isActive);
 
       let matchesAlert = true;
       if (alertFilter === 'ALLERGIES') {
@@ -122,9 +157,9 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
         matchesAdvisor = p.assignedAdvisorId === advisorFilter;
       }
 
-      return matchesSearch && matchesBranch && matchesAlert && matchesModality && matchesAdvisor;
+      return matchesSearch && matchesBranch && matchesStatus && matchesAlert && matchesModality && matchesAdvisor;
     });
-  }, [patients, searchTerm, branchFilter, alertFilter, modalityFilter, advisorFilter, linkedEmployee]);
+  }, [patients, searchTerm, branchFilter, statusFilter, alertFilter, modalityFilter, advisorFilter, linkedEmployee]);
 
   const totalPages = Math.ceil(filteredPatients.length / pageSize) || 1;
   const paginatedPatients = useMemo(() => {
@@ -135,10 +170,11 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   // Reset page when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, branchFilter, alertFilter, modalityFilter, advisorFilter]);
+  }, [searchTerm, branchFilter, statusFilter, alertFilter, modalityFilter, advisorFilter]);
 
-  const totalPatients = patients.length;
-  const insuredPatientsCount = patients.filter((p) => p.modality === 'PLAN_SEGURO').length;
+  const activePatientsCount = patients.filter((p) => p.status !== 'INACTIVE').length;
+  const inactivePatientsCount = patients.length - activePatientsCount;
+  const insuredPatientsCount = patients.filter((p) => p.status !== 'INACTIVE' && p.modality === 'PLAN_SEGURO').length;
   const patientsWithAllergies = patients.filter(
     (p) =>
       p.allergies &&
@@ -186,8 +222,10 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-100">
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
             <div className="text-[11px] font-medium text-slate-500 uppercase">Fichas Activas</div>
-            <div className="text-lg font-bold text-slate-900 mt-0.5">{totalPatients} Pacientes</div>
-            <div className="text-[11px] text-teal-700 font-semibold">100% C.I. Validada</div>
+            <div className="text-lg font-bold text-slate-900 mt-0.5">{activePatientsCount} Pacientes</div>
+            <div className="text-[11px] text-teal-700 font-semibold">
+              {inactivePatientsCount > 0 ? `${inactivePatientsCount} inactivo(s)` : '100% C.I. Validada'}
+            </div>
           </div>
 
           <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100">
@@ -209,6 +247,19 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
           </div>
         </div>
       </div>
+
+      {actionError && (
+        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-medium text-rose-800 flex items-center justify-between gap-2">
+          <span>{actionError}</span>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="text-rose-600 hover:text-rose-900 font-bold px-2 py-0.5 rounded-lg"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
@@ -245,6 +296,16 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                 {b.name}
               </option>
             ))}
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="flex-1 sm:flex-none text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-700 min-h-[40px] cursor-pointer"
+          >
+            <option value="ALL">Todos los Estados</option>
+            <option value="ACTIVE">Solo Activos</option>
+            <option value="INACTIVE">Solo Inactivos</option>
           </select>
 
           <select
@@ -346,29 +407,42 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                 : `Hola ${p.firstName}, le saludamos cordialmente.`
             )}`;
 
+            const isInactive = p.status === 'INACTIVE';
+
             return (
               <div
                 key={p.id}
-                className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all"
+                className={`bg-white rounded-3xl border p-4 sm:p-5 shadow-xs flex flex-col justify-between transition-all ${
+                  isInactive ? 'border-slate-200 opacity-75 bg-slate-50/60' : 'border-slate-200 hover:border-slate-300'
+                }`}
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex items-center gap-2.5">
                       <div className="h-10 w-10 rounded-2xl bg-teal-100 text-teal-800 font-bold text-sm flex items-center justify-center shrink-0">
-                        {p.firstName.charAt(0)}{p.lastName.charAt(0)}
+                        {(p.firstName || '?').charAt(0)}{(p.lastName || '').charAt(0)}
                       </div>
                       <div className="min-w-0">
-                        <h3 className="font-bold text-slate-900 text-sm truncate">
-                          {p.firstName} {p.lastName}
-                        </h3>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h3 className="font-bold text-slate-900 text-sm truncate">
+                            {p.firstName} {p.lastName}
+                          </h3>
+                          {isInactive && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700">
+                              Inactivo
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[11px] font-mono text-slate-500">
                           C.I. {p.documentNumber}
                         </div>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
-                      {p.bloodType || 'O+'}
-                    </span>
+                    {p.bloodType && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
+                        {p.bloodType}
+                      </span>
+                    )}
                   </div>
 
                   {/* Modalidad Comercial Badge */}
@@ -478,11 +552,11 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                       type="button"
                       onClick={() => handleToggleStatus(p.id)}
                       className={`p-2.5 rounded-xl border transition-colors min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center cursor-pointer ${
-                        p.status === 'ACTIVE'
+                        p.status !== 'INACTIVE'
                           ? 'border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50'
                           : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
                       }`}
-                      title={p.status === 'ACTIVE' ? 'Desactivar paciente' : 'Activar paciente'}
+                      title={p.status !== 'INACTIVE' ? 'Desactivar paciente' : 'Activar paciente'}
                     >
                       <Power className="h-4 w-4" />
                     </button>
@@ -533,21 +607,28 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                 )}`;
 
                 return (
-                  <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
+                  <tr key={p.id} className={`hover:bg-slate-50/70 transition-colors ${p.status === 'INACTIVE' ? 'opacity-70 bg-slate-50/40' : ''}`}>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         <div className="h-9 w-9 rounded-xl bg-teal-100 text-teal-800 font-bold text-xs flex items-center justify-center shrink-0">
-                          {p.firstName.charAt(0)}
-                          {p.lastName.charAt(0)}
+                          {(p.firstName || '?').charAt(0)}
+                          {(p.lastName || '').charAt(0)}
                         </div>
                         <div>
-                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <div className="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
                             <span>
                               {p.firstName} {p.lastName}
                             </span>
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              {p.bloodType || 'O+'}
-                            </span>
+                            {p.status === 'INACTIVE' && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-200 text-slate-700">
+                                Inactivo
+                              </span>
+                            )}
+                            {p.bloodType && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                {p.bloodType}
+                              </span>
+                            )}
                           </div>
                           <div className="text-[11px] font-mono text-slate-500">
                             C.I. {p.documentNumber}
@@ -664,11 +745,11 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                           type="button"
                           onClick={() => handleToggleStatus(p.id)}
                           className={`p-1.5 rounded-lg border transition-colors ${
-                            p.status === 'ACTIVE'
+                            p.status !== 'INACTIVE'
                               ? 'border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50'
                               : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
                           }`}
-                          title={p.status === 'ACTIVE' ? 'Desactivar paciente' : 'Activar paciente'}
+                          title={p.status !== 'INACTIVE' ? 'Desactivar paciente' : 'Activar paciente'}
                         >
                           <Power className="h-3.5 w-3.5" />
                         </button>

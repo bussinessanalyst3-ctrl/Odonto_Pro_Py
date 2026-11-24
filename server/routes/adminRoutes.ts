@@ -10,6 +10,7 @@ import {
   ALL_SYSTEM_MODULE_IDS,
   normalizeModuleId,
 } from '../../src/security/moduleCatalog.ts';
+import { toAsuncionDateISO } from '../../src/utils/reportPeriod.ts';
 import { createPbkdf2Hash, sanitizeUsersForClient } from '../crypto.ts';
 import {
   actorHasDynamicPermission,
@@ -641,7 +642,7 @@ export function createAdminRouter(): express.Router {
 
       const rawLimit = Number.parseInt(String(req.query.limit ?? '50'), 10);
       const rawOffset = Number.parseInt(String(req.query.offset ?? '0'), 10);
-      const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 50;
+      const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 500) : 50;
       const offset = Number.isFinite(rawOffset) ? Math.max(rawOffset, 0) : 0;
 
       const action = typeof req.query.action === 'string' && req.query.action !== 'ALL' ? req.query.action.trim() : '';
@@ -650,6 +651,10 @@ export function createAdminRouter(): express.Router {
       const userId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
       const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
       const requestedOrgId = typeof req.query.organizationId === 'string' ? req.query.organizationId.trim() : '';
+      const rawDateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom.trim() : '';
+      const rawDateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo.trim() : '';
+      const dateFrom = /^\d{4}-\d{2}-\d{2}$/.test(rawDateFrom) ? rawDateFrom : '';
+      const dateTo = /^\d{4}-\d{2}-\d{2}$/.test(rawDateTo) ? rawDateTo : '';
 
       const allowedBranches = auth.actor.allowedBranchIds || [];
       if (!canViewAll && branchId && !allowedBranches.includes(branchId)) {
@@ -692,6 +697,12 @@ export function createAdminRouter(): express.Router {
           if (entity) {
             conditions.push(`al.entity = ${pushParam(entity)}`);
           }
+          if (dateFrom) {
+            conditions.push(`(al.created_at AT TIME ZONE 'America/Asuncion')::date >= ${pushParam(dateFrom)}::date`);
+          }
+          if (dateTo) {
+            conditions.push(`(al.created_at AT TIME ZONE 'America/Asuncion')::date <= ${pushParam(dateTo)}::date`);
+          }
           if (search) {
             const p = pushParam(`%${search}%`);
             conditions.push(
@@ -717,8 +728,8 @@ export function createAdminRouter(): express.Router {
               `SELECT
                  COUNT(*)::int AS total,
                  COUNT(*) FILTER (WHERE al.action = 'READ_SENSITIVE' OR al.entity = 'CLINICAL_RECORD')::int AS sensitive_count,
-                 COUNT(*) FILTER (WHERE al.action IN ('CASH_MOVEMENT', 'CLOSE_CASH_REGISTER') OR al.entity = 'PAYMENT')::int AS financial_count,
-                 COUNT(DISTINCT al.ip_address) FILTER (WHERE al.ip_address IS NOT NULL)::int AS unique_ips
+                 COUNT(*) FILTER (WHERE al.action IN ('CASH_MOVEMENT', 'CLOSE_CASH_REGISTER', 'PAYMENT_ANNUL') OR al.entity = 'PAYMENT')::int AS financial_count,
+                 COUNT(DISTINCT al.ip_address) FILTER (WHERE al.ip_address IS NOT NULL AND al.ip_address <> '')::int AS unique_ips
                FROM audit_logs al
                LEFT JOIN users u ON al.user_id = u.id
                ${whereClause}`,
@@ -765,29 +776,37 @@ export function createAdminRouter(): express.Router {
       const userMap = new Map<string, any>(usersList.map((u: any) => [u.id, u]));
       const allowedBranchSet = new Set(allowedBranches);
 
-      const allScoped = (serverDbState.data?.auditLogs || []).filter((log: any) => {
-        if (scopedOrgId && log.organizationId !== scopedOrgId) return false;
-        if (!canViewAll && log.branchId && !allowedBranchSet.has(log.branchId)) return false;
-        if (branchId && log.branchId !== branchId) return false;
-        if (userId && log.userId !== userId) return false;
-        if (action && log.action !== action) return false;
-        if (entity && log.entity !== entity) return false;
-        if (search) {
-          const term = search.toLowerCase();
-          const u = log.userId ? userMap.get(log.userId) : null;
-          const userMatch =
-            u &&
-            (`${u.firstName} ${u.lastName}`.toLowerCase().includes(term) ||
-              String(u.documentNumber || '').includes(term) ||
-              String(u.email || '').toLowerCase().includes(term));
-          const ipMatch = String(log.ipAddress || '').toLowerCase().includes(term);
-          const descMatch = String(log.description || '').toLowerCase().includes(term);
-          const entityMatch = String(log.entity || '').toLowerCase().includes(term);
-          const actionMatch = String(log.action || '').toLowerCase().includes(term);
-          if (!userMatch && !ipMatch && !descMatch && !entityMatch && !actionMatch) return false;
-        }
-        return true;
-      });
+      const allScoped = (serverDbState.data?.auditLogs || [])
+        .filter((log: any) => {
+          if (scopedOrgId && log.organizationId !== scopedOrgId) return false;
+          if (!canViewAll && log.branchId && !allowedBranchSet.has(log.branchId)) return false;
+          if (branchId && log.branchId !== branchId) return false;
+          if (userId && log.userId !== userId) return false;
+          if (action && log.action !== action) return false;
+          if (entity && log.entity !== entity) return false;
+          if (dateFrom || dateTo) {
+            const logDateIso = toAsuncionDateISO(log.createdAt);
+            if (!logDateIso) return false;
+            if (dateFrom && logDateIso < dateFrom) return false;
+            if (dateTo && logDateIso > dateTo) return false;
+          }
+          if (search) {
+            const term = search.toLowerCase();
+            const u = log.userId ? userMap.get(log.userId) : null;
+            const userMatch =
+              u &&
+              (`${u.firstName || ''} ${u.lastName || ''}`.toLowerCase().includes(term) ||
+                String(u.documentNumber || '').includes(term) ||
+                String(u.email || '').toLowerCase().includes(term));
+            const ipMatch = String(log.ipAddress || '').toLowerCase().includes(term);
+            const descMatch = String(log.description || '').toLowerCase().includes(term);
+            const entityMatch = String(log.entity || '').toLowerCase().includes(term);
+            const actionMatch = String(log.action || '').toLowerCase().includes(term);
+            if (!userMatch && !ipMatch && !descMatch && !entityMatch && !actionMatch) return false;
+          }
+          return true;
+        })
+        .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       const total = allScoped.length;
       const logs = allScoped.slice(offset, offset + limit);
@@ -795,7 +814,11 @@ export function createAdminRouter(): express.Router {
         (l: any) => l.action === 'READ_SENSITIVE' || l.entity === 'CLINICAL_RECORD'
       ).length;
       const financialOperationsCount = allScoped.filter(
-        (l: any) => l.action === 'CASH_MOVEMENT' || l.action === 'CLOSE_CASH_REGISTER' || l.entity === 'PAYMENT'
+        (l: any) =>
+          l.action === 'CASH_MOVEMENT' ||
+          l.action === 'CLOSE_CASH_REGISTER' ||
+          l.action === 'PAYMENT_ANNUL' ||
+          l.entity === 'PAYMENT'
       ).length;
       const uniqueIpsCount = new Set(allScoped.map((l: any) => l.ipAddress).filter(Boolean)).size;
 

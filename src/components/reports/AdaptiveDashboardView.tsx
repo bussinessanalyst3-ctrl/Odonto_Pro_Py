@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -7,23 +7,37 @@ import {
   Users,
   Building2,
   Calendar,
-  Award,
-  Layers,
-  ShieldCheck,
-  Filter,
-  Eye,
-  ArrowRight,
-  Download,
-  Printer
 } from 'lucide-react';
 import { useAuth } from '../../auth/authContext.tsx';
 import { dbStore } from '../../db/inMemoryStore.ts';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
+import {
+  ReportPeriodFilter,
+  ReportPeriodPreset,
+  getAsuncionYearMonth,
+  getPeriodLabel,
+} from '../../utils/reportPeriod.ts';
 import { AdminFinancialReport } from './AdminFinancialReport.tsx';
 import { DoctorCommissionsReport } from './DoctorCommissionsReport.tsx';
 import { ReceptionOperationsReport } from './ReceptionOperationsReport.tsx';
 import { ExecutiveDashboard } from './ExecutiveDashboard.tsx';
 
 type DashboardPerspective = 'EXECUTIVE' | 'ADMIN' | 'DOCTOR' | 'RECEPTION';
+
+const MONTH_NAMES = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
 
 interface AdaptiveDashboardViewProps {
   onNavigateTab?: (tab: any, payload?: any) => void;
@@ -37,16 +51,41 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
   const { session } = useAuth();
   const userRole = session?.role || '';
 
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    return dbStore.subscribe(() => setTick((t) => t + 1));
+  }, []);
+
+  const todayIso = getTodayAsuncionISO();
+  const todayYm = getAsuncionYearMonth(todayIso);
+
   // Perspective inicial
   const [activePerspective, setActivePerspective] = useState<DashboardPerspective>('EXECUTIVE');
   const [selectedBranchId, setSelectedBranchId] = useState<string>(externalBranchId || session?.currentBranchId || '');
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
     userRole === 'ODONTOLOGO' ? session?.userId || '' : ''
   );
-  const [timePeriod, setTimePeriod] = useState<string>('MONTH');
+  const [timePeriod, setTimePeriod] = useState<ReportPeriodPreset>('MONTH');
+  const [customYear, setCustomYear] = useState<number>(todayYm.year);
+  const [customMonth, setCustomMonth] = useState<number>(todayYm.month);
+
+  useEffect(() => {
+    if (externalBranchId !== undefined) {
+      setSelectedBranchId(externalBranchId);
+    }
+  }, [externalBranchId]);
+
+  const periodFilter: ReportPeriodFilter =
+    timePeriod === 'CUSTOM_MONTH'
+      ? { preset: 'CUSTOM_MONTH', customYear, customMonth }
+      : { preset: timePeriod };
 
   const branches = dbStore.getBranches();
-  const org = dbStore.getActiveOrganization();
+  const currentQuarter = Math.floor((todayYm.month - 1) / 3) + 1;
+  const availableYears: number[] = [];
+  for (let y = todayYm.year; y >= 2020; y -= 1) {
+    availableYears.push(y);
+  }
 
   return (
     <div className="space-y-6">
@@ -63,7 +102,7 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
                   Dashboard Dinámico & Reportes de Gestión
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  Tiempo Real
+                  {getPeriodLabel(periodFilter, todayIso)}
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -83,12 +122,12 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
               }`}
             >
               <TrendingUp className="h-3.5 w-3.5 text-teal-600" />
-              <span>Resumen Hoy & KPIs</span>
+              <span>Resumen & KPIs</span>
             </button>
 
             <button
               onClick={() => setActivePerspective('ADMIN')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
                 activePerspective === 'ADMIN'
                   ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
                   : 'text-slate-600 hover:text-slate-900'
@@ -100,7 +139,7 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
 
             <button
               onClick={() => setActivePerspective('DOCTOR')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
                 activePerspective === 'DOCTOR'
                   ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
                   : 'text-slate-600 hover:text-slate-900'
@@ -112,7 +151,7 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
 
             <button
               onClick={() => setActivePerspective('RECEPTION')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
                 activePerspective === 'RECEPTION'
                   ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
                   : 'text-slate-600 hover:text-slate-900'
@@ -146,20 +185,49 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
             </div>
 
             {/* Filter by period */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Calendar className="h-4 w-4 text-slate-400" />
               <label className="font-semibold text-slate-600">Período:</label>
               <select
                 value={timePeriod}
-                onChange={(e) => setTimePeriod(e.target.value)}
+                onChange={(e) => setTimePeriod(e.target.value as ReportPeriodPreset)}
                 className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
               >
-                <option value="MONTH">Mes Actual (Septiembre 2026)</option>
-                <option value="TODAY">Jornada de Hoy</option>
-                <option value="WEEK">Esta Semana</option>
-                <option value="QUARTER">Tercer Trimestre 2026</option>
-                <option value="YEAR">Ejercicio Fiscal 2026</option>
+                <option value="TODAY">Jornada de Hoy ({todayIso})</option>
+                <option value="WEEK">Últimos 7 días</option>
+                <option value="MONTH">Mes Actual ({MONTH_NAMES[todayYm.month - 1]} {todayYm.year})</option>
+                <option value="QUARTER">Trimestre {currentQuarter} ({todayYm.year})</option>
+                <option value="YEAR">Año {todayYm.year}</option>
+                <option value="CUSTOM_MONTH">Mes / Año Histórico...</option>
+                <option value="ALL">Todo el Historial</option>
               </select>
+
+              {timePeriod === 'CUSTOM_MONTH' && (
+                <>
+                  <select
+                    value={customMonth}
+                    onChange={(e) => setCustomMonth(Number(e.target.value))}
+                    className="px-2.5 py-1.5 bg-teal-50 border border-teal-200 rounded-xl text-xs font-semibold text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+                  >
+                    {MONTH_NAMES.map((m, idx) => (
+                      <option key={idx + 1} value={idx + 1}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={customYear}
+                    onChange={(e) => setCustomYear(Number(e.target.value))}
+                    className="px-2.5 py-1.5 bg-teal-50 border border-teal-200 rounded-xl text-xs font-semibold text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+                  >
+                    {availableYears.map((yr) => (
+                      <option key={yr} value={yr}>
+                        {yr}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
             </div>
           </div>
 
@@ -177,6 +245,7 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
       {activePerspective === 'EXECUTIVE' && (
         <ExecutiveDashboard
           selectedBranchId={selectedBranchId}
+          periodFilter={periodFilter}
           onNavigateTab={onNavigateTab || (() => {})}
         />
       )}
@@ -184,6 +253,7 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
       {activePerspective === 'ADMIN' && (
         <AdminFinancialReport
           selectedBranchId={selectedBranchId}
+          periodFilter={periodFilter}
           onSelectBranch={setSelectedBranchId}
         />
       )}
@@ -191,14 +261,19 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
       {activePerspective === 'DOCTOR' && (
         <DoctorCommissionsReport
           selectedBranchId={selectedBranchId}
+          periodFilter={periodFilter}
           selectedDoctorId={selectedDoctorId}
           onDoctorChange={setSelectedDoctorId}
         />
       )}
 
       {activePerspective === 'RECEPTION' && (
-        <ReceptionOperationsReport selectedBranchId={selectedBranchId} />
+        <ReceptionOperationsReport
+          selectedBranchId={selectedBranchId}
+          periodFilter={periodFilter}
+        />
       )}
     </div>
   );
 };
+

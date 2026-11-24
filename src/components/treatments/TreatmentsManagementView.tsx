@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Stethoscope,
   Plus,
@@ -24,7 +24,7 @@ import {
   Landmark
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
-import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
+import { formatPYG, validatePygPrice } from '../../db/seeds/paraguay-catalogs.ts';
 import { CreateTreatmentModal } from './CreateTreatmentModal.tsx';
 import { RecordTreatmentPaymentModal } from './RecordTreatmentPaymentModal.tsx';
 import { CreateServiceModal } from './CreateServiceModal.tsx';
@@ -43,6 +43,12 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
   initialToothNumber,
 }) => {
   const { session } = useAuth();
+  const [storeTick, setStoreTick] = useState(0);
+
+  useEffect(() => {
+    return dbStore.subscribe(() => setStoreTick((t) => t + 1));
+  }, []);
+
   const snapshot = dbStore.getSnapshot();
 
   const [activeTab, setActiveTab] = useState<'treatments' | 'catalog' | 'branch_pricing' | 'insurance_plans' | 'insurance_claims'>('treatments');
@@ -56,6 +62,7 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
   // Catalog category filter
   const [catalogCategoryFilter, setCatalogCategoryFilter] = useState<string>('TODAS');
   const [catalogSearch, setCatalogSearch] = useState<string>('');
+  const [branchPricingSearch, setBranchPricingSearch] = useState<string>('');
 
   // Modals
   const [isCreateTreatmentOpen, setIsCreateTreatmentOpen] = useState(!!initialPatientId);
@@ -67,10 +74,12 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
   const [editingBranchService, setEditingBranchService] = useState<{
     branchId: string;
     serviceId: string;
-    price: number;
+    priceInput: string;
   } | null>(null);
+  const [isSavingBranchPrice, setIsSavingBranchPrice] = useState<boolean>(false);
   const [updatingTreatmentId, setUpdatingTreatmentId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Filtered treatments
   const filteredTreatments = useMemo(() => {
@@ -97,18 +106,18 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
 
       return true;
     });
-  }, [snapshot.treatments, snapshot.patients, treatmentStatusFilter, treatmentModalityFilter, selectedBranchFilter, searchQuery]);
+  }, [storeTick, snapshot.treatments, snapshot.patients, treatmentStatusFilter, treatmentModalityFilter, selectedBranchFilter, searchQuery]);
 
-  // Treatments Financial Metrics
+  // Treatments Financial Metrics (excluye tratamientos cancelados)
   const metrics = useMemo(() => {
-    const list = snapshot.treatments || [];
-    const totalAmount = list.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
-    const paidAmount = list.reduce((sum, t) => sum + (t.paidAmount || 0), 0);
-    const balanceDue = list.reduce((sum, t) => sum + (t.balanceDue || 0), 0);
-    const inProgressCount = list.filter((t) => t.status === 'EN_PROGRESO').length;
+    const activeList = (snapshot.treatments || []).filter((t) => t.status !== 'CANCELADO');
+    const totalAmount = activeList.reduce((sum, t) => sum + (t.totalAmount || 0), 0);
+    const paidAmount = activeList.reduce((sum, t) => sum + (t.paidAmount || 0), 0);
+    const balanceDue = activeList.reduce((sum, t) => sum + (t.balanceDue || 0), 0);
+    const inProgressCount = activeList.filter((t) => t.status === 'EN_PROGRESO').length;
 
-    return { totalAmount, paidAmount, balanceDue, inProgressCount, totalCount: list.length };
-  }, [snapshot.treatments]);
+    return { totalAmount, paidAmount, balanceDue, inProgressCount, totalCount: activeList.length };
+  }, [storeTick, snapshot.treatments]);
 
   // Catalog services filtered
   const filteredServices = useMemo(() => {
@@ -120,13 +129,25 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
       }
       return true;
     });
-  }, [snapshot.services, catalogCategoryFilter, catalogSearch]);
+  }, [storeTick, snapshot.services, catalogCategoryFilter, catalogSearch]);
+
+  // Branch pricing services filtered (todos los servicios, sin recorte .slice(0, 10))
+  const filteredBranchServices = useMemo(() => {
+    if (!branchPricingSearch.trim()) return snapshot.services;
+    const q = branchPricingSearch.toLowerCase();
+    return snapshot.services.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        (s.code && s.code.toLowerCase().includes(q)) ||
+        (s.category && s.category.toLowerCase().includes(q))
+    );
+  }, [storeTick, snapshot.services, branchPricingSearch]);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
     snapshot.services.forEach((s) => set.add(s.category));
     return Array.from(set);
-  }, [snapshot.services]);
+  }, [storeTick, snapshot.services]);
 
   const handleStatusChange = async (treatmentId: string, newStatus: any) => {
     if (updatingTreatmentId) return;
@@ -162,9 +183,40 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
     }
   };
 
-  const handleSaveBranchPrice = (branchId: string, serviceId: string, customPrice: number) => {
-    dbStore.setBranchServicePrice(branchId, serviceId, customPrice, true, session?.userId);
-    setEditingBranchService(null);
+  const handleSaveBranchPrice = async (branchId: string, serviceId: string, priceInput: string) => {
+    if (isSavingBranchPrice) return;
+    setActionError(null);
+    setSuccessMessage(null);
+
+    const trimmed = priceInput.trim();
+    if (!trimmed) {
+      setActionError('Debe ingresar un precio válido en Guaraníes (PYG).');
+      return;
+    }
+
+    let validatedPrice: number;
+    try {
+      validatedPrice = validatePygPrice(Number(trimmed), 'El precio por sucursal');
+    } catch (validationErr: any) {
+      setActionError(validationErr.message || 'El precio ingresado no es válido.');
+      return;
+    }
+
+    setIsSavingBranchPrice(true);
+    try {
+      dbStore.setBranchServicePrice(branchId, serviceId, validatedPrice, true, session?.userId);
+      await dbStore.flushPendingSyncStrict();
+      setEditingBranchService(null);
+      setSuccessMessage(
+        'Precio actualizado. Se aplicará a los nuevos tratamientos; los ya registrados no cambian.'
+      );
+    } catch (err: any) {
+      setActionError(
+        err?.message || 'No se pudo guardar el precio por sucursal en el servidor.'
+      );
+    } finally {
+      setIsSavingBranchPrice(false);
+    }
   };
 
   return (
@@ -279,6 +331,38 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
           </button>
         </div>
       </div>
+
+      {successMessage && (
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between gap-2 text-xs text-emerald-900 shadow-xs">
+          <div className="flex items-center gap-2 font-semibold">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span>{successMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSuccessMessage(null)}
+            className="font-bold text-emerald-700 hover:text-emerald-950"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
+
+      {actionError && activeTab !== 'treatments' && (
+        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between gap-2 text-xs text-rose-800">
+          <div className="flex items-center gap-2 font-medium">
+            <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+            <span>{actionError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="font-semibold text-rose-700 hover:text-rose-900"
+          >
+            Cerrar
+          </button>
+        </div>
+      )}
 
       {/* TAB 1: TRATAMIENTOS DE PACIENTES */}
       {activeTab === 'treatments' && (
@@ -657,7 +741,23 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
         <div className="space-y-4">
           <div className="p-4 bg-teal-50/80 rounded-2xl border border-teal-200 text-xs text-teal-900">
             <span className="font-bold">Política de Precios Multi-Sucursal (Guaraníes): </span>
-            Permite a la clínica establecer aranceles diferenciados en sucursales según infraestructura o zona (ej. Asunción Centro vs San Lorenzo vs Luque). Si no se define precio personalizado, rige el precio base del catálogo.
+            Permite a la clínica establecer aranceles diferenciados en sucursales según infraestructura o zona. Si no se define precio personalizado, rige el precio base del catálogo. Los cambios solo afectan a nuevos tratamientos y presupuestos.
+          </div>
+
+          <div className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="relative w-full sm:w-80">
+              <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={branchPricingSearch}
+                onChange={(e) => setBranchPricingSearch(e.target.value)}
+                placeholder="Buscar servicio por nombre, código o categoría..."
+                className="w-full text-xs pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+              />
+            </div>
+            <div className="text-xs text-slate-500 font-medium">
+              Mostrando <span className="font-bold text-slate-800">{filteredBranchServices.length}</span> de {snapshot.services.length} servicios
+            </div>
           </div>
 
           <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
@@ -675,7 +775,7 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {snapshot.services.slice(0, 10).map((s) => (
+                  {filteredBranchServices.map((s) => (
                     <tr key={s.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="py-3 px-4">
                         <span className="font-bold text-slate-900">{s.name}</span>
@@ -699,39 +799,66 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
                               <div className="flex items-center justify-end gap-1">
                                 <input
                                   type="number"
-                                  step="5000"
-                                  className="w-24 p-1 text-xs font-bold border border-teal-500 rounded-md text-right"
-                                  value={editingBranchService.price}
+                                  step="1"
+                                  min="1"
+                                  inputMode="numeric"
+                                  disabled={isSavingBranchPrice}
+                                  className="w-28 p-1 text-xs font-bold border border-teal-500 rounded-md text-right"
+                                  value={editingBranchService.priceInput}
                                   onChange={(e) =>
                                     setEditingBranchService({
                                       branchId: b.id,
                                       serviceId: s.id,
-                                      price: parseInt(e.target.value, 10) || 0,
+                                      priceInput: e.target.value,
                                     })
                                   }
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      handleSaveBranchPrice(b.id, s.id, editingBranchService.priceInput);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingBranchService(null);
+                                    }
+                                  }}
                                 />
                                 <button
+                                  type="button"
+                                  disabled={isSavingBranchPrice}
                                   onClick={() =>
-                                    handleSaveBranchPrice(b.id, s.id, editingBranchService.price)
+                                    handleSaveBranchPrice(b.id, s.id, editingBranchService.priceInput)
                                   }
-                                  className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-sm"
+                                  className="px-1.5 py-1 text-emerald-700 hover:bg-emerald-50 rounded-sm font-bold disabled:opacity-50"
+                                  title="Guardar precio"
                                 >
                                   ✓
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isSavingBranchPrice}
+                                  onClick={() => setEditingBranchService(null)}
+                                  className="px-1.5 py-1 text-slate-500 hover:bg-slate-100 rounded-sm font-bold disabled:opacity-50"
+                                  title="Cancelar"
+                                >
+                                  ✕
                                 </button>
                               </div>
                             ) : (
                               <button
-                                onClick={() =>
+                                type="button"
+                                onClick={() => {
+                                  setActionError(null);
                                   setEditingBranchService({
                                     branchId: b.id,
                                     serviceId: s.id,
-                                    price: custom?.customPrice || s.basePrice,
-                                  })
-                                }
+                                    priceInput: String(
+                                      Math.round(Number(custom?.customPrice ?? s.basePrice) || 0)
+                                    ),
+                                  });
+                                }}
                                 className={`px-2 py-1 rounded-lg font-bold transition-all text-xs ${
-                                  custom
+                                  custom && Number(custom.customPrice) !== Number(s.basePrice)
                                     ? 'bg-teal-50 text-teal-800 border border-teal-200 hover:bg-teal-100'
-                                    : 'text-slate-500 hover:bg-slate-100'
+                                    : 'text-slate-600 hover:bg-slate-100'
                                 }`}
                                 title="Click para personalizar precio en esta sucursal"
                               >
@@ -777,6 +904,10 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
           setServiceToEdit(null);
         }}
         serviceToEdit={serviceToEdit}
+        onSaved={(msg) => {
+          setActionError(null);
+          setSuccessMessage(msg);
+        }}
       />
     </div>
   );

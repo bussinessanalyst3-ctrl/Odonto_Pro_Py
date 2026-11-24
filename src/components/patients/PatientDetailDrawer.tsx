@@ -56,10 +56,20 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
     : null;
   const creatorDisplay = patient.createdByNameSnapshot || 'Origen histórico / Desconocido';
 
-  // Calculate age
-  const birthYear = patient.birthDate ? new Date(patient.birthDate).getFullYear() : 1995;
-  const currentYear = new Date().getFullYear();
-  const age = currentYear - birthYear;
+  // Calculate age accurately without inventing a default birth year
+  let age: number | null = null;
+  if (patient.birthDate && /^\d{4}-\d{2}-\d{2}/.test(String(patient.birthDate))) {
+    const [y, m, d] = String(patient.birthDate).slice(0, 10).split('-').map(Number);
+    const today = new Date();
+    let computed = today.getFullYear() - y;
+    const monthDiff = today.getMonth() + 1 - m;
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < d)) {
+      computed -= 1;
+    }
+    if (computed >= 0 && computed < 130) {
+      age = computed;
+    }
+  }
 
   // Paraguay WhatsApp link
   const orgLegalName = resolveOrganizationLegalName({
@@ -86,7 +96,9 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
     patient.medicalConditions.toLowerCase() !== 'ninguna' &&
     patient.medicalConditions.toLowerCase() !== 'ninguna conocida';
 
-  const totalPaid = patientPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
+  const totalPaid = patientPayments
+    .filter((p) => p.status !== 'ANULADO')
+    .reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/40 backdrop-blur-xs">
@@ -129,7 +141,9 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                       C.I. {patient.documentNumber}
                     </span>
                     <span>•</span>
-                    <span>{age} años ({patient.birthDate})</span>
+                    <span>
+                      {age !== null ? `${age} años (${patient.birthDate})` : 'Sin fecha de nacimiento'}
+                    </span>
                     <span>•</span>
                     <span className="capitalize">{patient.gender?.toLowerCase()}</span>
                   </div>
@@ -549,20 +563,40 @@ export const PatientDetailDrawer: React.FC<PatientDetailDrawerProps> = ({
                     No hay recibos o facturas registradas para este paciente.
                   </div>
                 ) : (
-                  patientPayments.map((pay) => (
-                    <div
-                      key={pay.id}
-                      className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs"
-                    >
-                      <div>
-                        <div className="font-bold text-slate-900">{pay.receiptNumber}</div>
-                        <div className="text-[11px] text-slate-500">{pay.paymentMethod} • {pay.paymentDate}</div>
+                  patientPayments.map((pay) => {
+                    const isAnnulled = pay.status === 'ANULADO';
+                    const payDateLabel = pay.createdAt
+                      ? new Date(pay.createdAt).toLocaleDateString('es-PY', {
+                          timeZone: 'America/Asuncion',
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                        })
+                      : 'Sin fecha';
+                    return (
+                      <div
+                        key={pay.id}
+                        className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+                          isAnnulled ? 'bg-rose-50/50 border-rose-200 opacity-75' : 'bg-slate-50 border-slate-200'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-900">{pay.receiptNumber}</span>
+                            {isAnnulled && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">
+                                ANULADO
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500">{pay.paymentMethod} • {payDateLabel}</div>
+                        </div>
+                        <div className={`font-bold font-mono text-sm ${isAnnulled ? 'text-rose-500 line-through' : 'text-emerald-700'}`}>
+                          {formatPYG(pay.amount)}
+                        </div>
                       </div>
-                      <div className="font-bold text-emerald-700 font-mono text-sm">
-                        {formatPYG(pay.amount)}
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}

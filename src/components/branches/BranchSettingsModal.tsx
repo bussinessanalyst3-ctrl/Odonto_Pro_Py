@@ -23,16 +23,14 @@ export const BranchSettingsModal: React.FC<BranchSettingsModalProps> = ({
   const [maxAdvanceDays, setMaxAdvanceDays] = useState(60);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Dental chairs state (local to branch)
-  const [chairs, setChairs] = useState<Array<{ id: string; name: string; type: string; status: 'ACTIVE' | 'MAINTENANCE' }>>([
-    { id: 'c1', name: 'Sillón 1 - Odontología General & Diagnóstico', type: 'General', status: 'ACTIVE' },
-    { id: 'c2', name: 'Sillón 2 - Ortodoncia & Estética Dental', type: 'Ortodoncia', status: 'ACTIVE' },
-    { id: 'c3', name: 'Sillón 3 - Quirófano / Cirugía Menor', type: 'Cirugía', status: 'ACTIVE' },
-  ]);
+  // Dental chairs state loaded from real store for this branch
+  const [chairs, setChairs] = useState<Array<{ id: string; name: string; code?: string; status: 'ACTIVE' | 'MAINTENANCE' }>>([]);
   const [newChairName, setNewChairName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (branch) {
+    if (branch && isOpen) {
+      setErrorMsg(null);
       const settings = dbStore.getBranchSettings(branch.id);
       if (settings) {
         setDurationDefault(settings.appointmentDurationDefault);
@@ -41,7 +39,27 @@ export const BranchSettingsModal: React.FC<BranchSettingsModalProps> = ({
         setRequireDoc(settings.requireDocumentOnBooking);
         setReceiptSeries(settings.receiptSeries || '001-001');
         setMaxAdvanceDays(settings.maxAdvanceBookingDays || 60);
+      } else {
+        setDurationDefault(30);
+        setSlotInterval(15);
+        setAllowDoubleBooking(false);
+        setRequireDoc(true);
+        setReceiptSeries('001-001');
+        setMaxAdvanceDays(60);
       }
+
+      const storedChairs = (dbStore.getDentalChairs(branch.id) || []).filter(
+        (c: any) => c.status !== 'INACTIVE'
+      );
+      setChairs(
+        storedChairs.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          code: c.code,
+          status: c.status === 'MAINTENANCE' ? 'MAINTENANCE' : 'ACTIVE',
+        }))
+      );
+      setNewChairName('');
     }
   }, [branch, isOpen]);
 
@@ -52,9 +70,9 @@ export const BranchSettingsModal: React.FC<BranchSettingsModalProps> = ({
     setChairs([
       ...chairs,
       {
-        id: `chair-${Date.now().toString().slice(-4)}`,
+        id: crypto.randomUUID(),
         name: newChairName.trim(),
-        type: 'General',
+        code: `${branch.code || 'SUC'}-S${chairs.length + 1}`,
         status: 'ACTIVE',
       },
     ]);
@@ -73,9 +91,15 @@ export const BranchSettingsModal: React.FC<BranchSettingsModalProps> = ({
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     setErrorMsg(null);
+
+    if (chairs.length === 0) {
+      setErrorMsg('Debe mantener al menos un sillón odontológico configurado en la sucursal.');
+      return;
+    }
 
     const actor = session ? {
       userId: session.userId,
@@ -84,19 +108,28 @@ export const BranchSettingsModal: React.FC<BranchSettingsModalProps> = ({
       allowedBranchIds: session.allowedBranchIds,
     } : undefined;
 
+    setIsSaving(true);
     try {
       dbStore.updateBranchSettings(branch.id, {
         appointmentDurationDefault: durationDefault,
         slotIntervalMinutes: slotInterval,
         allowDoubleBooking,
         requireDocumentOnBooking: requireDoc,
-        receiptSeries,
+        receiptSeries: receiptSeries.trim() || '001-001',
         maxAdvanceBookingDays: maxAdvanceDays,
       }, actor);
 
+      dbStore.saveBranchDentalChairs(branch.id, chairs, actor);
+
+      if (dbStore.getBackendActorContext()) {
+        await dbStore.flushPendingSyncStrict();
+      }
+
       onClose();
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error al guardar configuraciones de sucursal');
+      setErrorMsg(err.message || 'Error al guardar configuraciones y sillones de la sucursal.');
+    } finally {
+      setIsSaving(false);
     }
   };
 

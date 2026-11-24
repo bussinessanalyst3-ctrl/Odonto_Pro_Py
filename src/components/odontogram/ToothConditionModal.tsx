@@ -44,8 +44,6 @@ export const ToothConditionModal: React.FC<ToothConditionModalProps> = ({
   onSave,
   onCreateTreatment,
 }) => {
-  if (!isOpen || toothNumber === null) return null;
-
   const palatineOrLingual = isUpper ? 'PALATINA' : 'LINGUAL';
 
   const [selectedSurface, setSelectedSurface] = useState<string>('OCLUSAL');
@@ -55,6 +53,7 @@ export const ToothConditionModal: React.FC<ToothConditionModalProps> = ({
 
   // Prepopulate when surface changes
   useEffect(() => {
+    if (!isOpen || toothNumber === null) return;
     const item = toothData?.surfaces[selectedSurface as keyof typeof toothData.surfaces];
     if (item) {
       setCondition(item.condition || 'CARIES');
@@ -65,7 +64,9 @@ export const ToothConditionModal: React.FC<ToothConditionModalProps> = ({
       setMaterial('');
       setNotes('');
     }
-  }, [selectedSurface, toothData]);
+  }, [selectedSurface, toothData, isOpen, toothNumber]);
+
+  if (!isOpen || toothNumber === null) return null;
 
   const handleApply = () => {
     const condObj = CONDITIONS_CATALOG.find((c) => c.id === condition);

@@ -1,9 +1,16 @@
-import { STANDARD_SERVICES } from '../seeds/paraguay-catalogs.ts';
+import { STANDARD_SERVICES, formatPYG, validatePygPrice } from '../seeds/paraguay-catalogs.ts';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 import {
   evaluateCommissionsForEvent,
   reverseCommissionsForAnnulledPayment,
 } from '../payrollEngine.ts';
 import type { StoreContext } from './types.ts';
+
+function addDaysToIsoDate(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, (d || 1) + days));
+  return dt.toISOString().split('T')[0];
+}
 
 export function getServices(ctx: StoreContext, targetOrgId?: string) {
   const data = ctx.getData();
@@ -349,8 +356,9 @@ export function updateTreatmentStatus(
       patientId: treat.patientId,
       quoteId: treat.quoteId || null,
       treatmentId: treat.id,
-      odontologistUserId: linkedQuote?.odontologistId || actorUserId || null,
+      odontologistUserId: linkedQuote?.odontologistId || (treat as any).odontologistId || actorUserId || null,
       amount: treat.totalAmount,
+      eventDate: treat.completedDate || getTodayAsuncionISO(),
       actorUserId: actorUserId || data.users[0]?.id || null,
     });
   }
@@ -365,23 +373,28 @@ export function recordTreatmentPayment(
   amount: number,
   paymentMethod: string,
   receiptNumber: string,
-  actorUserId?: string
+  actorUserId?: string,
+  paymentDate?: string
 ) {
   const data = ctx.getData();
-  if (amount <= 0) {
-    throw new Error('El monto a abonar debe ser superior a ₲ 0.');
-  }
+  const validatedAmount = validatePygPrice(amount, 'El monto a abonar');
 
   const treat = (data.treatments || []).find((t) => t.id === treatmentId);
   if (!treat) throw new Error('El tratamiento especificado no existe.');
 
-  if (treat.balanceDue > 0 && amount > treat.balanceDue) {
+  if (treat.balanceDue > 0 && validatedAmount > treat.balanceDue) {
     throw new Error(
-      `El monto (₲ ${amount.toLocaleString('es-PY')}) excede el saldo pendiente (₲ ${treat.balanceDue.toLocaleString('es-PY')}).`
+      `El monto (${formatPYG(validatedAmount)}) excede el saldo pendiente (${formatPYG(treat.balanceDue)}).`
     );
   }
 
-  treat.paidAmount = (treat.paidAmount || 0) + amount;
+  const todayAsuncion = getTodayAsuncionISO();
+  const cleanPaymentDate =
+    paymentDate && /^\d{4}-\d{2}-\d{2}$/.test(paymentDate.trim()) ? paymentDate.trim() : '';
+  const isHistoricalPayment = Boolean(cleanPaymentDate && cleanPaymentDate < todayAsuncion);
+  const paymentCreatedAt = isHistoricalPayment ? new Date(`${cleanPaymentDate}T16:00:00.000Z`) : new Date();
+
+  treat.paidAmount = (treat.paidAmount || 0) + validatedAmount;
   treat.balanceDue = Math.max(0, treat.totalAmount - treat.paidAmount);
   treat.updatedAt = new Date();
 
@@ -397,12 +410,14 @@ export function recordTreatmentPayment(
     cashMovementId: null as string | null,
     receiptNumber: receiptNumber || ctx.getNextReceiptNumber(),
     invoiceNumber,
-    amount,
+    amount: validatedAmount,
     paymentMethod,
     status: 'COMPLETADO',
-    notes: `Pago abonado a cuenta del tratamiento ${treat.title}`,
+    notes: isHistoricalPayment
+      ? `Pago histórico (${cleanPaymentDate}) abonado a cuenta del tratamiento ${treat.title}`
+      : `Pago abonado a cuenta del tratamiento ${treat.title}`,
     receivedBy: actorUserId || data.users[0]?.id,
-    createdAt: new Date(),
+    createdAt: paymentCreatedAt,
   };
 
   if (!data.payments) {
@@ -421,26 +436,35 @@ export function recordTreatmentPayment(
     ipAddress: '190.52.144.12',
     userAgent: 'OdontoPro Financial Engine',
     oldValues: null,
-    newValues: { amount, balanceDue: treat.balanceDue, receiptNumber: paymentRecord.receiptNumber },
-    description: `Cobro de ₲ ${amount.toLocaleString('es-PY')} registrado para tratamiento "${treat.title}" (Recibo: ${paymentRecord.receiptNumber})`,
+    newValues: {
+      amount: validatedAmount,
+      balanceDue: treat.balanceDue,
+      receiptNumber: paymentRecord.receiptNumber,
+      ...(isHistoricalPayment ? { paymentDate: cleanPaymentDate } : {}),
+    },
+    description: `Cobro de ${formatPYG(validatedAmount)} registrado para tratamiento "${treat.title}" (Recibo: ${paymentRecord.receiptNumber})`,
     createdAt: new Date(),
   });
 
-  const openRegister = (data.cashRegisters || []).find((cr) => cr.branchId === treat.branchId && cr.status === 'ABIERTA');
-  if (openRegister) {
-    const movementId = crypto.randomUUID();
-    data.cashMovements.unshift({
-      id: movementId,
-      cashRegisterId: openRegister.id,
-      movementType: 'INGRESO',
-      amount,
-      paymentMethod,
-      concept: `Cobro tratamiento ${treat.title} (Recibo ${paymentRecord.receiptNumber})`,
-      referenceNumber: paymentRecord.receiptNumber,
-      performedBy: actorUserId || data.users[0]?.id,
-      createdAt: new Date(),
-    });
-    paymentRecord.cashMovementId = movementId;
+  if (!isHistoricalPayment) {
+    const openRegister = (data.cashRegisters || []).find(
+      (cr) => cr.branchId === treat.branchId && cr.status === 'ABIERTA'
+    );
+    if (openRegister) {
+      const movementId = crypto.randomUUID();
+      data.cashMovements.unshift({
+        id: movementId,
+        cashRegisterId: openRegister.id,
+        movementType: 'INGRESO',
+        amount: validatedAmount,
+        paymentMethod,
+        concept: `Cobro tratamiento ${treat.title} (Recibo ${paymentRecord.receiptNumber})`,
+        referenceNumber: paymentRecord.receiptNumber,
+        performedBy: actorUserId || data.users[0]?.id,
+        createdAt: new Date(),
+      });
+      paymentRecord.cashMovementId = movementId;
+    }
   }
 
   const linkedQuote = treat.quoteId ? (data.quotes || []).find((q) => q.id === treat.quoteId) : null;
@@ -452,8 +476,9 @@ export function recordTreatmentPayment(
     quoteId: treat.quoteId || null,
     treatmentId: treat.id,
     paymentId: paymentRecord.id,
-    odontologistUserId: linkedQuote?.odontologistId || null,
-    amount,
+    odontologistUserId: linkedQuote?.odontologistId || (treat as any).odontologistId || null,
+    amount: validatedAmount,
+    eventDate: cleanPaymentDate || todayAsuncion,
     actorUserId: actorUserId || data.users[0]?.id || null,
   });
 
@@ -505,19 +530,36 @@ export function annulPayment(
     (cr) => cr.branchId === payment.branchId && cr.status === 'ABIERTA'
   );
   if (openRegister) {
-    const counterMovementId = crypto.randomUUID();
-    counterMovement = {
-      id: counterMovementId,
-      cashRegisterId: openRegister.id,
-      movementType: 'EGRESO' as const,
-      amount: payment.amount,
-      paymentMethod: payment.paymentMethod,
-      concept: `[ANULACIÓN] Recibo ${payment.receiptNumber}: ${params.reason}`,
-      referenceNumber: `ANUL-${payment.receiptNumber}`,
-      performedBy: params.actorUserId,
-      createdAt: new Date(),
-    };
-    data.cashMovements.unshift(counterMovement);
+    const origMovement = payment.cashMovementId
+      ? (data.cashMovements || []).find((m) => m.id === payment.cashMovementId)
+      : null;
+    let paymentDateAsuncion = '';
+    try {
+      paymentDateAsuncion = new Date(payment.createdAt).toLocaleDateString('en-CA', {
+        timeZone: 'America/Asuncion',
+      });
+    } catch {
+      paymentDateAsuncion = '';
+    }
+    const belongsToOpenRegister = origMovement
+      ? origMovement.cashRegisterId === openRegister.id
+      : paymentDateAsuncion === getTodayAsuncionISO();
+
+    if (belongsToOpenRegister) {
+      const counterMovementId = crypto.randomUUID();
+      counterMovement = {
+        id: counterMovementId,
+        cashRegisterId: openRegister.id,
+        movementType: 'EGRESO' as const,
+        amount: payment.amount,
+        paymentMethod: payment.paymentMethod,
+        concept: `[ANULACIÓN] Recibo ${payment.receiptNumber}: ${params.reason}`,
+        referenceNumber: `ANUL-${payment.receiptNumber}`,
+        performedBy: params.actorUserId,
+        createdAt: new Date(),
+      };
+      data.cashMovements.unshift(counterMovement);
+    }
   }
 
   reverseCommissionsForAnnulledPayment(data, params.paymentId, params.reason, params.actorUserId);
@@ -563,23 +605,29 @@ export function addService(
   }
 ) {
   const data = ctx.getData();
+  const cleanName = (service.name || '').trim();
+  if (!cleanName) {
+    throw new Error('El nombre del procedimiento es requerido.');
+  }
+  const validatedPrice = validatePygPrice(service.basePrice, 'El precio base');
+
   const id = crypto.randomUUID();
   const record = {
     id,
     organizationId: data.organization.id,
     category: service.category,
-    code: service.code,
-    name: service.name,
+    code: (service.code || '').trim().toUpperCase(),
+    name: cleanName,
     description: service.description || '',
-    defaultDurationMin: service.defaultDurationMin,
-    basePrice: service.basePrice,
+    defaultDurationMin: Math.max(5, Math.round(Number(service.defaultDurationMin) || 30)),
+    basePrice: validatedPrice,
     status: 'ACTIVE',
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
   };
 
-  data.services.push(record);
+  data.services = [...data.services, record];
 
   data.auditLogs.unshift({
     id: crypto.randomUUID(),
@@ -593,7 +641,7 @@ export function addService(
     userAgent: 'OdontoPro Catalogs Admin',
     oldValues: null,
     newValues: record,
-    description: `Nuevo servicio odontológico incorporado: "${service.name}" (${service.code}) - ₲ ${service.basePrice.toLocaleString('es-PY')}`,
+    description: `Nuevo servicio odontológico incorporado: "${cleanName}" (${record.code}) - ${formatPYG(validatedPrice)}`,
     createdAt: new Date(),
   });
 
@@ -613,32 +661,102 @@ export function updateService(
     basePrice: number;
     status: string;
   }>,
-  actorUserId?: string
+  actorUserId?: string,
+  options?: {
+    syncBranchPrices?: 'matching_only' | 'all' | 'none';
+  }
 ) {
   const data = ctx.getData();
-  const s = data.services.find((serv) => serv.id === serviceId);
-  if (!s) return null;
+  const idx = data.services.findIndex((serv) => serv.id === serviceId);
+  if (idx === -1) return null;
 
-  Object.assign(s, updates, { updatedAt: new Date() });
+  const old = data.services[idx];
+  const nextUpdates: Record<string, any> = { ...updates };
+
+  if (nextUpdates.name !== undefined) {
+    const cleanName = String(nextUpdates.name).trim();
+    if (!cleanName) {
+      throw new Error('El nombre del procedimiento es requerido.');
+    }
+    nextUpdates.name = cleanName;
+  }
+
+  if (nextUpdates.code !== undefined) {
+    nextUpdates.code = String(nextUpdates.code).trim().toUpperCase();
+  }
+
+  if (nextUpdates.defaultDurationMin !== undefined) {
+    nextUpdates.defaultDurationMin = Math.max(5, Math.round(Number(nextUpdates.defaultDurationMin) || 30));
+  }
+
+  if (nextUpdates.basePrice !== undefined) {
+    nextUpdates.basePrice = validatePygPrice(nextUpdates.basePrice, 'El precio base');
+  }
+
+  const oldBasePrice = Number(old.basePrice);
+  const updatedService = {
+    ...old,
+    ...nextUpdates,
+    updatedAt: new Date(),
+  };
+
+  // Reemplazo inmutable para que las vistas con useMemo/subscribe refresquen de inmediato
+  data.services = data.services.map((serv, i) => (i === idx ? updatedService : serv));
+
+  // Si cambió el precio base, sincronizar branchServices para que nuevos tratamientos/presupuestos
+  // reflejen el nuevo arancel sin alterar ningún tratamiento, presupuesto ni cobro histórico existente.
+  const priceChanged =
+    nextUpdates.basePrice !== undefined && Number(updatedService.basePrice) !== oldBasePrice;
+  const syncMode = options?.syncBranchPrices ?? 'matching_only';
+  let updatedBranchCount = 0;
+
+  if (priceChanged && syncMode !== 'none' && Array.isArray(data.branchServices) && data.branchServices.length > 0) {
+    data.branchServices = data.branchServices.map((bs) => {
+      if (bs.serviceId !== serviceId) return bs;
+      if (syncMode === 'all' || Number(bs.customPrice) === oldBasePrice) {
+        updatedBranchCount += 1;
+        return {
+          ...bs,
+          customPrice: updatedService.basePrice,
+        };
+      }
+      return bs;
+    });
+  }
+
+  const oldAuditValues: Record<string, any> = {};
+  const newAuditValues: Record<string, any> = {};
+  for (const key of Object.keys(nextUpdates)) {
+    oldAuditValues[key] = (old as any)[key];
+    newAuditValues[key] = (updatedService as any)[key];
+  }
+  if (priceChanged) {
+    newAuditValues.updatedBranchPricesCount = updatedBranchCount;
+    newAuditValues.syncBranchPricesMode = syncMode;
+  }
+
+  const auditDescription = priceChanged
+    ? `Cambio de precio en "${updatedService.name}": ${formatPYG(oldBasePrice)} → ${formatPYG(updatedService.basePrice)} (aplica solo a nuevos registros; sucursales sincronizadas: ${updatedBranchCount})`
+    : `Modificación de parámetros del servicio odontológico "${updatedService.name}"`;
 
   data.auditLogs.unshift({
     id: crypto.randomUUID(),
     organizationId: data.organization.id,
     branchId: null,
     userId: actorUserId || data.users[0]?.id,
-    action: 'UPDATE',
+    action: priceChanged ? 'UPDATE_PRICE' : 'UPDATE',
     entity: 'SERVICE',
     entityId: serviceId,
     ipAddress: '190.52.144.12',
     userAgent: 'OdontoPro Catalogs Admin',
-    oldValues: null,
-    newValues: updates,
-    description: `Modificación de parámetros del servicio odontológico "${s.name}"`,
+    oldValues: oldAuditValues,
+    newValues: newAuditValues,
+    description: auditDescription,
     createdAt: new Date(),
   });
 
   ctx.notify();
-  return s;
+  return updatedService;
 }
 
 export function setBranchServicePrice(
@@ -650,25 +768,41 @@ export function setBranchServicePrice(
   actorUserId?: string
 ) {
   const data = ctx.getData();
+  const validatedPrice = validatePygPrice(customPrice, 'El precio por sucursal');
+
   if (!data.branchServices) {
     data.branchServices = [];
   }
 
-  const existing = data.branchServices.find((bs) => bs.branchId === branchId && bs.serviceId === serviceId);
+  const existingIdx = data.branchServices.findIndex(
+    (bs) => bs.branchId === branchId && bs.serviceId === serviceId
+  );
+  const existing = existingIdx >= 0 ? data.branchServices[existingIdx] : null;
+  const previousPrice = existing ? Number(existing.customPrice) : null;
 
   const branch = data.branches.find((b) => b.id === branchId);
   const service = data.services.find((s) => s.id === serviceId);
 
-  if (existing) {
-    existing.customPrice = customPrice;
-    existing.isAvailable = isAvailable;
+  if (existingIdx >= 0) {
+    data.branchServices = data.branchServices.map((bs, i) =>
+      i === existingIdx
+        ? {
+            ...bs,
+            customPrice: validatedPrice,
+            isAvailable,
+          }
+        : bs
+    );
   } else {
-    data.branchServices.push({
-      branchId,
-      serviceId,
-      customPrice,
-      isAvailable,
-    });
+    data.branchServices = [
+      ...data.branchServices,
+      {
+        branchId,
+        serviceId,
+        customPrice: validatedPrice,
+        isAvailable,
+      },
+    ];
   }
 
   data.auditLogs.unshift({
@@ -681,14 +815,17 @@ export function setBranchServicePrice(
     entityId: `${branchId}-${serviceId}`,
     ipAddress: '190.52.144.12',
     userAgent: 'OdontoPro Pricing Engine',
-    oldValues: null,
-    newValues: { customPrice, isAvailable },
-    description: `Ajuste de precio diferenciado para "${service?.name}" en sucursal ${branch?.name}: ₲ ${customPrice.toLocaleString('es-PY')}`,
+    oldValues: {
+      customPrice: previousPrice ?? (service ? Number(service.basePrice) : null),
+      isAvailable: existing ? existing.isAvailable : true,
+    },
+    newValues: { customPrice: validatedPrice, isAvailable },
+    description: `Ajuste de precio para "${service?.name}" en sucursal ${branch?.name}: ${previousPrice !== null ? `${formatPYG(previousPrice)} → ` : ''}${formatPYG(validatedPrice)} (solo nuevos registros)`,
     createdAt: new Date(),
   });
 
   ctx.notify();
-  return { branchId, serviceId, customPrice, isAvailable };
+  return { branchId, serviceId, customPrice: validatedPrice, isAvailable };
 }
 
 export function createInsurancePlan(
@@ -1261,23 +1398,27 @@ export function createQuote(
   const data = ctx.getData();
   const id = crypto.randomUUID();
   const quoteNumber = ctx.getNextQuoteNumber();
-  const totalAmount = params.items.reduce((sum, item) => sum + (item.subtotal || item.unitPrice * item.quantity), 0);
-  const discountAmount = params.discountAmount || 0;
+  const totalAmount = params.items.reduce(
+    (sum, item) => sum + Math.max(0, Math.round(Number(item.subtotal || item.unitPrice * item.quantity) || 0)),
+    0
+  );
+  const discountAmount = Math.max(0, Math.round(Number(params.discountAmount || 0)));
+  if (discountAmount > totalAmount) {
+    throw new Error('El descuento adicional no puede superar el subtotal bruto del presupuesto.');
+  }
   const finalAmount = Math.max(0, totalAmount - discountAmount);
 
-  let validUntilDate = params.validUntil;
-  if (!validUntilDate) {
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    validUntilDate = d.toISOString().split('T')[0];
-  }
+  const validUntilDate = params.validUntil || addDaysToIsoDate(getTodayAsuncionISO(), 30);
 
   const patient = (data.patients || []).find((p) => p.id === params.patientId);
-  const selectedPlan = params.planId
-    ? (data.insurancePlans || []).find((p) => p.id === params.planId)
-    : patient?.insurancePlanId
-      ? (data.insurancePlans || []).find((p) => p.id === patient.insurancePlanId)
-      : null;
+  // Respetar explícitamente planId === null (Particular), incluso si el paciente tiene seguro en ficha
+  const resolvedPlanId =
+    params.planId !== undefined
+      ? params.planId || null
+      : patient?.insurancePlanId || null;
+  const selectedPlan = resolvedPlanId
+    ? (data.insurancePlans || []).find((p) => p.id === resolvedPlanId) || null
+    : null;
 
   const newQuote = {
     id,
@@ -1298,10 +1439,7 @@ export function createQuote(
     updatedAt: new Date(),
   };
 
-  if (!data.quotes) {
-    data.quotes = [];
-  }
-  data.quotes.unshift(newQuote);
+  data.quotes = [newQuote, ...(data.quotes || [])];
 
   if (!data.quoteItems) {
     data.quoteItems = [];
@@ -1390,7 +1528,11 @@ export function updateQuote(
   const data = ctx.getData();
   const qIndex = (data.quotes || []).findIndex((q) => q.id === quoteId);
   if (qIndex === -1) return null;
-  const q = data.quotes[qIndex];
+  const q = { ...data.quotes[qIndex] };
+
+  if (q.status === 'APROBADO' || q.status === 'RECHAZADO') {
+    throw new Error(`No se puede modificar un presupuesto que ya fue ${q.status}.`);
+  }
 
   const selectedPlan =
     params.planId !== undefined
@@ -1402,8 +1544,17 @@ export function updateQuote(
         : null;
 
   if (params.items && Array.isArray(params.items)) {
-    const totalAmount = params.items.reduce((sum, item) => sum + (item.subtotal || item.unitPrice * item.quantity), 0);
-    const discountAmount = params.discountAmount !== undefined ? params.discountAmount : q.discountAmount;
+    const totalAmount = params.items.reduce(
+      (sum, item) => sum + Math.max(0, Math.round(Number(item.subtotal || item.unitPrice * item.quantity) || 0)),
+      0
+    );
+    const discountAmount = Math.max(
+      0,
+      Math.round(Number(params.discountAmount !== undefined ? params.discountAmount : q.discountAmount || 0))
+    );
+    if (discountAmount > totalAmount) {
+      throw new Error('El descuento adicional no puede superar el subtotal bruto del presupuesto.');
+    }
     const finalAmount = Math.max(0, totalAmount - discountAmount);
 
     q.totalAmount = totalAmount;
@@ -1454,6 +1605,8 @@ export function updateQuote(
   if (params.validUntil !== undefined) q.validUntil = params.validUntil;
   if (params.notes !== undefined) q.notes = params.notes;
   q.updatedAt = new Date();
+
+  data.quotes = data.quotes.map((item, idx) => (idx === qIndex ? q : item));
 
   data.auditLogs.unshift({
     id: crypto.randomUUID(),
@@ -1508,13 +1661,26 @@ export function updateQuoteStatus(
         .filter((tn): tn is number => tn !== null && tn !== undefined);
 
       const patient = (data.patients || []).find((p) => p.id === q.patientId);
-      const plan = patient?.insurancePlanId
-        ? (data.insurancePlans || []).find((p) => p.id === patient.insurancePlanId)
+      const resolvedPlanId =
+        q.planId !== undefined
+          ? q.planId || null
+          : patient?.modality === 'PLAN_SEGURO'
+            ? patient?.insurancePlanId || null
+            : null;
+      const plan = resolvedPlanId
+        ? (data.insurancePlans || []).find((p) => p.id === resolvedPlanId)
         : null;
+      const itemsOrigSum = items.reduce(
+        (sum, it) =>
+          sum + Number((it as any).originalListPrice ?? it.unitPrice ?? 0) * Math.max(1, Number(it.quantity || 1)),
+        0
+      );
+      const origListPrice = Math.max(itemsOrigSum, Number(q.totalAmount ?? q.finalAmount ?? 0));
 
       createdTreatment = ctx.addTreatment({
         patientId: q.patientId,
         branchId: q.branchId,
+        serviceId: items[0]?.serviceId || undefined,
         title: `Plan Presupuesto ${q.quoteNumber} (${items[0]?.description || 'Odontología Integral'})`,
         totalAmount: q.finalAmount,
         paidAmount: 0,
@@ -1522,10 +1688,11 @@ export function updateQuoteStatus(
         odontologistId: q.odontologistId || undefined,
         quoteId: q.id,
         status: 'EN_PROGRESO',
-        appliedModality: patient?.modality || 'PARTICULAR',
-        appliedPlanId: patient?.insurancePlanId || undefined,
-        appliedPlanName: plan?.name || undefined,
-        originalListPrice: q.totalAmount,
+        startDate: getTodayAsuncionISO(),
+        appliedModality: resolvedPlanId ? 'PLAN_SEGURO' : 'PARTICULAR',
+        appliedPlanId: resolvedPlanId || undefined,
+        appliedPlanName: q.planName || plan?.name || undefined,
+        originalListPrice: origListPrice,
         notes: `Generado automáticamente por aprobación del presupuesto ${q.quoteNumber}`,
         actorUserId,
       });
@@ -1564,6 +1731,14 @@ export function openCashRegister(
   const data = ctx.getData();
   if (!data.cashRegisters) {
     data.cashRegisters = [];
+  }
+
+  const openingAmount = Number(params.openingAmount);
+  if (!Number.isFinite(openingAmount) || openingAmount < 0) {
+    throw new Error('El fondo de apertura debe ser mayor o igual a ₲ 0.');
+  }
+  if (!Number.isInteger(openingAmount)) {
+    throw new Error('El fondo de apertura en Guaraníes (PYG) no admite decimales.');
   }
 
   const openRegister = data.cashRegisters.find((cr) => cr.branchId === params.branchId && cr.status === 'ABIERTA');
@@ -1641,12 +1816,14 @@ export function addCashMovement(
     throw new Error('La caja especificada no existe o se encuentra cerrada.');
   }
 
+  const validatedAmount = validatePygPrice(params.amount, 'El monto del movimiento');
+
   const id = crypto.randomUUID();
   const newMovement = {
     id,
     cashRegisterId: params.cashRegisterId,
     movementType: params.movementType,
-    amount: params.amount,
+    amount: validatedAmount,
     paymentMethod: params.paymentMethod,
     concept: params.concept,
     referenceNumber: params.referenceNumber || null,
@@ -1656,12 +1833,17 @@ export function addCashMovement(
 
   data.cashMovements.unshift(newMovement);
 
-  if (params.receiptNumber || params.patientId) {
+  // Solo emitir recibo en payments cuando exista paciente o tratamiento explícito (nunca asignar al primer paciente al azar)
+  const linkedTreatment = params.treatmentId
+    ? (data.treatments || []).find((t) => t.id === params.treatmentId)
+    : null;
+  const patientIdResolved = params.patientId || linkedTreatment?.patientId || null;
+
+  if (params.movementType === 'INGRESO' && patientIdResolved) {
     if (!data.payments) {
       data.payments = [];
     }
     const payId = crypto.randomUUID();
-    const patientIdResolved = params.patientId || data.patients[0]?.id;
     data.payments.unshift({
       id: payId,
       organizationId: data.organization.id,
@@ -1672,7 +1854,7 @@ export function addCashMovement(
       cashMovementId: id,
       receiptNumber: params.receiptNumber || ctx.getNextReceiptNumber(),
       invoiceNumber: ctx.getNextInvoiceNumber(),
-      amount: params.amount,
+      amount: validatedAmount,
       paymentMethod: params.paymentMethod,
       status: 'COMPLETADO',
       notes: params.concept,
@@ -1680,19 +1862,20 @@ export function addCashMovement(
       createdAt: new Date(),
     });
 
-    if (params.movementType === 'INGRESO' && params.amount > 0) {
-      const treat = params.treatmentId ? (data.treatments || []).find((t) => t.id === params.treatmentId) : null;
-      const linkedQuote = treat?.quoteId ? (data.quotes || []).find((q) => q.id === treat.quoteId) : null;
+    if (validatedAmount > 0) {
+      const linkedQuote = linkedTreatment?.quoteId
+        ? (data.quotes || []).find((q) => q.id === linkedTreatment.quoteId)
+        : null;
       evaluateCommissionsForEvent(data, {
         eventType: 'PAYMENT_COLLECTED',
         organizationId: data.organization.id,
         branchId: register.branchId,
         patientId: patientIdResolved,
-        quoteId: treat?.quoteId || null,
+        quoteId: linkedTreatment?.quoteId || null,
         treatmentId: params.treatmentId || null,
         paymentId: payId,
         odontologistUserId: linkedQuote?.odontologistId || null,
-        amount: params.amount,
+        amount: validatedAmount,
         actorUserId: params.actorUserId,
       });
     }
@@ -1711,11 +1894,11 @@ export function addCashMovement(
     oldValues: null,
     newValues: {
       movementType: params.movementType,
-      amount: params.amount,
+      amount: validatedAmount,
       paymentMethod: params.paymentMethod,
       concept: params.concept,
     },
-    description: `Movimiento de caja (${params.movementType}): ${params.concept} - ₲ ${params.amount.toLocaleString('es-PY')} (${params.paymentMethod})`,
+    description: `Movimiento de caja (${params.movementType}): ${params.concept} - ${formatPYG(validatedAmount)} (${params.paymentMethod})`,
     createdAt: new Date(),
   });
 
@@ -1736,6 +1919,9 @@ export function closeCashRegister(
   const register = (data.cashRegisters || []).find((cr) => cr.id === params.cashRegisterId);
   if (!register) throw new Error('Caja no encontrada.');
   if (register.status === 'CERRADA') throw new Error('Esta caja ya ha sido cerrada.');
+  if (!Number.isFinite(params.closingAmountReal) || !Number.isInteger(params.closingAmountReal) || params.closingAmountReal < 0) {
+    throw new Error('El monto físico contado en Guaraníes (PYG) debe ser un entero mayor o igual a ₲ 0.');
+  }
 
   const movements = (data.cashMovements || []).filter((m) => m.cashRegisterId === params.cashRegisterId);
   const cashIngresos = movements

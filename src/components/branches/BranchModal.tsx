@@ -28,8 +28,10 @@ export const BranchModal: React.FC<BranchModalProps> = ({
   const [openingTime, setOpeningTime] = useState('07:30');
   const [closingTime, setClosingTime] = useState('19:30');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    setErrorMsg(null);
     if (branchToEdit) {
       setCode(branchToEdit.code || '');
       setName(branchToEdit.name || '');
@@ -62,12 +64,18 @@ export const BranchModal: React.FC<BranchModalProps> = ({
   const currentDeptObj =
     PARAGUAY_DEPARTMENTS.find((d) => d.name === department) || PARAGUAY_DEPARTMENTS[1];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     setErrorMsg(null);
 
-    if (!code || !name || !address || !phone) {
+    if (!code.trim() || !name.trim() || !address.trim() || !phone.trim()) {
       setErrorMsg('Por favor complete los campos obligatorios (*).');
+      return;
+    }
+
+    if (openingTime && closingTime && openingTime >= closingTime) {
+      setErrorMsg('El horario de cierre debe ser posterior al horario de apertura.');
       return;
     }
 
@@ -78,40 +86,47 @@ export const BranchModal: React.FC<BranchModalProps> = ({
       allowedBranchIds: session.allowedBranchIds,
     } : undefined;
 
+    setIsSaving(true);
     try {
       if (branchToEdit) {
         dbStore.updateBranch(branchToEdit.id, {
-          code: code.toUpperCase(),
-          name,
+          code: code.trim().toUpperCase(),
+          name: name.trim(),
           department,
           city,
-          neighborhood,
-          address,
-          phone,
-          whatsapp,
-          email: email || `sucursal.${code.toLowerCase()}@odontopro.com.py`,
+          neighborhood: neighborhood.trim(),
+          address: address.trim(),
+          phone: phone.trim(),
+          whatsapp: whatsapp.trim(),
+          email: email.trim() || null,
           openingTime,
           closingTime,
         }, actor);
       } else {
         dbStore.addBranch({
-          code,
-          name,
+          code: code.trim().toUpperCase(),
+          name: name.trim(),
           department,
           city,
-          neighborhood,
-          address,
-          phone,
-          whatsapp,
-          email,
+          neighborhood: neighborhood.trim(),
+          address: address.trim(),
+          phone: phone.trim(),
+          whatsapp: whatsapp.trim(),
+          email: email.trim() || undefined,
           openingTime,
           closingTime,
         }, actor);
       }
 
+      if (dbStore.getBackendActorContext()) {
+        await dbStore.flushPendingSyncStrict();
+      }
+
       onClose();
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error de autorización al guardar sucursal');
+      setErrorMsg(err.message || 'Error al guardar la sucursal.');
+    } finally {
+      setIsSaving(false);
     }
   };
 

@@ -49,3 +49,10 @@ export async function patchAuthoritativeAction<T = any>(
 ): Promise<T> {
   return requestAuthoritativeAction<T>(path, 'PATCH', body);
 }
+
+export async function putAuthoritativeAction<T = any>(
+  path: string,
+  body: Record<string, any>
+): Promise<T> {
+  return requestAuthoritativeAction<T>(path, 'PUT', body);
+}

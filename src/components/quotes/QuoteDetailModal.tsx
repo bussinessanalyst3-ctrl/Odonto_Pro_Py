@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
@@ -33,6 +33,12 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
   const [pendingAction, setPendingAction] = useState<'approve' | 'reject' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPendingAction(null);
+    setActionError(null);
+    setIsSubmitting(false);
+  }, [quoteId]);
 
   if (!quoteId) return null;
 

@@ -162,6 +162,10 @@ class DatabaseStore {
     return this.syncEngine.flushPendingSync();
   }
 
+  public flushPendingSyncStrict(): Promise<void> {
+    return this.syncEngine.flushPendingSyncStrict();
+  }
+
   public setBackendActorContext(actor: BackendActorContext | null) {
     this.currentBackendActor = actor;
     if (!actor) {
@@ -472,6 +476,13 @@ class DatabaseStore {
   ) {
     return orgBranchStore.updateBranchSettings(this.ctx, branchId, updates, actor);
   }
+  public saveBranchDentalChairs(
+    branchId: string,
+    chairs: Parameters<typeof orgBranchStore.saveBranchDentalChairs>[2],
+    actor?: BackendActorContext
+  ) {
+    return orgBranchStore.saveBranchDentalChairs(this.ctx, branchId, chairs, actor);
+  }
 
   // --- Usuarios, Roles, RBAC & Sesiones ---
   public revokeUserSessions(userId: string, adminUserId?: string) {
@@ -696,7 +707,8 @@ class DatabaseStore {
     amount: number,
     paymentMethod: string,
     receiptNumber: string,
-    actorUserId?: string
+    actorUserId?: string,
+    paymentDate?: string
   ) {
     return billingInsuranceStore.recordTreatmentPayment(
       this.ctx,
@@ -704,7 +716,8 @@ class DatabaseStore {
       amount,
       paymentMethod,
       receiptNumber,
-      actorUserId
+      actorUserId,
+      paymentDate
     );
   }
   public annulPayment(params: Parameters<typeof billingInsuranceStore.annulPayment>[1]) {
@@ -716,9 +729,10 @@ class DatabaseStore {
   public updateService(
     serviceId: string,
     updates: Parameters<typeof billingInsuranceStore.updateService>[2],
-    actorUserId?: string
+    actorUserId?: string,
+    options?: Parameters<typeof billingInsuranceStore.updateService>[4]
   ) {
-    return billingInsuranceStore.updateService(this.ctx, serviceId, updates, actorUserId);
+    return billingInsuranceStore.updateService(this.ctx, serviceId, updates, actorUserId, options);
   }
   public setBranchServicePrice(
     branchId: string,

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { X, Check, Stethoscope, AlertCircle, Plus, ShieldCheck, Tag, Info, Sparkles } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 
 interface CreateTreatmentModalProps {
@@ -32,7 +33,7 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
   const [totalAmount, setTotalAmount] = useState<number>(0);
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [status, setStatus] = useState<'PLANIFICADO' | 'EN_PROGRESO' | 'COMPLETADO'>('PLANIFICADO');
-  const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState<string>(() => getTodayAsuncionISO());
   const [toothInput, setToothInput] = useState<string>(initialToothNumber ? String(initialToothNumber) : '');
   const [notes, setNotes] = useState<string>('');
 
@@ -41,6 +42,29 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
   const [forcedPlanId, setForcedPlanId] = useState<string>('');
 
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const latest = dbStore.getSnapshot();
+    setPatientId(initialPatientId || latest.patients[0]?.id || '');
+    setBranchId(latest.branches[0]?.id || '');
+    setServiceId('');
+    setTitle('');
+    setOdontologistId(
+      session?.role === 'ODONTOLOGO'
+        ? session.userId
+        : latest.users.find((u) => u.roleId === 'ODONTOLOGO')?.id || latest.users[0]?.id || ''
+    );
+    setTotalAmount(0);
+    setPaidAmount(0);
+    setStatus('PLANIFICADO');
+    setStartDate(getTodayAsuncionISO());
+    setToothInput(initialToothNumber ? String(initialToothNumber) : '');
+    setNotes('');
+    setForcedModality('AUTO');
+    setForcedPlanId('');
+    setError(null);
+  }, [isOpen, initialPatientId, initialToothNumber, session?.role, session?.userId]);
 
   const selectedPatient = snapshot.patients.find((p) => p.id === patientId);
   const insurancePlans = (snapshot.insurancePlans || []).filter((ip) => ip.status === 'ACTIVO' || ip.status === 'ACTIVE');
@@ -55,7 +79,7 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
       forcedModality: forcedModality === 'AUTO' ? undefined : forcedModality,
       forcedPlanId: forcedPlanId || undefined,
     });
-  }, [serviceId, patientId, branchId, forcedModality, forcedPlanId, snapshot]);
+  }, [serviceId, patientId, branchId, forcedModality, forcedPlanId, snapshot.services, snapshot.branchServices]);
 
   // Actualiza el monto automáticamente cuando se resuelve una nueva tarifa
   useEffect(() => {
@@ -92,8 +116,16 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
       setError('El título del tratamiento es obligatorio.');
       return;
     }
-    if (totalAmount < 0) {
-      setError('El monto total no puede ser negativo.');
+    if (!Number.isInteger(totalAmount) || totalAmount < 0) {
+      setError('El monto total debe ser un número entero en Guaraníes (mayor o igual a ₲ 0).');
+      return;
+    }
+    if (!Number.isInteger(paidAmount) || paidAmount < 0) {
+      setError('La seña o pago inicial debe ser un número entero en Guaraníes.');
+      return;
+    }
+    if (paidAmount > totalAmount) {
+      setError('La seña o pago inicial no puede superar el monto total del tratamiento.');
       return;
     }
 
@@ -361,10 +393,11 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
               </label>
               <input
                 type="number"
-                step="1000"
+                step="1"
                 min="0"
+                inputMode="numeric"
                 value={totalAmount}
-                onChange={(e) => setTotalAmount(parseInt(e.target.value, 10) || 0)}
+                onChange={(e) => setTotalAmount(Math.max(0, Math.round(Number(e.target.value) || 0)))}
                 required
                 className="w-full text-xs font-bold text-slate-900 p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
               />
@@ -380,11 +413,12 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
               </label>
               <input
                 type="number"
-                step="1000"
+                step="1"
                 min="0"
                 max={totalAmount}
+                inputMode="numeric"
                 value={paidAmount}
-                onChange={(e) => setPaidAmount(parseInt(e.target.value, 10) || 0)}
+                onChange={(e) => setPaidAmount(Math.max(0, Math.round(Number(e.target.value) || 0)))}
                 className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
               />
               <span className="text-[10px] text-slate-500 mt-0.5 block">

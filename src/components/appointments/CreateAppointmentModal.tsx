@@ -29,9 +29,13 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
   const snapshot = dbStore.getSnapshot();
 
   const branches = snapshot.branches;
-  const patients = snapshot.patients;
-  const dentists = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO');
-  const services = snapshot.services;
+  const activePatients = snapshot.patients.filter((p) => p.status !== 'INACTIVE');
+  const patients = activePatients.length > 0 ? activePatients : snapshot.patients;
+  const activeDentists = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO' && u.status !== 'INACTIVE');
+  const dentists = activeDentists.length > 0
+    ? activeDentists
+    : snapshot.users.filter((u) => u.status !== 'INACTIVE' && (u.roleId === 'SUPER_ADMIN' || u.roleId === 'ADMIN_SUCURSAL'));
+  const services = snapshot.services.filter((s) => s.status !== 'INACTIVE');
 
   const [branchId, setBranchId] = useState<string>(branches[0]?.id || '');
   const [patientId, setPatientId] = useState<string>(patients[0]?.id || '');
@@ -48,7 +52,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
 
   // Available chairs for chosen branch
   const availableChairs = (snapshot.dentalChairs || []).filter(
-    (c) => c.branchId === branchId
+    (c) => c.branchId === branchId && c.status !== 'INACTIVE'
   );
 
   // Automatically update duration when service changes
@@ -61,9 +65,11 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
   };
 
   // Compute end time based on start time + duration
-  const computeEndTime = (startStr: string, dur: number) => {
+  const computeEndTime = (startStr: string, dur: number): string | null => {
     const [h, m] = startStr.split(':').map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
     const totalMin = h * 60 + m + dur;
+    if (totalMin > 23 * 60 + 59) return null;
     const endH = Math.floor(totalMin / 60);
     const endM = totalMin % 60;
     return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`;
@@ -80,12 +86,17 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
     }
 
     const calculatedEndTime = computeEndTime(startTime, durationMin);
+    if (!calculatedEndTime) {
+      setErrorMessage('El horario supera el cierre del día (23:59). Ajuste la hora de inicio o la duración.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const payload = {
         branchId,
-        dentalChairId: dentalChairId || (availableChairs[0]?.id),
+        dentalChairId: dentalChairId || undefined,
         patientId,
         odontologistId,
         serviceId,
@@ -93,7 +104,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
         startTime: `${startTime}:00`,
         endTime: calculatedEndTime,
         durationMin,
-        reason: reason || 'Consulta clínica dental programada',
+        reason: reason.trim() || 'Consulta clínica dental programada',
         notes,
       };
 
@@ -108,8 +119,24 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
           result.stateVersion
         );
       } else {
+        // Offline mode: find first free chair automatically if not explicitly chosen
+        let resolvedChairId = dentalChairId || undefined;
+        if (!resolvedChairId && availableChairs.length > 0) {
+          const freeChair = availableChairs.find((ch) => {
+            const check = dbStore.checkDoubleBooking({
+              branchId,
+              appointmentDate,
+              startTime: `${startTime}:00`,
+              endTime: calculatedEndTime,
+              dentalChairId: ch.id,
+            });
+            return !check.hasConflict;
+          });
+          resolvedChairId = freeChair ? freeChair.id : availableChairs[0].id;
+        }
         dbStore.addAppointment({
           ...payload,
+          dentalChairId: resolvedChairId,
           actorUserId: session?.userId,
         });
       }

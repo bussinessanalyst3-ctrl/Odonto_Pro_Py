@@ -25,6 +25,8 @@ import {
   History,
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
+import { getAsuncionYearMonth } from '../../utils/reportPeriod.ts';
 import {
   EmployeeRecord,
   PayrollSettlementRecord,
@@ -133,6 +135,18 @@ export const StaffPayrollManagementView: React.FC = () => {
   const patients = snapshot.patients || [];
   const quotes = snapshot.quotes || [];
   const payments = snapshot.payments || [];
+
+  const availableYears = useMemo(() => {
+    const currentYear = getAsuncionYearMonth(getTodayAsuncionISO()).year;
+    const yearSet = new Set<number>([currentYear, currentYear - 1, currentYear - 2]);
+    for (const c of snapshot.generatedCommissions || []) {
+      if (Number(c.periodYear) > 2000) yearSet.add(Number(c.periodYear));
+    }
+    for (const s of snapshot.payrollSettlements || []) {
+      if (Number(s.periodYear) > 2000) yearSet.add(Number(s.periodYear));
+    }
+    return Array.from(yearSet).sort((a, b) => b - a);
+  }, [snapshot.generatedCommissions, snapshot.payrollSettlements]);
 
   const effectiveEmployeeIdFilter = isOwnOnlyMode
     ? linkedEmployee?.id || '__NO_LINKED_EMPLOYEE__'
@@ -269,7 +283,7 @@ export const StaffPayrollManagementView: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `planilla_personal_odontopro_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `planilla_personal_odontopro_${getTodayAsuncionISO()}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -436,7 +450,7 @@ export const StaffPayrollManagementView: React.FC = () => {
       )}
 
       {/* Barra de Filtros */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-3.5 grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+      <div className="bg-white rounded-2xl border border-slate-200 p-3.5 grid grid-cols-2 sm:grid-cols-6 gap-2.5">
         <select
           value={branchFilter}
           onChange={(e) => setBranchFilter(e.target.value)}
@@ -473,6 +487,21 @@ export const StaffPayrollManagementView: React.FC = () => {
           {(isOwnOnlyMode ? employees : allEmployees).map((emp: any) => (
             <option key={emp.id} value={emp.id}>
               {getEmployeeDisplayName(emp)}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={periodYearFilter}
+          onChange={(e) =>
+            setPeriodYearFilter(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))
+          }
+          className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-700"
+        >
+          <option value="ALL">Todos los Años</option>
+          {availableYears.map((yr) => (
+            <option key={yr} value={yr}>
+              Año {yr}
             </option>
           ))}
         </select>

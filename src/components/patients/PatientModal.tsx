@@ -4,6 +4,11 @@ import { PARAGUAY_DEPARTMENTS } from '../../db/seeds/paraguay-catalogs.ts';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { hasPermission } from '../../security/rbacHierarchy.ts';
 import { UNKNOWN_CREATOR_LABEL } from '../../db/payrollEngine.ts';
+import {
+  hasBackendSession,
+  postAuthoritativeAction,
+  putAuthoritativeAction,
+} from '../../services/authoritativeApi.ts';
 
 interface PatientModalProps {
   isOpen: boolean;
@@ -23,18 +28,18 @@ export const PatientModal: React.FC<PatientModalProps> = ({
   const [documentNumber, setDocumentNumber] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [birthDate, setBirthDate] = useState('1995-05-15');
-  const [gender, setGender] = useState('MASCULINO');
-  const [bloodType, setBloodType] = useState('O+');
+  const [birthDate, setBirthDate] = useState('');
+  const [gender, setGender] = useState('NO_ESPECIFICA');
+  const [bloodType, setBloodType] = useState('');
   const [phone, setPhone] = useState('+595 981 ');
   const [whatsapp, setWhatsapp] = useState('+595 981 ');
   const [email, setEmail] = useState('');
   const [department, setDepartment] = useState('Central');
   const [city, setCity] = useState('San Lorenzo');
-  const [neighborhood, setNeighborhood] = useState('Centro');
+  const [neighborhood, setNeighborhood] = useState('');
   const [address, setAddress] = useState('');
   const [emergencyName, setEmergencyName] = useState('');
-  const [emergencyPhone, setEmergencyPhone] = useState('+595 981 ');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
   const [allergies, setAllergies] = useState('Ninguna conocida');
   const [medicalConditions, setMedicalConditions] = useState('Ninguna');
   const [medications, setMedications] = useState('Ninguna');
@@ -44,6 +49,7 @@ export const PatientModal: React.FC<PatientModalProps> = ({
   const [insuranceMemberNumber, setInsuranceMemberNumber] = useState('');
   const [assignedAdvisorId, setAssignedAdvisorId] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const actor = dbStore.getBackendActorContext();
   const canAssignAdvisor = !actor || hasPermission(actor, 'patients.assign_advisor');
@@ -70,18 +76,18 @@ export const PatientModal: React.FC<PatientModalProps> = ({
       setDocumentNumber(patientToEdit.documentNumber || '');
       setFirstName(patientToEdit.firstName || '');
       setLastName(patientToEdit.lastName || '');
-      setBirthDate(patientToEdit.birthDate || '1995-05-15');
-      setGender(patientToEdit.gender || 'MASCULINO');
-      setBloodType(patientToEdit.bloodType || 'O+');
+      setBirthDate(patientToEdit.birthDate || '');
+      setGender(patientToEdit.gender || 'NO_ESPECIFICA');
+      setBloodType(patientToEdit.bloodType || '');
       setPhone(patientToEdit.phone || '+595 ');
       setWhatsapp(patientToEdit.whatsapp || patientToEdit.phone || '+595 ');
       setEmail(patientToEdit.email || '');
       setDepartment(patientToEdit.department || 'Central');
       setCity(patientToEdit.city || 'San Lorenzo');
-      setNeighborhood(patientToEdit.neighborhood || 'Centro');
+      setNeighborhood(patientToEdit.neighborhood || '');
       setAddress(patientToEdit.address || '');
       setEmergencyName(patientToEdit.emergencyContactName || '');
-      setEmergencyPhone(patientToEdit.emergencyContactPhone || '+595 ');
+      setEmergencyPhone(patientToEdit.emergencyContactPhone || '');
       setAllergies(patientToEdit.allergies || 'Ninguna conocida');
       setMedicalConditions(patientToEdit.medicalConditions || 'Ninguna');
       setMedications(patientToEdit.medications || 'Ninguna');
@@ -91,23 +97,24 @@ export const PatientModal: React.FC<PatientModalProps> = ({
       setInsuranceMemberNumber(patientToEdit.insuranceMemberNumber || '');
       setAssignedAdvisorId(patientToEdit.assignedAdvisorId || '');
       setFormError(null);
+      setIsSaving(false);
     } else {
       setDocumentType('CI');
       setDocumentNumber('');
       setFirstName('');
       setLastName('');
-      setBirthDate('1995-05-15');
-      setGender('MASCULINO');
-      setBloodType('O+');
+      setBirthDate('');
+      setGender('NO_ESPECIFICA');
+      setBloodType('');
       setPhone('+595 981 ');
       setWhatsapp('+595 981 ');
       setEmail('');
       setDepartment('Central');
       setCity('San Lorenzo');
-      setNeighborhood('Centro');
+      setNeighborhood('');
       setAddress('');
       setEmergencyName('');
-      setEmergencyPhone('+595 981 ');
+      setEmergencyPhone('');
       setAllergies('Ninguna conocida');
       setMedicalConditions('Ninguna');
       setMedications('Ninguna');
@@ -117,6 +124,7 @@ export const PatientModal: React.FC<PatientModalProps> = ({
       setInsuranceMemberNumber('');
       setAssignedAdvisorId('');
       setFormError(null);
+      setIsSaving(false);
     }
   }, [patientToEdit, isOpen]);
 
@@ -125,68 +133,94 @@ export const PatientModal: React.FC<PatientModalProps> = ({
   const currentDeptObj =
     PARAGUAY_DEPARTMENTS.find((d) => d.name === department) || PARAGUAY_DEPARTMENTS[1];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     setFormError(null);
 
-    if (!documentNumber || !firstName || !lastName || !phone) {
+    if (!documentNumber.trim() || !firstName.trim() || !lastName.trim() || !phone.trim()) {
       setFormError('Por favor complete todos los campos obligatorios (*).');
       return;
     }
 
+    const basePayload: any = {
+      documentType,
+      documentNumber: documentNumber.trim(),
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      birthDate: birthDate.trim() || null,
+      gender: gender || 'NO_ESPECIFICA',
+      bloodType: bloodType.trim() || null,
+      phone: phone.trim(),
+      whatsapp: whatsapp.trim() || phone.trim(),
+      email: email.trim() || null,
+      department,
+      city,
+      neighborhood: neighborhood.trim() || null,
+      address: address.trim() || null,
+      emergencyContactName: emergencyName.trim() || null,
+      emergencyContactPhone: emergencyPhone.trim() || null,
+      allergies: allergies.trim() || 'Ninguna conocida',
+      medicalConditions: medicalConditions.trim() || 'Ninguna',
+      medications: medications.trim() || 'Ninguna',
+      primaryBranchId: primaryBranchId || branches[0]?.id,
+      modality,
+      insurancePlanId: modality === 'PLAN_SEGURO' ? (insurancePlanId || null) : null,
+      insuranceMemberNumber: modality === 'PLAN_SEGURO' ? (insuranceMemberNumber.trim() || null) : null,
+    };
+    if (canAssignAdvisor) {
+      basePayload.assignedAdvisorId = assignedAdvisorId || null;
+    }
+
+    setIsSaving(true);
     try {
       if (patientToEdit) {
-        const updatePayload: any = {
-          documentType,
-          documentNumber,
-          firstName,
-          lastName,
-          birthDate,
-          gender,
-          bloodType,
-          phone,
-          whatsapp,
-          email: email || `${firstName.toLowerCase().replace(/\s+/g, '')}@gmail.com`,
-          department,
-          city,
-          neighborhood,
-          address,
-          emergencyContactName: emergencyName,
-          emergencyContactPhone: emergencyPhone,
-          allergies,
-          medicalConditions,
-          medications,
-          primaryBranchId,
-          modality,
-          insurancePlanId: modality === 'PLAN_SEGURO' ? (insurancePlanId || null) : null,
-          insuranceMemberNumber: modality === 'PLAN_SEGURO' ? (insuranceMemberNumber.trim() || null) : null,
-        };
-        if (canAssignAdvisor) {
-          updatePayload.assignedAdvisorId = assignedAdvisorId || null;
+        if (hasBackendSession()) {
+          const res = await putAuthoritativeAction<{
+            patient?: any;
+            auditLogs?: any[];
+            stateVersion?: number;
+          }>(`/api/patients/${patientToEdit.id}`, basePayload);
+          dbStore.applyAuthoritativeSync(
+            {
+              ...(res.patient ? { patients: [res.patient] } : {}),
+              ...(res.auditLogs?.length ? { auditLogs: res.auditLogs } : {}),
+            },
+            res.stateVersion
+          );
+        } else {
+          dbStore.updatePatient(patientToEdit.id, basePayload, actor?.userId);
         }
-        dbStore.updatePatient(patientToEdit.id, updatePayload, actor?.userId);
       } else {
-        dbStore.addPatient({
-          documentType,
-          documentNumber,
-          firstName,
-          lastName,
-          phone,
-          primaryBranchId: primaryBranchId || branches[0]?.id,
-          department,
-          city,
-          allergies,
-          modality,
-          insurancePlanId: modality === 'PLAN_SEGURO' ? (insurancePlanId || null) : null,
-          insuranceMemberNumber: modality === 'PLAN_SEGURO' ? (insuranceMemberNumber.trim() || null) : null,
-          assignedAdvisorId: canAssignAdvisor ? (assignedAdvisorId || null) : null,
-          actorUserId: actor?.userId || null,
-        });
+        if (hasBackendSession()) {
+          const res = await postAuthoritativeAction<{
+            patient?: any;
+            patientBranch?: any;
+            auditLogs?: any[];
+            stateVersion?: number;
+          }>('/api/patients', basePayload);
+          dbStore.applyAuthoritativeSync(
+            {
+              ...(res.patient ? { patients: [res.patient] } : {}),
+              ...(res.patientBranch ? { patientBranches: [res.patientBranch] } : {}),
+              ...(res.auditLogs?.length ? { auditLogs: res.auditLogs } : {}),
+            },
+            res.stateVersion
+          );
+        } else {
+          dbStore.addPatient({
+            ...basePayload,
+            assignedAdvisorId: canAssignAdvisor ? (assignedAdvisorId || null) : null,
+            actorUserId: actor?.userId || null,
+          });
+        }
       }
 
       onClose();
     } catch (err: any) {
       setFormError(err.message || 'No se pudo guardar la ficha del paciente.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -669,16 +703,18 @@ export const PatientModal: React.FC<PatientModalProps> = ({
           <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-3 border-t border-slate-100">
             <button
               type="button"
+              disabled={isSaving}
               onClick={onClose}
-              className="w-full sm:w-auto px-4 py-2.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors min-h-[44px] flex items-center justify-center cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition-colors min-h-[44px] flex items-center justify-center cursor-pointer disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl transition-all shadow-md shadow-teal-700/20 min-h-[44px] flex items-center justify-center cursor-pointer"
+              disabled={isSaving}
+              className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl transition-all shadow-md shadow-teal-700/20 min-h-[44px] flex items-center justify-center cursor-pointer disabled:opacity-60"
             >
-              {patientToEdit ? 'Guardar Cambios' : 'Registrar Paciente'}
+              {isSaving ? 'Guardando...' : patientToEdit ? 'Guardar Cambios' : 'Registrar Paciente'}
             </button>
           </div>
         </form>

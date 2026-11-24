@@ -51,7 +51,15 @@ export const BranchManagementView: React.FC = () => {
 
   const snapshot = dbStore.getSnapshot();
   const org = snapshot.organization;
-  const branches = snapshot.branches;
+  const actorCtx = session
+    ? {
+        userId: session.userId,
+        role: session.role,
+        organizationId: session.organizationId,
+        allowedBranchIds: session.allowedBranchIds,
+      }
+    : undefined;
+  const branches = dbStore.getBranches(actorCtx);
 
   useEffect(() => {
     if (org) {
@@ -86,33 +94,36 @@ export const BranchManagementView: React.FC = () => {
     setIsSettingsModalOpen(true);
   };
 
-  const handleToggleStatus = (branchId: string) => {
-    const actor = session ? {
-      userId: session.userId,
-      role: session.role,
-      organizationId: session.organizationId,
-      allowedBranchIds: session.allowedBranchIds,
-    } : undefined;
-
+  const handleToggleStatus = async (branchId: string) => {
     try {
-      dbStore.toggleBranchStatus(branchId, actor);
+      dbStore.toggleBranchStatus(branchId, actorCtx);
+      if (dbStore.getBackendActorContext()) {
+        await dbStore.flushPendingSyncStrict();
+      }
     } catch (err: any) {
       setErrorMessage(err.message || 'Operación de cambio de estado no autorizada.');
       setTimeout(() => setErrorMessage(null), 5000);
     }
   };
 
-  const handleSaveOrg = (e: React.FormEvent) => {
+  const handleSaveOrg = async (e: React.FormEvent) => {
     e.preventDefault();
-    dbStore.updateOrganization({
-      legalName: orgLegalName,
-      name: orgLegalName,
-      taxId: orgTaxId,
-      phone: orgPhone,
-      email: orgEmail,
-      address: orgAddress,
-    });
-    setIsEditingOrg(false);
+    try {
+      dbStore.updateOrganization({
+        legalName: orgLegalName,
+        name: orgLegalName,
+        taxId: orgTaxId,
+        phone: orgPhone,
+        email: orgEmail,
+        address: orgAddress,
+      });
+      if (dbStore.getBackendActorContext()) {
+        await dbStore.flushPendingSyncStrict();
+      }
+      setIsEditingOrg(false);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Error al guardar los datos de la organización.');
+    }
   };
 
   const activeBranches = branches.filter((b) => b.status === 'ACTIVE');
@@ -297,7 +308,9 @@ export const BranchManagementView: React.FC = () => {
         {branches.map((b) => {
           const settings = dbStore.getBranchSettings(b.id);
           const branchUsers = snapshot.userBranches.filter((ub) => ub.branchId === b.id);
-          const branchAppointments = snapshot.appointments.filter((a) => a.branchId === b.id);
+          const branchChairs = (snapshot.dentalChairs || []).filter(
+            (c) => c.branchId === b.id && c.status !== 'INACTIVE'
+          );
           const isCurrentActive = session?.currentBranchId === b.id;
           const canToggleStatus = session?.role === 'SUPER_ADMIN' || session?.role === 'ADMIN_ORGANIZACION';
           const canManageThisBranch =
@@ -389,8 +402,8 @@ export const BranchManagementView: React.FC = () => {
                   </div>
 
                   <div className="p-2 rounded-xl bg-indigo-50/50 border border-indigo-100/60">
-                    <div className="text-xs font-bold text-indigo-900">{branchAppointments.length}</div>
-                    <div className="text-[10px] text-indigo-700">Turnos</div>
+                    <div className="text-xs font-bold text-indigo-900">{branchChairs.length}</div>
+                    <div className="text-[10px] text-indigo-700">Sillones</div>
                   </div>
 
                   <div className="p-2 rounded-xl bg-slate-100/70 border border-slate-200/60">

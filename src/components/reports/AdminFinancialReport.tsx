@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   DollarSign,
   TrendingUp,
@@ -8,68 +8,78 @@ import {
   Landmark,
   Wallet,
   Users,
-  Calendar,
   FileSpreadsheet,
   Printer,
   Download,
-  ArrowUpRight,
   ShieldCheck,
-  Shield,
   Clock,
-  Percent
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
+import {
+  ReportPeriodFilter,
+  collectUniqueRevenueEntries,
+  getPeriodLabel,
+  isDateInReportPeriod,
+} from '../../utils/reportPeriod.ts';
 
 interface AdminFinancialReportProps {
   selectedBranchId: string;
+  periodFilter?: ReportPeriodFilter;
   onSelectBranch: (branchId: string) => void;
 }
 
 export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
   selectedBranchId,
+  periodFilter,
   onSelectBranch,
 }) => {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    return dbStore.subscribe(() => setTick((t) => t + 1));
+  }, []);
+
   const snapshot = dbStore.getSnapshot();
-  const branches = snapshot.branches;
+  const branches = dbStore.getBranches();
   const payments = snapshot.payments || [];
   const cashMovements = snapshot.cashMovements || [];
-  const patients = snapshot.patients || [];
-  const quotes = snapshot.quotes || [];
+  const cashRegisters = snapshot.cashRegisters || [];
+  const allPatients = snapshot.patients || [];
+  const allQuotes = snapshot.quotes || [];
   const insurancePlans = snapshot.insurancePlans || [];
   const insuranceClaims = snapshot.insuranceClaims || [];
 
-  // Filter payments by branch if branch selected
-  const filteredPayments = selectedBranchId
-    ? payments.filter((p) => p.branchId === selectedBranchId)
-    : payments;
+  const todayIso = getTodayAsuncionISO();
+  const activePeriod: ReportPeriodFilter = periodFilter || { preset: 'ALL' };
+  const periodLabel = getPeriodLabel(activePeriod, todayIso);
 
-  // Payments total
-  const directPaymentsTotal = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+  // Ingresos efectivos SIN doble contabilización (excluye anulados y movimientos ya vinculados a un pago)
+  const filteredRevenueEntries = collectUniqueRevenueEntries({
+    payments,
+    cashMovements,
+    cashRegisters,
+    branchId: selectedBranchId || undefined,
+    period: activePeriod,
+    todayIso,
+  });
 
-  // Cash movements ingresos
-  const filteredMovements = selectedBranchId
-    ? cashMovements.filter((m) => {
-        const reg = (snapshot.cashRegisters || []).find((c) => c.id === m.cashRegisterId);
-        return reg?.branchId === selectedBranchId;
-      })
-    : cashMovements;
+  const totalRevenue = filteredRevenueEntries.reduce((sum, entry) => sum + entry.amount, 0);
 
-  const movementIngresos = filteredMovements
-    .filter((m) => m.movementType === 'INGRESO')
-    .reduce((sum, m) => sum + m.amount, 0);
-
-  const totalRevenue = directPaymentsTotal + movementIngresos;
-
-  // Revenue by branch breakdown
+  // Revenue by branch breakdown (sin doble contabilización)
   const branchMetrics = branches.map((b) => {
-    const branchPayments = payments.filter((p) => p.branchId === b.id);
-    const bMovements = cashMovements.filter((m) => {
-      const reg = (snapshot.cashRegisters || []).find((c) => c.id === m.cashRegisterId);
-      return reg?.branchId === b.id && m.movementType === 'INGRESO';
+    const bEntries = collectUniqueRevenueEntries({
+      payments,
+      cashMovements,
+      cashRegisters,
+      branchId: b.id,
+      period: activePeriod,
+      todayIso,
     });
-    const totalB = branchPayments.reduce((s, p) => s + p.amount, 0) + bMovements.reduce((s, m) => s + m.amount, 0);
-    const patientCount = patients.filter((p) => p.primaryBranchId === b.id).length;
+    const totalB = bEntries.reduce((s, e) => s + e.amount, 0);
+    const patientCount = allPatients.filter(
+      (p) => p.primaryBranchId === b.id && p.status !== 'INACTIVO'
+    ).length;
     return {
       branch: b,
       revenue: totalB,
@@ -77,9 +87,21 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
     };
   });
 
-  const grandTotalAllBranches = branchMetrics.reduce((s, bm) => s + bm.revenue, 0) || 1;
+  const grandTotalAllBranches = branchMetrics.reduce((s, bm) => s + bm.revenue, 0);
 
-  // Revenue by payment method
+  // Patients & quotes filtered by branch and period
+  const filteredPatients = allPatients.filter((p) => {
+    if (p.status === 'INACTIVO') return false;
+    if (selectedBranchId && p.primaryBranchId !== selectedBranchId) return false;
+    return true;
+  });
+
+  const filteredQuotes = allQuotes.filter((q) => {
+    if (selectedBranchId && q.branchId !== selectedBranchId) return false;
+    return isDateInReportPeriod(q.createdAt, activePeriod, todayIso);
+  });
+
+  // Revenue by payment method (basado únicamente en ingresos únicos)
   const paymentMethodsBreakdown: { [key: string]: { label: string; icon: any; amount: number; count: number } } = {
     TRANSFERENCIA_SIPAP: {
       label: 'SIPAP (Bancos de Paraguay)',
@@ -113,64 +135,68 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
     },
   };
 
-  // Tally payments
-  filteredPayments.forEach((p) => {
-    const method = p.paymentMethod || 'EFECTIVO';
-    if (paymentMethodsBreakdown[method]) {
-      paymentMethodsBreakdown[method].amount += p.amount;
-      paymentMethodsBreakdown[method].count += 1;
+  filteredRevenueEntries.forEach((entry) => {
+    const method = entry.paymentMethod || 'EFECTIVO';
+    if (!paymentMethodsBreakdown[method]) {
+      paymentMethodsBreakdown[method] = {
+        label: method.replace(/_/g, ' '),
+        icon: Wallet,
+        amount: 0,
+        count: 0,
+      };
     }
+    paymentMethodsBreakdown[method].amount += entry.amount;
+    paymentMethodsBreakdown[method].count += 1;
   });
 
-  // Tally movements
-  filteredMovements
-    .filter((m) => m.movementType === 'INGRESO')
-    .forEach((m) => {
-      const method = m.paymentMethod || 'EFECTIVO';
-      if (paymentMethodsBreakdown[method]) {
-        paymentMethodsBreakdown[method].amount += m.amount;
-        paymentMethodsBreakdown[method].count += 1;
-      }
-    });
-
   // Ticket promedio
-  const totalTransactionsCount =
-    filteredPayments.length + filteredMovements.filter((m) => m.movementType === 'INGRESO').length;
+  const totalTransactionsCount = filteredRevenueEntries.length;
   const averageTicket = totalTransactionsCount > 0 ? Math.round(totalRevenue / totalTransactionsCount) : 0;
 
-  // Modality metrics: Particulares vs Aseguradoras
-  const branchFilteredClaims = selectedBranchId
-    ? insuranceClaims.filter((c: any) => c.branchId === selectedBranchId)
-    : insuranceClaims;
+  // Modality metrics: Particulares vs Aseguradoras (excluyendo pagos anulados y respetando período)
+  const filteredValidPayments = payments.filter((p) => {
+    if (p.status === 'ANULADO') return false;
+    if (selectedBranchId && p.branchId !== selectedBranchId) return false;
+    return isDateInReportPeriod(p.createdAt || p.paymentDate, activePeriod, todayIso);
+  });
+
+  const branchFilteredClaims = insuranceClaims.filter((c: any) => {
+    if (selectedBranchId && c.branchId !== selectedBranchId) return false;
+    return isDateInReportPeriod(c.serviceDate || c.createdAt, activePeriod, todayIso);
+  });
 
   let particularPaymentsTotal = 0;
   let insuranceCopaysTotal = 0;
 
-  filteredPayments.forEach((pay) => {
-    const pat = patients.find((p) => p.id === pay.patientId);
+  filteredValidPayments.forEach((pay) => {
+    const pat = allPatients.find((p) => p.id === pay.patientId);
     if (pat?.modality === 'PLAN_SEGURO') {
-      insuranceCopaysTotal += pay.amount;
+      insuranceCopaysTotal += Math.round(Number(pay.amount || 0));
     } else {
-      particularPaymentsTotal += pay.amount;
+      particularPaymentsTotal += Math.round(Number(pay.amount || 0));
     }
   });
 
   const insuranceSettledTotal = branchFilteredClaims
     .filter((c: any) => c.status === 'LIQUIDADO_COBRADO')
-    .reduce((s: number, c: any) => s + (c.coveredAmount || 0), 0);
+    .reduce((s: number, c: any) => s + Math.round(Number(c.coveredAmount || 0)), 0);
 
   const insurancePendingTotal = branchFilteredClaims
     .filter((c: any) => c.status !== 'LIQUIDADO_COBRADO' && c.status !== 'RECHAZADO')
-    .reduce((s: number, c: any) => s + (c.coveredAmount || 0), 0);
+    .reduce((s: number, c: any) => s + Math.round(Number(c.coveredAmount || 0)), 0);
 
   const totalGrossCommercial = particularPaymentsTotal + insuranceCopaysTotal + insuranceSettledTotal + insurancePendingTotal;
 
   // Plan metrics breakdown
   const planBreakdown = insurancePlans.map((pl) => {
     const pClaims = branchFilteredClaims.filter((c: any) => c.planId === pl.id);
-    const coveredSum = pClaims.reduce((s: number, c: any) => s + (c.coveredAmount || 0), 0);
-    const settledSum = pClaims.filter((c: any) => c.status === 'LIQUIDADO_COBRADO').reduce((s: number, c: any) => s + (c.coveredAmount || 0), 0);
-    const pendingSum = pClaims.filter((c: any) => c.status !== 'LIQUIDADO_COBRADO' && c.status !== 'RECHAZADO').reduce((s: number, c: any) => s + (c.coveredAmount || 0), 0);
+    const coveredSum = pClaims.reduce((s: number, c: any) => s + Math.round(Number(c.coveredAmount || 0)), 0);
+    const settledSum = pClaims
+      .filter((c: any) => c.status === 'LIQUIDADO_COBRADO')
+      .reduce((s: number, c: any) => s + Math.round(Number(c.coveredAmount || 0)), 0);
+    const pendingSum = pClaims
+      .filter((c: any) => c.status !== 'LIQUIDADO_COBRADO' && c.status !== 'RECHAZADO')
+      .reduce((s: number, c: any) => s + Math.round(Number(c.coveredAmount || 0)), 0);
     return {
       plan: pl,
       claimsCount: pClaims.length,
@@ -189,7 +215,7 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
       `"${bm.branch.city}"`,
       bm.patientCount,
       bm.revenue,
-      `${Math.round((bm.revenue / grandTotalAllBranches) * 100)}%`,
+      `${grandTotalAllBranches > 0 ? Math.round((bm.revenue / grandTotalAllBranches) * 100) : 0}%`,
     ]);
 
     const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n');
@@ -197,10 +223,11 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Reporte_Financiero_OdontoPro_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Reporte_Financiero_ODONTOPRO_${todayIso}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -249,35 +276,35 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
             </div>
           </div>
           <div className="text-2xl font-black text-slate-900">{formatPYG(totalRevenue)}</div>
-          <div className="text-[11px] text-emerald-600 font-medium mt-1.5 flex items-center gap-1">
+          <div className="text-[11px] text-teal-700 font-medium mt-1.5 flex items-center gap-1">
             <TrendingUp className="h-3.5 w-3.5" />
-            <span>+19.4% vs mes anterior (SET)</span>
+            <span>{periodLabel} • Sin duplicación</span>
           </div>
         </div>
 
         <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Ticket Promedio por Paciente</span>
+            <span className="text-xs font-medium">Ticket Promedio por Operación</span>
             <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
               <TrendingUp className="h-4 w-4" />
             </div>
           </div>
           <div className="text-2xl font-bold text-slate-900">{formatPYG(averageTicket)}</div>
           <div className="text-[11px] text-slate-500 mt-1.5">
-            Sobre {totalTransactionsCount} transacciones liquidadas
+            Sobre {totalTransactionsCount} cobros efectivos
           </div>
         </div>
 
         <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Pacientes con Historia Activa</span>
+            <span className="text-xs font-medium">Pacientes Activos</span>
             <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
               <Users className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-slate-900">{patients.length}</div>
+          <div className="text-2xl font-bold text-slate-900">{filteredPatients.length}</div>
           <div className="text-[11px] text-teal-700 font-medium mt-1.5">
-            Distribuídos en {branches.length} sucursales
+            {selectedBranchId ? 'En sucursal seleccionada' : `Distribuidos en ${branches.length} sucursales`}
           </div>
         </div>
 
@@ -289,10 +316,15 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
             </div>
           </div>
           <div className="text-2xl font-bold text-slate-900">
-            {formatPYG(quotes.reduce((s, q) => s + q.totalAmount, 0))}
+            {formatPYG(
+              filteredQuotes.reduce(
+                (s, q) => s + Math.round(Number(q.finalAmount ?? q.totalAmount ?? 0)),
+                0
+              )
+            )}
           </div>
           <div className="text-[11px] text-slate-500 mt-1.5">
-            {quotes.filter((q) => q.status === 'APROBADO').length} de {quotes.length} aprobados
+            {filteredQuotes.filter((q) => q.status === 'APROBADO').length} de {filteredQuotes.length} aprobados
           </div>
         </div>
       </div>
@@ -307,7 +339,7 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
                 Rendimiento y Recaudación por Sucursal
               </h4>
               <p className="text-xs text-slate-500 mt-0.5">
-                Aportación porcentual al ingreso institucional en Guaraníes
+                Aportación porcentual al ingreso institucional en Guaraníes ({periodLabel})
               </p>
             </div>
             <span className="text-xs font-semibold text-teal-700">Total: {formatPYG(grandTotalAllBranches)}</span>
@@ -315,7 +347,7 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
 
           <div className="space-y-4">
             {branchMetrics.map((bm) => {
-              const pct = Math.round((bm.revenue / grandTotalAllBranches) * 100);
+              const pct = grandTotalAllBranches > 0 ? Math.round((bm.revenue / grandTotalAllBranches) * 100) : 0;
               const isSelected = selectedBranchId === bm.branch.id;
 
               return (

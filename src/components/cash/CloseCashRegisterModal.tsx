@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
+import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import {
   X,
   Lock,
@@ -29,12 +30,10 @@ export const CloseCashRegisterModal: React.FC<CloseCashRegisterModalProps> = ({
 }) => {
   const { session } = useAuth();
   const register = dbStore.getCashRegisters().find((cr) => cr.id === cashRegisterId);
-  const movements = dbStore.getCashMovements(cashRegisterId);
-
-  if (!isOpen || !register) return null;
+  const movements = register ? dbStore.getCashMovements(cashRegisterId) : [];
 
   // Physical Cash calculations
-  const openingAmount = register.openingAmount;
+  const openingAmount = register ? register.openingAmount : 0;
   const cashIngresos = movements
     .filter((m) => m.movementType === 'INGRESO' && m.paymentMethod === 'EFECTIVO')
     .reduce((sum, m) => sum + m.amount, 0);
@@ -45,38 +44,63 @@ export const CloseCashRegisterModal: React.FC<CloseCashRegisterModalProps> = ({
 
   const expectedCash = openingAmount + cashIngresos - cashEgresos;
 
-  // Electronic & Non-cash movements
+  // Electronic & Non-cash movements (netos: ingresos menos contra-asientos/egresos)
   const sipapTotal = movements
-    .filter((m) => m.paymentMethod === 'TRANSFERENCIA_SIPAP' && m.movementType === 'INGRESO')
-    .reduce((sum, m) => sum + m.amount, 0);
+    .filter((m) => m.paymentMethod === 'TRANSFERENCIA_SIPAP')
+    .reduce((sum, m) => sum + (m.movementType === 'INGRESO' ? m.amount : -m.amount), 0);
 
   const qrTotal = movements
-    .filter((m) => m.paymentMethod === 'QR_BANCARIO' && m.movementType === 'INGRESO')
-    .reduce((sum, m) => sum + m.amount, 0);
+    .filter((m) => m.paymentMethod === 'QR_BANCARIO')
+    .reduce((sum, m) => sum + (m.movementType === 'INGRESO' ? m.amount : -m.amount), 0);
 
   const posTotal = movements
-    .filter((m) => (m.paymentMethod === 'TARJETA_DEBITO' || m.paymentMethod === 'TARJETA_CREDITO') && m.movementType === 'INGRESO')
-    .reduce((sum, m) => sum + m.amount, 0);
+    .filter((m) => m.paymentMethod === 'TARJETA_DEBITO' || m.paymentMethod === 'TARJETA_CREDITO')
+    .reduce((sum, m) => sum + (m.movementType === 'INGRESO' ? m.amount : -m.amount), 0);
 
-  const [realCashCount, setRealCashCount] = useState<number>(expectedCash);
+  const [realCashCountInput, setRealCashCountInput] = useState<string>(String(Math.round(expectedCash)));
   const [closingNotes, setClosingNotes] = useState<string>(
     'Arqueo conforme. Dinero en efectivo guardado en caja fuerte de sucursal.'
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  const difference = realCashCount - expectedCash;
+  useEffect(() => {
+    if (!isOpen || !register) return;
+    setRealCashCountInput(String(Math.max(0, Math.round(expectedCash))));
+    setClosingNotes('Arqueo conforme. Dinero en efectivo guardado en caja fuerte de sucursal.');
+    setErrorMsg(null);
+    setIsSubmitting(false);
+  }, [isOpen, cashRegisterId, expectedCash, register]);
+
+  if (!isOpen || !register) return null;
+
+  const parsedRealCash = (() => {
+    const trimmed = realCashCountInput.trim();
+    if (trimmed === '') return 0;
+    const n = Number(trimmed);
+    return Number.isFinite(n) && Number.isInteger(n) && n >= 0 ? n : 0;
+  })();
+
+  const difference = parsedRealCash - expectedCash;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
     setErrorMsg(null);
+
+    const trimmed = realCashCountInput.trim();
+    const numericVal = Number(trimmed);
+    if (trimmed === '' || !Number.isFinite(numericVal) || !Number.isInteger(numericVal) || numericVal < 0) {
+      setErrorMsg('El conteo físico debe ser un número entero mayor o igual a ₲ 0 (sin decimales).');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       if (hasBackendSession()) {
         const result = await postAuthoritativeAction(`/api/cash-registers/${cashRegisterId}/close`, {
-          closingAmountReal: realCashCount,
+          closingAmountReal: numericVal,
           observations: closingNotes,
         });
         dbStore.applyAuthoritativeSync(
@@ -89,7 +113,7 @@ export const CloseCashRegisterModal: React.FC<CloseCashRegisterModalProps> = ({
       } else {
         dbStore.closeCashRegister({
           cashRegisterId,
-          closingAmountReal: realCashCount,
+          closingAmountReal: numericVal,
           observations: closingNotes,
           actorUserId: session?.userId || dbStore.getUsers()[0]?.id,
         });
@@ -200,14 +224,18 @@ export const CloseCashRegisterModal: React.FC<CloseCashRegisterModalProps> = ({
               </span>
               <input
                 type="number"
-                step="1000"
+                step="1"
                 min="0"
+                inputMode="numeric"
                 required
-                value={realCashCount}
-                onChange={(e) => setRealCashCount(parseInt(e.target.value, 10) || 0)}
+                value={realCashCountInput}
+                onChange={(e) => setRealCashCountInput(e.target.value)}
                 className="w-full pl-9 pr-3 py-2.5 text-lg font-black text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none"
               />
             </div>
+            <p className="text-[11px] font-bold text-slate-600 mt-1">
+              Contado: {formatPYG(parsedRealCash)}
+            </p>
           </div>
 
           {/* Difference Indicator */}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 import {
   X,
   Plus,
@@ -19,12 +20,20 @@ import {
   Stethoscope,
 } from 'lucide-react';
 
+function addDaysToIsoDate(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
+
 export interface CreateQuoteModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialPatientId?: string;
   quoteToEditId?: string | null;
   onQuoteCreated?: (quoteId: string) => void;
+  onSaved?: (message: string) => void;
 }
 
 export interface QuoteItemInput {
@@ -47,6 +56,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
   initialPatientId,
   quoteToEditId,
   onQuoteCreated,
+  onSaved,
 }) => {
   const { session } = useAuth();
 
@@ -86,6 +96,9 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
   );
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [items, setItems] = useState<QuoteItemInput[]>([]);
+  const [existingValidUntil, setExistingValidUntil] = useState<string | null>(null);
+  const [validUntilTouched, setValidUntilTouched] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Helper para resolver precio unitario según servicio y plan seleccionado
@@ -136,6 +149,8 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
     const currentPlans = dbStore.getInsurancePlans(false);
 
     setFormError(null);
+    setIsSaving(false);
+    setValidUntilTouched(false);
 
     // Caso A: Modo Edición de un presupuesto existente
     if (quoteToEditId) {
@@ -147,6 +162,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
         setSelectedPlanId(existingQuote.planId || '');
         setDiscountAmount(existingQuote.discountAmount || 0);
         setNotes(existingQuote.notes || '');
+        setExistingValidUntil(existingQuote.validUntil || null);
 
         const existingItems = dbStore.getQuoteItems(quoteToEditId);
         if (existingItems && existingItems.length > 0) {
@@ -180,6 +196,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
     setOdontologistId(defaultDentistId);
     setDiscountAmount(0);
     setValidDays(30);
+    setExistingValidUntil(null);
     setNotes('Validez de 30 días. Financiación hasta en 3 cuotas sin intereses con entrega inicial del 40%.');
 
     // Determinar plan por defecto (si el paciente tiene plan asignado, pre-seleccionarlo)
@@ -235,44 +252,62 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
     }
   }, [isOpen, quoteToEditId, initialPatientId, session?.currentBranchId, reloadStoreData]);
 
-  // Si cambia el paciente seleccionado, sincronizar plan por defecto si no se había configurado manualmente
+  // Recalcular ítems SOLO ante un cambio explícito del usuario (plan, sucursal o paciente en presupuesto nuevo)
+  // Nunca sobreescribe precios congelados al abrir un presupuesto existente para edición.
+  const recalculateItemsForPricing = useCallback(
+    (nextPatientId: string, nextBranchId: string, nextPlanId: string) => {
+      setItems((prevItems) =>
+        prevItems.map((it) => {
+          if (!it.serviceId) {
+            return {
+              ...it,
+              appliedModality: nextPlanId ? 'PLAN_SEGURO' : 'PARTICULAR',
+              appliedPlanId: nextPlanId || null,
+              appliedPlanName: nextPlanId
+                ? insurancePlans.find((ip) => ip.id === nextPlanId)?.name || null
+                : null,
+            };
+          }
+          const res = calculateItemPrice(it.serviceId, nextPatientId, nextBranchId, nextPlanId);
+          return {
+            ...it,
+            unitPrice: res.unitPrice,
+            subtotal: res.unitPrice * it.quantity,
+            originalListPrice: res.listPrice,
+            appliedModality: res.modality,
+            appliedPlanId: res.planId,
+            appliedPlanName: res.planName,
+            hasSpecialPrice: res.hasSpecialPrice,
+          };
+        })
+      );
+    },
+    [calculateItemPrice, insurancePlans]
+  );
+
+  // Si cambia el paciente seleccionado, sincronizar plan por defecto en presupuestos nuevos
   const handlePatientChange = (newPatientId: string) => {
     setPatientId(newPatientId);
-    const pat = patients.find((p) => p.id === newPatientId);
-    if (pat?.insurancePlanId && insurancePlans.some((ip) => ip.id === pat.insurancePlanId)) {
-      setSelectedPlanId(pat.insurancePlanId);
-    } else if (!quoteToEditId) {
-      setSelectedPlanId('');
+    if (!quoteToEditId) {
+      const pat = patients.find((p) => p.id === newPatientId);
+      const nextPlanId =
+        pat?.insurancePlanId && insurancePlans.some((ip) => ip.id === pat.insurancePlanId)
+          ? pat.insurancePlanId
+          : '';
+      setSelectedPlanId(nextPlanId);
+      recalculateItemsForPricing(newPatientId, branchId, nextPlanId);
     }
   };
 
-  // Recalcular ítems cuando cambie el plan seleccionado o la sucursal
-  useEffect(() => {
-    if (!isOpen || items.length === 0) return;
-    setItems((prevItems) =>
-      prevItems.map((it) => {
-        if (!it.serviceId) {
-          return {
-            ...it,
-            appliedModality: selectedPlanId ? 'PLAN_SEGURO' : 'PARTICULAR',
-            appliedPlanId: selectedPlanId || null,
-            appliedPlanName: selectedPlanId ? (insurancePlans.find((ip) => ip.id === selectedPlanId)?.name || null) : null,
-          };
-        }
-        const res = calculateItemPrice(it.serviceId, patientId, branchId, selectedPlanId);
-        return {
-          ...it,
-          unitPrice: res.unitPrice,
-          subtotal: res.unitPrice * it.quantity,
-          originalListPrice: res.listPrice,
-          appliedModality: res.modality,
-          appliedPlanId: res.planId,
-          appliedPlanName: res.planName,
-          hasSpecialPrice: res.hasSpecialPrice,
-        };
-      })
-    );
-  }, [selectedPlanId, branchId]);
+  const handleBranchChange = (newBranchId: string) => {
+    setBranchId(newBranchId);
+    recalculateItemsForPricing(patientId, newBranchId, selectedPlanId);
+  };
+
+  const handlePlanChange = (newPlanId: string) => {
+    setSelectedPlanId(newPlanId);
+    recalculateItemsForPricing(patientId, branchId, newPlanId);
+  };
 
   if (!isOpen) return null;
 
@@ -423,8 +458,9 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
   }, 0);
   const finalTotal = Math.max(0, grossTotal - discountAmount);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     setFormError(null);
 
     if (!patientId) {
@@ -439,25 +475,40 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
       setFormError('Debe agregar al menos un ítem o procedimiento al presupuesto.');
       return;
     }
+    if (discountAmount < 0 || !Number.isInteger(discountAmount)) {
+      setFormError('El descuento debe ser un monto entero en Guaraníes.');
+      return;
+    }
+    if (discountAmount > grossTotal) {
+      setFormError('El descuento no puede superar el subtotal bruto del presupuesto.');
+      return;
+    }
 
-    const d = new Date();
-    d.setDate(d.getDate() + validDays);
-    const validUntilStr = d.toISOString().split('T')[0];
+    const validUntilStr =
+      quoteToEditId && existingValidUntil && !validUntilTouched
+        ? existingValidUntil
+        : addDaysToIsoDate(getTodayAsuncionISO(), validDays);
 
-    const cleanItems = items.map((it) => ({
-      serviceId: it.serviceId || undefined,
-      toothNumber: it.toothNumber ? Number(it.toothNumber) : undefined,
-      description: it.description?.trim() || 'Procedimiento Odontológico',
-      quantity: Math.max(1, it.quantity || 1),
-      unitPrice: Math.max(0, it.unitPrice || 0),
-      subtotal: Math.max(0, it.subtotal || 0),
-      appliedModality: selectedPlanId ? ('PLAN_SEGURO' as const) : ('PARTICULAR' as const),
-      appliedPlanId: selectedPlanId || undefined,
-      appliedPlanName: activeSelectedPlan?.name || undefined,
-      originalListPrice: it.originalListPrice ?? it.unitPrice,
-    }));
+    const cleanItems = items.map((it) => {
+      const qty = Math.max(1, Math.round(it.quantity || 1));
+      const unitP = Math.max(0, Math.round(it.unitPrice || 0));
+      return {
+        serviceId: it.serviceId || undefined,
+        toothNumber: it.toothNumber ? Number(it.toothNumber) : undefined,
+        description: it.description?.trim() || 'Procedimiento Odontológico',
+        quantity: qty,
+        unitPrice: unitP,
+        subtotal: qty * unitP,
+        appliedModality: selectedPlanId ? ('PLAN_SEGURO' as const) : ('PARTICULAR' as const),
+        appliedPlanId: selectedPlanId || undefined,
+        appliedPlanName: activeSelectedPlan?.name || undefined,
+        originalListPrice: it.originalListPrice ?? unitP,
+      };
+    });
 
+    setIsSaving(true);
     try {
+      let savedQuoteId: string | null = null;
       if (quoteToEditId) {
         // Actualizar presupuesto existente
         const updated = dbStore.updateQuote(quoteToEditId, {
@@ -471,9 +522,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
           items: cleanItems,
           actorUserId: session?.userId,
         });
-        if (updated && onQuoteCreated) {
-          onQuoteCreated(updated.id);
-        }
+        savedQuoteId = updated?.id || null;
       } else {
         // Crear nuevo presupuesto
         const quote = dbStore.createQuote({
@@ -487,13 +536,26 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
           items: cleanItems,
           actorUserId: session?.userId,
         });
-        if (onQuoteCreated) {
-          onQuoteCreated(quote.id);
-        }
+        savedQuoteId = quote.id;
+      }
+
+      await dbStore.flushPendingSyncStrict();
+
+      if (savedQuoteId && onQuoteCreated) {
+        onQuoteCreated(savedQuoteId);
+      }
+      if (onSaved) {
+        onSaved(
+          quoteToEditId
+            ? 'Presupuesto actualizado y guardado correctamente.'
+            : 'Presupuesto emitido y guardado correctamente.'
+        );
       }
       onClose();
     } catch (err: any) {
-      setFormError(err?.message || 'Error al guardar el presupuesto.');
+      setFormError(err?.message || 'Error al guardar el presupuesto en la base de datos.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -565,7 +627,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
               </label>
               <select
                 value={branchId}
-                onChange={(e) => setBranchId(e.target.value)}
+                onChange={(e) => handleBranchChange(e.target.value)}
                 required
                 className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none text-slate-900"
               >
@@ -630,7 +692,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                 <select
                   id="plan-selector"
                   value={selectedPlanId}
-                  onChange={(e) => setSelectedPlanId(e.target.value)}
+                  onChange={(e) => handlePlanChange(e.target.value)}
                   className={`w-full text-xs font-semibold p-2.5 rounded-xl border focus:outline-none transition-all ${
                     selectedPlanId
                       ? 'bg-indigo-50 border-indigo-300 text-indigo-950 focus:ring-2 focus:ring-indigo-500'
@@ -768,8 +830,9 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                       <td className="py-2 px-3 text-right">
                         <input
                           type="number"
-                          step="5000"
+                          step="1"
                           min="0"
+                          inputMode="numeric"
                           value={it.unitPrice}
                           onChange={(e) =>
                             handleItemChange(idx, 'unitPrice', parseInt(e.target.value, 10) || 0)
@@ -821,9 +884,12 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                     <button
                       key={days}
                       type="button"
-                      onClick={() => setValidDays(days)}
+                      onClick={() => {
+                        setValidDays(days);
+                        setValidUntilTouched(true);
+                      }}
                       className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                        validDays === days
+                        (!quoteToEditId || validUntilTouched) && validDays === days
                           ? 'bg-teal-600 text-white shadow-xs'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
@@ -832,6 +898,11 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                     </button>
                   ))}
                 </div>
+                {quoteToEditId && existingValidUntil && !validUntilTouched && (
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Se conservará el vencimiento actual ({existingValidUntil}) salvo que elija nuevos días.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -877,9 +948,10 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
                   <span className="text-slate-500">₲</span>
                   <input
                     type="number"
-                    step="10000"
+                    step="1"
                     min="0"
                     max={grossTotal}
+                    inputMode="numeric"
                     value={discountAmount}
                     onChange={(e) => setDiscountAmount(Math.max(0, parseInt(e.target.value, 10) || 0))}
                     className="w-28 p-1 text-xs text-right font-medium bg-white border border-slate-300 rounded-lg text-red-600"
@@ -905,17 +977,25 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
           <div className="pt-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
             <button
               type="button"
+              disabled={isSaving}
               onClick={onClose}
-              className="w-full sm:w-auto px-4 py-2.5 min-h-[44px] text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors flex items-center justify-center cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2.5 min-h-[44px] text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors flex items-center justify-center cursor-pointer disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl transition-all shadow-md shadow-teal-700/20 cursor-pointer"
+              disabled={isSaving}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 min-h-[44px] text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl transition-all shadow-md shadow-teal-700/20 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CheckCircle2 className="h-4 w-4" />
-              <span>{quoteToEditId ? 'Guardar Cambios del Presupuesto' : 'Emitir Presupuesto Oficial'}</span>
+              <span>
+                {isSaving
+                  ? 'Guardando...'
+                  : quoteToEditId
+                    ? 'Guardar Cambios del Presupuesto'
+                    : 'Emitir Presupuesto Oficial'}
+              </span>
             </button>
           </div>
         </form>

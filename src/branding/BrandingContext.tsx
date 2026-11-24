@@ -5,7 +5,7 @@ import { getApiBaseUrl } from '../config/apiConfig.ts';
 
 interface BrandingContextType {
   branding: OrganizationBranding;
-  updateBranding: (updates: Partial<OrganizationBranding>) => void;
+  updateBranding: (updates: Partial<OrganizationBranding>) => Promise<void>;
   resetBranding: () => void;
 }
 
@@ -34,17 +34,17 @@ const getBrandingForOrg = (org: any): OrganizationBranding => {
     logoUrl: org.logoUrl,
     logoIcon: org.logoIcon || DEFAULT_BRANDING.logoIcon,
     companyType: org.companyType || DEFAULT_BRANDING.companyType,
-    timbradoNumber: org.timbradoNumber || DEFAULT_BRANDING.timbradoNumber,
-    timbradoVencimiento: org.timbradoVencimiento || DEFAULT_BRANDING.timbradoVencimiento,
+    timbradoNumber: org.timbradoNumber ?? '',
+    timbradoVencimiento: org.timbradoVencimiento ?? '',
     currency: org.defaultCurrency || DEFAULT_BRANDING.currency,
     currencySymbol: org.currencySymbol || DEFAULT_BRANDING.currencySymbol,
     countryCode: org.countryCode || DEFAULT_BRANDING.countryCode,
     timezone: org.timezone || DEFAULT_BRANDING.timezone,
-    phone: org.phone || DEFAULT_BRANDING.phone,
-    whatsapp: org.whatsapp || DEFAULT_BRANDING.whatsapp,
-    email: org.email || DEFAULT_BRANDING.email,
-    address: org.address || DEFAULT_BRANDING.address,
-    website: org.website,
+    phone: org.phone ?? '',
+    whatsapp: org.whatsapp ?? '',
+    email: org.email ?? '',
+    address: org.address ?? '',
+    website: org.website ?? '',
   };
 };
 
@@ -139,19 +139,26 @@ export const BrandingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // Actualizar fielmente en el dbStore para coherencia en facturación, reportes y auditoría
     dbStore.updateOrganization(orgPayload, activeOrg.id);
 
-    // Persistir directamente contra el Backend (REST) para que esté disponible inmediatamente para móvil
-    if (typeof fetch !== 'undefined') {
-      try {
-        const baseUrl = getApiBaseUrl();
-        await fetch(`${baseUrl}/api/organizations/${activeOrg.id}`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(orgPayload),
-        });
-      } catch (err) {
-        console.warn('Error en persistencia directa de organización en backend:', err);
+    // Persistir directamente contra el Backend (REST) y confirmar persistencia real cuando hay sesión activa
+    const hasBackendSession = Boolean(dbStore.getBackendActorContext());
+    if (typeof fetch !== 'undefined' && hasBackendSession) {
+      const baseUrl = getApiBaseUrl();
+      const token = dbStore.getSessionToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token && !token.startsWith('httpOnly_')) {
+        headers.Authorization = `Bearer ${token}`;
       }
+      const res = await fetch(`${baseUrl}/api/organizations/${activeOrg.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify(orgPayload),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.error || 'No se pudo guardar la configuración de la clínica en el servidor.');
+      }
+      await dbStore.flushPendingSyncStrict();
     }
   };
 

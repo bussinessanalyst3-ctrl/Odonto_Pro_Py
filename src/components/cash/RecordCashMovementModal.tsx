@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
+import { formatPYG, validatePygPrice } from '../../db/seeds/paraguay-catalogs.ts';
 import {
   X,
   ArrowUpRight,
@@ -28,10 +29,10 @@ export const RecordCashMovementModal: React.FC<RecordCashMovementModalProps> = (
   onMovementAdded,
 }) => {
   const { session } = useAuth();
-  const patients = dbStore.getPatients();
+  const [patients, setPatients] = useState(() => dbStore.getPatients());
 
   const [movementType, setMovementType] = useState<'INGRESO' | 'EGRESO'>('INGRESO');
-  const [amount, setAmount] = useState<number>(200000);
+  const [amountInput, setAmountInput] = useState<string>('200000');
   const [paymentMethod, setPaymentMethod] = useState<string>('EFECTIVO');
   const [concept, setConcept] = useState<string>('Cobro de consulta odontológica');
   const [referenceNumber, setReferenceNumber] = useState<string>('');
@@ -39,22 +40,44 @@ export const RecordCashMovementModal: React.FC<RecordCashMovementModalProps> = (
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    setPatients([...dbStore.getPatients()]);
+    setMovementType('INGRESO');
+    setAmountInput('200000');
+    setPaymentMethod('EFECTIVO');
+    setConcept('Cobro de consulta odontológica');
+    setReferenceNumber('');
+    setPatientId('');
+    setErrorMsg(null);
+    setIsSubmitting(false);
+  }, [isOpen, cashRegisterId]);
+
   if (!isOpen) return null;
+
+  const parsedAmount = (() => {
+    const n = Number(amountInput.trim());
+    return Number.isFinite(n) && Number.isInteger(n) && n > 0 ? n : 0;
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
     setErrorMsg(null);
 
-    if (amount <= 0) {
-      setErrorMsg('El monto debe ser superior a ₲ 0.');
+    let validatedAmount: number;
+    try {
+      validatedAmount = validatePygPrice(Number(amountInput.trim()), 'El monto del movimiento');
+    } catch (validationErr: any) {
+      setErrorMsg(validationErr.message || 'El monto debe ser un entero mayor a ₲ 0 (sin decimales).');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      // Solo emitir recibo oficial vinculado cuando se selecciona un paciente específico
       const receiptNum =
-        movementType === 'INGRESO'
+        movementType === 'INGRESO' && patientId
           ? dbStore.getNextReceiptNumber()
           : undefined;
 
@@ -62,10 +85,10 @@ export const RecordCashMovementModal: React.FC<RecordCashMovementModalProps> = (
       if (hasBackendSession()) {
         const result = await postAuthoritativeAction(`/api/cash-registers/${cashRegisterId}/movements`, {
           movementType,
-          amount,
+          amount: validatedAmount,
           paymentMethod,
-          concept,
-          referenceNumber: referenceNumber || undefined,
+          concept: concept.trim(),
+          referenceNumber: referenceNumber.trim() || undefined,
           receiptNumber: receiptNum,
           patientId: patientId || undefined,
         });
@@ -83,10 +106,10 @@ export const RecordCashMovementModal: React.FC<RecordCashMovementModalProps> = (
         const mov = dbStore.addCashMovement({
           cashRegisterId,
           movementType,
-          amount,
+          amount: validatedAmount,
           paymentMethod,
-          concept,
-          referenceNumber: referenceNumber || undefined,
+          concept: concept.trim(),
+          referenceNumber: referenceNumber.trim() || undefined,
           receiptNumber: receiptNum,
           patientId: patientId || undefined,
           actorUserId: session?.userId || dbStore.getUsers()[0]?.id,
@@ -98,6 +121,7 @@ export const RecordCashMovementModal: React.FC<RecordCashMovementModalProps> = (
       onClose();
     } catch (err: any) {
       setErrorMsg(err.message || 'Error al asentar movimiento.');
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -194,14 +218,18 @@ export const RecordCashMovementModal: React.FC<RecordCashMovementModalProps> = (
               </span>
               <input
                 type="number"
-                step="5000"
-                min="1000"
+                step="1"
+                min="1"
+                inputMode="numeric"
                 required
-                value={amount}
-                onChange={(e) => setAmount(parseInt(e.target.value, 10) || 0)}
+                value={amountInput}
+                onChange={(e) => setAmountInput(e.target.value)}
                 className="w-full pl-9 pr-3 py-2.5 text-base font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none"
               />
             </div>
+            <p className="text-[11px] font-bold text-teal-700 mt-1">
+              {formatPYG(parsedAmount)}
+            </p>
           </div>
 
           {/* Payment Method */}
@@ -280,6 +308,9 @@ export const RecordCashMovementModal: React.FC<RecordCashMovementModalProps> = (
                   </option>
                 ))}
               </select>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Si vincula un paciente, se emitirá recibo oficial a su nombre; si lo deja vacío, se asienta solo en caja.
+              </p>
             </div>
           )}
 

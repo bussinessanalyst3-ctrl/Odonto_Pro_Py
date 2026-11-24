@@ -3,6 +3,7 @@ import { X, CreditCard, ShieldAlert, AlertCircle } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { PayrollSettlementRecord, getEmployeeDisplayName } from '../../db/payrollEngine.ts';
 import { hasPermission } from '../../security/rbacHierarchy.ts';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 
 interface StaffPaymentModalProps {
   isOpen: boolean;
@@ -18,7 +19,7 @@ export const StaffPaymentModal: React.FC<StaffPaymentModalProps> = ({
   onPaid,
 }) => {
   const [amount, setAmount] = useState('');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState(getTodayAsuncionISO());
   const [paymentMethod, setPaymentMethod] = useState('TRANSFERENCIA_SIPAP');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [notes, setNotes] = useState('');
@@ -33,7 +34,7 @@ export const StaffPaymentModal: React.FC<StaffPaymentModalProps> = ({
     if (!isOpen || !settlement) return;
     setFormError(null);
     setAmount(String(settlement.balanceDue || 0));
-    setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentDate(getTodayAsuncionISO());
     setPaymentMethod('TRANSFERENCIA_SIPAP');
     setReferenceNumber('');
     setNotes('');

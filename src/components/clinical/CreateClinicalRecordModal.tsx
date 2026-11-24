@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 
 interface CreateClinicalRecordModalProps {
@@ -27,15 +28,22 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
   const { session } = useAuth();
   const snapshot = dbStore.getSnapshot();
 
-  const patients = snapshot.patients;
+  const activePatients = snapshot.patients.filter((p) => p.status !== 'INACTIVE');
+  const patients = activePatients.length > 0 ? activePatients : snapshot.patients;
   const branches = snapshot.branches;
-  const dentists = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO');
+  const activeDentists = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO' && u.status !== 'INACTIVE');
+  const dentists = activeDentists.length > 0
+    ? activeDentists
+    : snapshot.users.filter((u) => u.status !== 'INACTIVE' && (u.roleId === 'SUPER_ADMIN' || u.roleId === 'ADMIN_SUCURSAL'));
 
   const [patientId, setPatientId] = useState<string>(initialPatientId || patients[0]?.id || '');
   const [branchId, setBranchId] = useState<string>(branches[0]?.id || '');
   const [odontologistId, setOdontologistId] = useState<string>(
-    session?.role === 'ODONTOLOGO' ? session.userId : (dentists[0]?.id || '')
+    session?.role === 'ODONTOLOGO'
+      ? session.userId
+      : (dentists[0]?.id || session?.userId || '')
   );
+  const [recordDate, setRecordDate] = useState<string>(() => getTodayAsuncionISO());
 
   const [reasonForConsultation, setReasonForConsultation] = useState<string>('');
   const [diagnosis, setDiagnosis] = useState<string>('');
@@ -69,6 +77,7 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
       if (hasBackendSession()) {
         const res = await postAuthoritativeAction<{
           clinicalRecord?: any;
+          appointment?: any;
           patientBranch?: any;
           auditLogs?: any[];
           stateVersion?: number;
@@ -76,17 +85,19 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
           branchId,
           patientId,
           odontologistId,
-          reasonForConsultation: reasonForConsultation || 'Consulta odontológica programada',
-          diagnosis,
-          treatmentPerformed,
-          prescriptions,
-          recommendations,
-          internalNotes,
+          recordDate: recordDate || getTodayAsuncionISO(),
+          reasonForConsultation: reasonForConsultation.trim() || 'Consulta odontológica programada',
+          diagnosis: diagnosis.trim(),
+          treatmentPerformed: treatmentPerformed.trim(),
+          prescriptions: prescriptions.trim(),
+          recommendations: recommendations.trim(),
+          internalNotes: internalNotes.trim(),
         });
 
         dbStore.applyAuthoritativeSync(
           {
             ...(res.clinicalRecord ? { clinicalRecords: [res.clinicalRecord] } : {}),
+            ...(res.appointment ? { appointments: [res.appointment] } : {}),
             ...(res.patientBranch ? { patientBranches: [res.patientBranch] } : {}),
             ...(res.auditLogs?.length ? { auditLogs: res.auditLogs } : {}),
           },
@@ -97,12 +108,13 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
           branchId,
           patientId,
           odontologistId,
-          reasonForConsultation: reasonForConsultation || 'Consulta odontológica programada',
-          diagnosis,
-          treatmentPerformed,
-          prescriptions,
-          recommendations,
-          internalNotes,
+          recordDate: recordDate || getTodayAsuncionISO(),
+          reasonForConsultation: reasonForConsultation.trim() || 'Consulta odontológica programada',
+          diagnosis: diagnosis.trim(),
+          treatmentPerformed: treatmentPerformed.trim(),
+          prescriptions: prescriptions.trim(),
+          recommendations: recommendations.trim(),
+          internalNotes: internalNotes.trim(),
           actorUserId: session?.userId,
         });
       }
@@ -216,18 +228,33 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
             </div>
           </div>
 
-          {/* Reason for consultation */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Motivo de Consulta / Anamnesis
-            </label>
-            <input
-              type="text"
-              value={reasonForConsultation}
-              onChange={(e) => setReasonForConsultation(e.target.value)}
-              placeholder="Ej. Paciente refiere dolor a la masticación en pieza 1.6 desde hace 3 días..."
-              className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:outline-none"
-            />
+          {/* Fecha de atención (permite carga histórica) y Motivo de consulta */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Fecha de Atención *
+              </label>
+              <input
+                type="date"
+                value={recordDate}
+                onChange={(e) => setRecordDate(e.target.value)}
+                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                required
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Motivo de Consulta / Anamnesis
+              </label>
+              <input
+                type="text"
+                value={reasonForConsultation}
+                onChange={(e) => setReasonForConsultation(e.target.value)}
+                placeholder="Ej. Paciente refiere dolor a la masticación en pieza 1.6 desde hace 3 días..."
+                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+              />
+            </div>
           </div>
 
           {/* Diagnosis & Treatment Performed */}
@@ -311,7 +338,7 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
               <div>
                 <strong>Firma Digital de Registro Profesional:</strong> Asentada por Dr(a).{' '}
                 {selectedDentist?.firstName} {selectedDentist?.lastName} (
-                {selectedDentist?.professionalLicense || 'Registro MSPBS N° 9.155'})
+                {selectedDentist?.professionalLicense || 'Sin registro cargado'})
               </div>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   User,
@@ -45,6 +45,16 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
   onNavigateToTab,
 }) => {
   const [activeTab, setActiveTab] = useState<'summary' | 'odontogram' | 'treatments' | 'quotes' | 'appointments' | 'financial'>('summary');
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    setActiveTab('summary');
+  }, [patientId, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    return dbStore.subscribe(() => setTick((t) => t + 1));
+  }, [isOpen]);
 
   if (!isOpen || !patientId) return null;
 
@@ -60,15 +70,25 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
     : null;
   const creatorDisplay = patient.createdByNameSnapshot || 'Origen histórico / Desconocido';
 
-  // Relaciones integradas
-  const patientAppointments = snapshot.appointments.filter((a) => a.patientId === patientId);
+  // Relaciones integradas ordenadas cronológicamente
+  const patientAppointments = snapshot.appointments
+    .filter((a) => a.patientId === patientId)
+    .sort((a, b) => `${b.appointmentDate || ''} ${b.startTime || ''}`.localeCompare(`${a.appointmentDate || ''} ${a.startTime || ''}`));
+  const activeUpcomingAppointments = patientAppointments.filter(
+    (a) => a.status !== 'CANCELADA' && a.status !== 'NO_ASISTIO' && a.status !== 'FINALIZADA'
+  );
+  const nextAppointment = activeUpcomingAppointments[activeUpcomingAppointments.length - 1] || patientAppointments[0] || null;
   const patientTreatments = (snapshot.treatments || []).filter((t) => t.patientId === patientId);
   const patientQuotes = (snapshot.quotes || []).filter((q) => q.patientId === patientId);
-  const patientPayments = (snapshot.payments || []).filter((p) => p.patientId === patientId);
-  const patientOdontograms = (snapshot.odontograms || []).filter((o) => o.patientId === patientId);
+  const patientPayments = (snapshot.payments || [])
+    .filter((p) => p.patientId === patientId)
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  const patientOdontograms = (snapshot.odontograms || [])
+    .filter((o) => o.patientId === patientId)
+    .sort((a, b) => (b.version || 1) - (a.version || 1));
   const activeOdontogram = patientOdontograms[0];
   const odontogramItems = activeOdontogram
-    ? snapshot.odontogramItems.filter((oi) => oi.odontogramId === activeOdontogram.id)
+    ? (snapshot.odontogramItems || []).filter((oi) => oi.odontogramId === activeOdontogram.id)
     : [];
 
   // Mapeo anatómico de piezas para previsualización
@@ -88,10 +108,15 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
     };
   });
 
-  // Cálculo de finanzas del paciente
-  const totalBilledPyg = patientQuotes.reduce((acc, q) => acc + (q.finalAmount || 0), 0);
-  const totalPaidPyg = patientPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
-  const pendingBalancePyg = Math.max(0, totalBilledPyg - totalPaidPyg);
+  // Cálculo de finanzas reales del paciente (tratamientos activos y cobros no anulados)
+  const activeTreatments = patientTreatments.filter((t) => t.status !== 'CANCELADO');
+  const activePayments = patientPayments.filter((p) => p.status !== 'ANULADO');
+  const totalBilledPyg = activeTreatments.reduce((acc, t) => acc + (Number(t.totalAmount) || 0), 0);
+  const totalPaidPyg = activePayments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
+  const pendingBalancePyg = activeTreatments.reduce(
+    (acc, t) => acc + Math.max(0, Number(t.balanceDue ?? (Number(t.totalAmount || 0) - Number(t.paidAmount || 0)))),
+    0
+  );
 
   // Alertas críticas
   const hasSevereAllergy =
@@ -359,13 +384,13 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                   <div className="space-y-2 text-xs">
                     <div className="p-3 bg-teal-50/70 border border-teal-200/60 rounded-xl">
                       <span className="text-teal-900 font-bold block">Próximo Turno:</span>
-                      {patientAppointments.length > 0 ? (
+                      {nextAppointment ? (
                         <div className="mt-1">
                           <span className="font-extrabold text-teal-950">
-                            {patientAppointments[0].date} a las {patientAppointments[0].time}
+                            {nextAppointment.appointmentDate || 'Sin fecha'} a las {String(nextAppointment.startTime || '').slice(0, 5)} hs
                           </span>
                           <p className="text-[11px] text-teal-800 mt-0.5">
-                            Motivo: {patientAppointments[0].reason}
+                            Motivo: {nextAppointment.reason || 'Consulta odontológica'} ({nextAppointment.status})
                           </p>
                         </div>
                       ) : (
@@ -549,7 +574,7 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                           </span>
                         </div>
                         <span className="text-xs text-slate-500 mt-0.5 block">
-                          Emitido: {q.validUntil}
+                          Válido hasta: {q.validUntil || 'N/A'}
                         </span>
                       </div>
                       <div className="text-right">
@@ -580,9 +605,9 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                     >
                       <div>
                         <span className="text-xs font-bold text-slate-900">
-                          {a.date} a las {a.time} hs
+                          {a.appointmentDate || 'Sin fecha'} a las {String(a.startTime || '').slice(0, 5)} hs
                         </span>
-                        <p className="text-xs text-slate-500">{a.reason}</p>
+                        <p className="text-xs text-slate-500">{a.reason || 'Consulta odontológica'}</p>
                       </div>
                       <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
                         {a.status}
@@ -616,24 +641,44 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {patientPayments.map((p) => (
-                    <div
-                      key={p.id}
-                      className="p-3 bg-white rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between text-xs"
-                    >
-                      <div>
-                        <span className="font-bold text-slate-900">
-                          Recibo {p.receiptNumber}
-                        </span>
-                        <div className="text-[11px] text-slate-500">
-                          {p.date} • {p.paymentMethod}
+                  {patientPayments.map((p) => {
+                    const isAnnulled = p.status === 'ANULADO';
+                    const formattedPayDate = p.createdAt
+                      ? new Date(p.createdAt).toLocaleDateString('es-PY', {
+                          timeZone: 'America/Asuncion',
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                        })
+                      : 'Sin fecha';
+                    return (
+                      <div
+                        key={p.id}
+                        className={`p-3 bg-white rounded-2xl border shadow-2xs flex items-center justify-between text-xs ${
+                          isAnnulled ? 'border-rose-200 bg-rose-50/40 opacity-75' : 'border-slate-200'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-slate-900">
+                              Recibo {p.receiptNumber}
+                            </span>
+                            {isAnnulled && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">
+                                ANULADO
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            {formattedPayDate} • {p.paymentMethod}
+                          </div>
                         </div>
+                        <span className={`font-black ${isAnnulled ? 'text-rose-500 line-through' : 'text-emerald-700'}`}>
+                          {formatPYG(p.amount)}
+                        </span>
                       </div>
-                      <span className="font-black text-emerald-700">
-                        {formatPYG(p.amount)}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

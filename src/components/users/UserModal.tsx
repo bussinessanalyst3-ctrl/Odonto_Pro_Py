@@ -132,8 +132,9 @@ export const UserModal: React.FC<UserModalProps> = ({
       const userBranchRecords = snapshot.userBranches.filter((ub) => ub.userId === userToEdit.id);
       const bIds = userBranchRecords.map((ub) => ub.branchId);
       const availableIds = activeOrgBranches.map(b => b.id);
-      const validBIds = bIds.filter(id => availableIds.length === 0 || availableIds.includes(id));
-      setSelectedBranches(validBIds.length > 0 ? validBIds : [activeOrgBranches[0]?.id || '']);
+      const validBIds = bIds.filter((id) => Boolean(id) && (availableIds.length === 0 || availableIds.includes(id)));
+      const fallbackBranchIds = activeOrgBranches[0]?.id ? [activeOrgBranches[0].id] : [];
+      setSelectedBranches(validBIds.length > 0 ? validBIds : fallbackBranchIds);
       const def = userBranchRecords.find((ub) => ub.isDefault)?.branchId || validBIds[0] || activeOrgBranches[0]?.id;
       setDefaultBranchId(def || '');
     } else {
@@ -205,6 +206,12 @@ export const UserModal: React.FC<UserModalProps> = ({
       return;
     }
 
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length < 7) {
+      setErrorMsg('Por favor ingrese un número de teléfono válido (al menos 7 dígitos).');
+      return;
+    }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(cleanEmail)) {
       setErrorMsg('Por favor ingrese un formato de correo electrónico válido (ejemplo: usuario@clinica.com.py).');
@@ -227,7 +234,8 @@ export const UserModal: React.FC<UserModalProps> = ({
       return;
     }
 
-    if (selectedBranches.length === 0) {
+    const cleanSelectedBranches = selectedBranches.filter(Boolean);
+    if (cleanSelectedBranches.length === 0) {
       setErrorMsg('Debe asignar al menos una sucursal habilitada para este usuario.');
       return;
     }
@@ -250,8 +258,8 @@ export const UserModal: React.FC<UserModalProps> = ({
             phone: phone.trim(),
             specialty: specialty.trim(),
             professionalLicense: isOdonto ? license.trim() : null,
-            branchIds: selectedBranches,
-            defaultBranchId,
+            branchIds: cleanSelectedBranches,
+            defaultBranchId: defaultBranchId || cleanSelectedBranches[0],
           },
           effectiveActor
         );
@@ -277,8 +285,8 @@ export const UserModal: React.FC<UserModalProps> = ({
             phone: phone.trim(),
             specialty: specialty.trim(),
             professionalLicense: isOdonto ? license.trim() : undefined,
-            branchIds: selectedBranches,
-            defaultBranchId,
+            branchIds: cleanSelectedBranches,
+            defaultBranchId: defaultBranchId || cleanSelectedBranches[0],
             passwordRecord: {
               hash: hashRec.hash,
               salt: hashRec.salt,
@@ -287,6 +295,10 @@ export const UserModal: React.FC<UserModalProps> = ({
           },
           effectiveActor
         );
+      }
+
+      if (dbStore.getBackendActorContext()) {
+        await dbStore.flushPendingSyncStrict();
       }
 
       onClose();

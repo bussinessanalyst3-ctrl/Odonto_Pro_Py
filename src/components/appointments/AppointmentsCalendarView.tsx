@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -31,6 +31,12 @@ import { getTodayAsuncionISO, resolveOrganizationLegalName } from '../../config/
 export const AppointmentsCalendarView: React.FC = () => {
   const { session } = useAuth();
   const { branding } = useBranding();
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    return dbStore.subscribe(() => setTick((t) => t + 1));
+  }, []);
+
   const snapshot = dbStore.getSnapshot();
 
   // Filters state
@@ -47,7 +53,10 @@ export const AppointmentsCalendarView: React.FC = () => {
 
   // Available filters data
   const branches = snapshot.branches;
-  const dentists = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO');
+  const activeDentists = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO' && u.status !== 'INACTIVE');
+  const dentists = activeDentists.length > 0
+    ? activeDentists
+    : snapshot.users.filter((u) => u.status !== 'INACTIVE' && (u.roleId === 'SUPER_ADMIN' || u.roleId === 'ADMIN_SUCURSAL'));
   const chairs = selectedBranchId === 'ALL'
     ? snapshot.dentalChairs
     : (snapshot.dentalChairs || []).filter((c) => c.branchId === selectedBranchId);
@@ -65,10 +74,13 @@ export const AppointmentsCalendarView: React.FC = () => {
     return true;
   });
 
-  // Sort by start time
-  const sortedAppointments = [...appointments].sort((a, b) =>
-    a.startTime.localeCompare(b.startTime)
-  );
+  // Sort by date (desc in list mode) and start time (asc)
+  const sortedAppointments = [...appointments].sort((a, b) => {
+    if (viewMode !== 'day' && a.appointmentDate !== b.appointmentDate) {
+      return String(b.appointmentDate || '').localeCompare(String(a.appointmentDate || ''));
+    }
+    return String(a.startTime || '').localeCompare(String(b.startTime || ''));
+  });
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -130,11 +142,19 @@ export const AppointmentsCalendarView: React.FC = () => {
     }
   };
 
-  // Quick navigation for date
+  // Quick navigation for date (pure UTC calendar arithmetic — immune to local timezone/DST shifts)
   const changeDateBy = (days: number) => {
-    const d = new Date(currentDate + 'T00:00:00');
-    d.setDate(d.getDate() + days);
-    setCurrentDate(d.toISOString().split('T')[0]);
+    const parts = currentDate.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(Number.isNaN)) {
+      setCurrentDate(getTodayAsuncionISO());
+      return;
+    }
+    const [y, m, day] = parts;
+    const utcDate = new Date(Date.UTC(y, m - 1, day + days));
+    const nextIso = `${utcDate.getUTCFullYear()}-${String(utcDate.getUTCMonth() + 1).padStart(2, '0')}-${String(
+      utcDate.getUTCDate()
+    ).padStart(2, '0')}`;
+    setCurrentDate(nextIso);
   };
 
   return (
@@ -361,14 +381,17 @@ export const AppointmentsCalendarView: React.FC = () => {
             // WhatsApp link
             const phone = patient?.whatsapp || patient?.phone || '';
             const cleanPhone = phone.replace(/\D/g, '');
+            const hasPhone = cleanPhone.length >= 6;
             const waNumber = cleanPhone.startsWith('595') ? cleanPhone : `595${cleanPhone.replace(/^0/, '')}`;
             const orgLegalName = resolveOrganizationLegalName({
               legalName: branding.legalName,
               name: snapshot.organization?.name,
             });
             const placeLabel = branch?.name || orgLegalName;
+            const isTodayAppointment = app.appointmentDate === getTodayAsuncionISO();
+            const datePhrase = isTodayAppointment ? 'hoy' : `el ${app.appointmentDate}`;
             const waGreeting = encodeURIComponent(
-              `Hola ${patient?.firstName || ''}, le recordamos su turno odontológico para hoy a las ${app.startTime.slice(0, 5)}${placeLabel ? ` en ${placeLabel}` : ''}.`
+              `Hola ${patient?.firstName || ''}, le recordamos su turno odontológico para ${datePhrase} a las ${String(app.startTime || '').slice(0, 5)}${placeLabel ? ` en ${placeLabel}` : ''}.`
             );
             const waUrl = `https://wa.me/${waNumber}?text=${waGreeting}`;
 
@@ -379,10 +402,15 @@ export const AppointmentsCalendarView: React.FC = () => {
               >
                 <div className="space-y-3">
                   {/* Card Header: Time & Status */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {viewMode !== 'day' && app.appointmentDate && (
+                        <span className="font-mono text-[11px] font-bold text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-lg">
+                          {app.appointmentDate}
+                        </span>
+                      )}
                       <span className="font-mono text-base font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-xl">
-                        {app.startTime.slice(0, 5)} - {app.endTime.slice(0, 5)}
+                        {String(app.startTime || '').slice(0, 5)} - {String(app.endTime || '').slice(0, 5)}
                       </span>
                       <span className="text-[11px] text-slate-400 font-medium">
                         ({app.durationMin} min)
@@ -445,15 +473,24 @@ export const AppointmentsCalendarView: React.FC = () => {
 
                 {/* Card Actions */}
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <a
-                    href={waUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-2.5 min-h-[42px] min-w-[42px] flex items-center justify-center text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors border border-emerald-200"
-                    title="Enviar WhatsApp de confirmación"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                  </a>
+                  {hasPhone ? (
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-2.5 min-h-[42px] min-w-[42px] flex items-center justify-center text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors border border-emerald-200"
+                      title="Enviar WhatsApp de confirmación"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                    </a>
+                  ) : (
+                    <span
+                      className="p-2.5 min-h-[42px] min-w-[42px] flex items-center justify-center text-slate-300 bg-slate-50 rounded-xl border border-slate-200 cursor-not-allowed"
+                      title="Paciente sin número de teléfono cargado"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                    </span>
+                  )}
 
                   <button
                     onClick={() => setSelectedAppointmentForStatus(app)}

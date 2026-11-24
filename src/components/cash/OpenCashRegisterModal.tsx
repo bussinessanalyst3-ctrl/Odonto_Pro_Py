@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
+import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import { X, DollarSign, Building2, User, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface OpenCashRegisterModalProps {
@@ -18,31 +19,57 @@ export const OpenCashRegisterModal: React.FC<OpenCashRegisterModalProps> = ({
   onOpened,
 }) => {
   const { session } = useAuth();
-  const branches = dbStore.getBranches();
+  const [branches, setBranches] = useState(() => dbStore.getBranches());
 
   const [branchId, setBranchId] = useState<string>(
     initialBranchId || session?.currentBranchId || branches[0]?.id || ''
   );
-  const [openingAmount, setOpeningAmount] = useState<number>(500000); // ₲ 500.000 default
+  const [openingAmountInput, setOpeningAmountInput] = useState<string>('500000'); // ₲ 500.000 default
   const [observations, setObservations] = useState<string>(
     'Fondo fijo para cambio inicial: 10x 20.000, 6x 50.000'
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const freshBranches = [...dbStore.getBranches()];
+    setBranches(freshBranches);
+    setBranchId(initialBranchId || session?.currentBranchId || freshBranches[0]?.id || '');
+    setOpeningAmountInput('500000');
+    setObservations('Fondo fijo para cambio inicial: 10x 20.000, 6x 50.000');
+    setErrorMsg(null);
+    setIsSubmitting(false);
+  }, [isOpen, initialBranchId, session?.currentBranchId]);
+
   if (!isOpen) return null;
+
+  const parsedOpeningAmount = (() => {
+    const trimmed = openingAmountInput.trim();
+    if (trimmed === '') return 0;
+    const n = Number(trimmed);
+    return Number.isFinite(n) && Number.isInteger(n) && n >= 0 ? n : 0;
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
     setErrorMsg(null);
+
+    const trimmed = openingAmountInput.trim();
+    const numericAmount = Number(trimmed);
+    if (trimmed === '' || !Number.isFinite(numericAmount) || !Number.isInteger(numericAmount) || numericAmount < 0) {
+      setErrorMsg('El fondo de apertura debe ser un número entero mayor o igual a ₲ 0 (sin decimales).');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       if (hasBackendSession()) {
         const result = await postAuthoritativeAction('/api/cash-registers/open', {
           branchId,
-          openingAmount,
+          openingAmount: numericAmount,
           observations,
         });
         dbStore.applyAuthoritativeSync(
@@ -55,7 +82,7 @@ export const OpenCashRegisterModal: React.FC<OpenCashRegisterModalProps> = ({
       } else {
         dbStore.openCashRegister({
           branchId,
-          openingAmount,
+          openingAmount: numericAmount,
           observations,
           actorUserId: session?.userId || dbStore.getUsers()[0]?.id,
         });
@@ -128,16 +155,17 @@ export const OpenCashRegisterModal: React.FC<OpenCashRegisterModalProps> = ({
               </span>
               <input
                 type="number"
-                step="10000"
+                step="1"
                 min="0"
+                inputMode="numeric"
                 required
-                value={openingAmount}
-                onChange={(e) => setOpeningAmount(parseInt(e.target.value, 10) || 0)}
+                value={openingAmountInput}
+                onChange={(e) => setOpeningAmountInput(e.target.value)}
                 className="w-full pl-8 pr-3 py-2.5 text-base font-bold text-slate-900 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
             </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Monto físico en efectivo disponible para vueltos al abrir el turno.
+            <p className="text-[11px] font-bold text-emerald-700 mt-1">
+              {formatPYG(parsedOpeningAmount)} — Monto físico en efectivo disponible para vueltos al abrir el turno.
             </p>
           </div>
 

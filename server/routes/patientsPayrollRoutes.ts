@@ -22,8 +22,16 @@ import {
   updateEmployeeRecord,
   upsertEmployeeSalaryRecord,
 } from '../../src/db/payrollEngine.ts';
-import { getServerDbState, saveDatabaseState } from '../stateStore.ts';
+import { getServerDbState, saveDatabaseState, saveDatabaseStateStrict } from '../stateStore.ts';
 import { authenticateServerRequest, denyIfModuleNotAllowed } from '../security.ts';
+import { getTodayAsuncionISO } from '../../src/config/appBrand.ts';
+
+function normalizeDocumentKey(val: unknown): string {
+  return String(val || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s.-]+/g, '');
+}
 
 export function createPatientsPayrollRouter(): express.Router {
   const router = express.Router();
@@ -125,57 +133,75 @@ export function createPatientsPayrollRouter(): express.Router {
         }
       }
 
+      const normalizedDocKey = normalizeDocumentKey(body.documentNumber);
+      if (!normalizedDocKey) {
+        return res.status(400).json({ error: 'Debe ingresar un número de documento válido.' });
+      }
+      const duplicatePatient = (serverDbState.data.patients || []).find(
+        (p: any) =>
+          p.organizationId === orgId &&
+          normalizeDocumentKey(p.documentNumber) === normalizedDocKey
+      );
+      if (duplicatePatient) {
+        return res.status(409).json({
+          error: `Ya existe un paciente registrado con el documento ${duplicatePatient.documentNumber} (${duplicatePatient.firstName} ${duplicatePatient.lastName}).`,
+          code: 'DUPLICATE_PATIENT_DOCUMENT',
+        });
+      }
+
       const createdByUserId = auth.user.id;
       const createdByNameSnapshot = getUserDisplayName(auth.user);
       const patientId = crypto.randomUUID();
       const branchId = body.primaryBranchId || serverDbState.data.branches?.[0]?.id;
+      const nowIso = new Date().toISOString();
+      const todayPy = getTodayAsuncionISO();
 
       const record = {
         id: patientId,
         organizationId: orgId,
         primaryBranchId: branchId,
-        documentType: body.documentType || 'CI',
+        documentType: String(body.documentType || 'CI').trim(),
         documentNumber: String(body.documentNumber).trim(),
         firstName: String(body.firstName).trim(),
         lastName: String(body.lastName).trim(),
-        birthDate: body.birthDate || null,
-        gender: body.gender || 'NO_ESPECIFICA',
+        birthDate: body.birthDate ? String(body.birthDate).trim() : null,
+        gender: body.gender ? String(body.gender).trim() : 'NO_ESPECIFICA',
         phone: String(body.phone).trim(),
-        whatsapp: body.whatsapp || String(body.phone).trim(),
-        email: body.email || null,
-        department: body.department || 'Central',
-        city: body.city || 'Asunción',
-        neighborhood: body.neighborhood || 'Centro',
-        address: body.address || null,
-        emergencyContactName: body.emergencyContactName || null,
-        emergencyContactPhone: body.emergencyContactPhone || null,
-        bloodType: body.bloodType || null,
-        allergies: body.allergies || 'Ninguna conocida',
-        medicalConditions: body.medicalConditions || 'Ninguna',
-        medications: body.medications || 'Ninguna',
+        whatsapp: body.whatsapp ? String(body.whatsapp).trim() : String(body.phone).trim(),
+        email: body.email && String(body.email).trim() ? String(body.email).trim() : null,
+        department: body.department ? String(body.department).trim() : 'Central',
+        city: body.city ? String(body.city).trim() : 'Asunción',
+        neighborhood: body.neighborhood ? String(body.neighborhood).trim() : null,
+        address: body.address ? String(body.address).trim() : null,
+        emergencyContactName: body.emergencyContactName ? String(body.emergencyContactName).trim() : null,
+        emergencyContactPhone: body.emergencyContactPhone ? String(body.emergencyContactPhone).trim() : null,
+        bloodType: body.bloodType ? String(body.bloodType).trim() : null,
+        allergies: body.allergies && String(body.allergies).trim() ? String(body.allergies).trim() : 'Ninguna conocida',
+        medicalConditions: body.medicalConditions && String(body.medicalConditions).trim() ? String(body.medicalConditions).trim() : 'Ninguna',
+        medications: body.medications && String(body.medications).trim() ? String(body.medications).trim() : 'Ninguna',
         modality: body.modality || 'PARTICULAR',
         insurancePlanId: body.insurancePlanId || null,
-        insuranceMemberNumber: body.insuranceMemberNumber || null,
+        insuranceMemberNumber: body.insuranceMemberNumber ? String(body.insuranceMemberNumber).trim() : null,
         assignedAdvisorId,
-        assignedAt: assignedAdvisorId ? new Date().toISOString() : null,
+        assignedAt: assignedAdvisorId ? nowIso : null,
         assignedByUserId: assignedAdvisorId ? auth.user.id : null,
         createdByUserId,
         createdByNameSnapshot,
         status: 'ACTIVE',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: nowIso,
+        updatedAt: nowIso,
       };
 
       const auditCountBefore = serverDbState.data.auditLogs.length;
       const patientBranchRecord = {
         patientId,
         branchId,
-        firstVisitDate: new Date().toISOString().split('T')[0],
-        lastVisitDate: new Date().toISOString().split('T')[0],
+        firstVisitDate: todayPy,
+        lastVisitDate: todayPy,
       };
 
-      serverDbState.data.patients.unshift(record);
-      serverDbState.data.patientBranches.push(patientBranchRecord);
+      serverDbState.data.patients = [record, ...(serverDbState.data.patients || [])];
+      serverDbState.data.patientBranches = [...(serverDbState.data.patientBranches || []), patientBranchRecord];
 
       let generatedComms: any[] = [];
       if (assignedAdvisorId) {
@@ -202,11 +228,11 @@ export function createPatientsPayrollRouter(): express.Router {
         oldValues: null,
         newValues: { createdByUserId, assignedAdvisorId, documentNumber: record.documentNumber },
         description: `Alta de paciente ${record.firstName} ${record.lastName} por ${createdByNameSnapshot}`,
-        createdAt: new Date().toISOString(),
+        createdAt: nowIso,
       });
 
       const newAuditLogs = serverDbState.data.auditLogs.slice(0, serverDbState.data.auditLogs.length - auditCountBefore);
-      await saveDatabaseState({
+      const stateVersion = await saveDatabaseStateStrict({
         upserts: {
           patients: [record],
           patientBranches: [patientBranchRecord],
@@ -214,7 +240,12 @@ export function createPatientsPayrollRouter(): express.Router {
           auditLogs: newAuditLogs,
         },
       });
-      return res.status(201).json({ patient: record });
+      return res.status(201).json({
+        patient: record,
+        patientBranch: patientBranchRecord,
+        auditLogs: newAuditLogs,
+        stateVersion,
+      });
     } catch (err) {
       return next(err);
     }
@@ -259,6 +290,33 @@ export function createPatientsPayrollRouter(): express.Router {
       delete body.id;
       delete body.organizationId;
 
+      if (body.documentNumber !== undefined) {
+        const trimmedDoc = String(body.documentNumber).trim();
+        const normalizedDocKey = normalizeDocumentKey(trimmedDoc);
+        if (!normalizedDocKey) {
+          return res.status(400).json({ error: 'Debe ingresar un número de documento válido.' });
+        }
+        const duplicatePatient = (serverDbState.data.patients || []).find(
+          (p: any) =>
+            p.id !== id &&
+            p.organizationId === current.organizationId &&
+            normalizeDocumentKey(p.documentNumber) === normalizedDocKey
+        );
+        if (duplicatePatient) {
+          return res.status(409).json({
+            error: `Ya existe otro paciente registrado con el documento ${duplicatePatient.documentNumber} (${duplicatePatient.firstName} ${duplicatePatient.lastName}).`,
+            code: 'DUPLICATE_PATIENT_DOCUMENT',
+          });
+        }
+        body.documentNumber = trimmedDoc;
+      }
+
+      if (body.firstName !== undefined) body.firstName = String(body.firstName).trim();
+      if (body.lastName !== undefined) body.lastName = String(body.lastName).trim();
+      if (body.phone !== undefined) body.phone = String(body.phone).trim();
+      if (body.email !== undefined) body.email = body.email && String(body.email).trim() ? String(body.email).trim() : null;
+      if (body.birthDate !== undefined) body.birthDate = body.birthDate && String(body.birthDate).trim() ? String(body.birthDate).trim() : null;
+
       if (advisorChanged) {
         if (body.assignedAdvisorId) {
           const advisor = (serverDbState.data.employees || []).find(
@@ -277,14 +335,17 @@ export function createPatientsPayrollRouter(): express.Router {
         body.assignedByUserId = body.assignedAdvisorId ? auth.user.id : null;
       }
 
+      const nowIso = new Date().toISOString();
       const updated = {
         ...current,
         ...body,
         createdByUserId: current.createdByUserId ?? null,
         createdByNameSnapshot: current.createdByNameSnapshot || UNKNOWN_CREATOR_LABEL,
-        updatedAt: new Date().toISOString(),
+        updatedAt: nowIso,
       };
-      serverDbState.data.patients[idx] = updated;
+      serverDbState.data.patients = serverDbState.data.patients.map((p: any, i: number) =>
+        i === idx ? updated : p
+      );
 
       const newAuditLogs: any[] = [];
       if (advisorChanged) {
@@ -301,19 +362,43 @@ export function createPatientsPayrollRouter(): express.Router {
           oldValues: { assignedAdvisorId: current.assignedAdvisorId || null },
           newValues: { assignedAdvisorId: updated.assignedAdvisorId },
           description: `Cambio de asesor comercial en ficha de ${updated.firstName} ${updated.lastName} sin alterar comisiones históricas.`,
-          createdAt: new Date().toISOString(),
+          createdAt: nowIso,
         };
         serverDbState.data.auditLogs.unshift(advisorLog);
         newAuditLogs.push(advisorLog);
       }
 
-      await saveDatabaseState({
+      const updateLog = {
+        id: crypto.randomUUID(),
+        organizationId: current.organizationId,
+        branchId: updated.primaryBranchId,
+        userId: auth.user.id,
+        action: body.status && body.status !== current.status && Object.keys(body).length === 1 ? 'STATUS_CHANGE' : 'UPDATE',
+        entity: 'PATIENT',
+        entityId: id,
+        ipAddress: req.ip || '127.0.0.1',
+        userAgent: req.headers['user-agent'] || 'Backend API',
+        oldValues: {
+          firstName: current.firstName,
+          lastName: current.lastName,
+          documentNumber: current.documentNumber,
+          phone: current.phone,
+          status: current.status,
+        },
+        newValues: body,
+        description: `Actualización de ficha clínica de ${updated.firstName} ${updated.lastName} (C.I. ${updated.documentNumber})`,
+        createdAt: nowIso,
+      };
+      serverDbState.data.auditLogs.unshift(updateLog);
+      newAuditLogs.push(updateLog);
+
+      const stateVersion = await saveDatabaseStateStrict({
         upserts: {
           patients: [updated],
-          ...(newAuditLogs.length > 0 ? { auditLogs: newAuditLogs } : {}),
+          auditLogs: newAuditLogs,
         },
       });
-      return res.json({ patient: updated });
+      return res.json({ patient: updated, auditLogs: newAuditLogs, stateVersion });
     } catch (err) {
       return next(err);
     }

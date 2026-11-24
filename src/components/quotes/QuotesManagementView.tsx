@@ -303,7 +303,7 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
 
           {/* Status filter buttons */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs">
-            {['TODOS', 'PENDIENTE', 'APROBADO', 'RECHAZADO'].map((st) => (
+            {['TODOS', 'PENDIENTE', 'APROBADO', 'RECHAZADO', 'VENCIDO'].map((st) => (
               <button
                 key={st}
                 onClick={() => setSelectedStatus(st)}
@@ -541,6 +541,9 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
         onQuoteCreated={(quoteId) => {
           reloadData();
           setInspectQuoteId(quoteId);
+        }}
+        onSaved={(message) => {
+          setActionFeedback({ type: 'success', message });
         }}
       />
 

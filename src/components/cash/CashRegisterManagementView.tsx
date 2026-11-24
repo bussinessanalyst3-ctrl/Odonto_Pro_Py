@@ -24,13 +24,14 @@ import {
   AlertCircle,
   CheckCircle2,
   AlertTriangle,
+  Search,
 } from 'lucide-react';
 
 export const CashRegisterManagementView: React.FC = () => {
   const { session } = useAuth();
-  const branches = dbStore.getBranches();
+  const [branches, setBranches] = useState(() => dbStore.getBranches());
   const [selectedBranchId, setSelectedBranchId] = useState<string>(
-    session?.currentBranchId || branches[0]?.id || ''
+    session?.currentBranchId || dbStore.getBranches()[0]?.id || ''
   );
 
   const [cashRegisters, setCashRegisters] = useState(dbStore.getCashRegisters());
@@ -40,6 +41,7 @@ export const CashRegisterManagementView: React.FC = () => {
   const [patients, setPatients] = useState(dbStore.getPatients());
 
   const [activeTab, setActiveTab] = useState<'current' | 'history' | 'receipts'>('current');
+  const [receiptSearch, setReceiptSearch] = useState<string>('');
 
   // Modals state
   const [isOpenModalOpen, setIsOpenModalOpen] = useState(false);
@@ -52,6 +54,15 @@ export const CashRegisterManagementView: React.FC = () => {
   const [isAnnulling, setIsAnnulling] = useState<boolean>(false);
 
   const reloadData = () => {
+    const freshBranches = [...dbStore.getBranches()];
+    setBranches(freshBranches);
+    setSelectedBranchId((prev) =>
+      prev && freshBranches.some((b) => b.id === prev)
+        ? prev
+        : session?.currentBranchId && freshBranches.some((b) => b.id === session.currentBranchId)
+          ? session.currentBranchId
+          : freshBranches[0]?.id || ''
+    );
     setCashRegisters([...dbStore.getCashRegisters()]);
     setCashMovements([...dbStore.getCashMovements()]);
     setPayments([...dbStore.getPayments()]);
@@ -90,19 +101,24 @@ export const CashRegisterManagementView: React.FC = () => {
     .filter((m) => m.movementType === 'INGRESO')
     .reduce((sum, m) => sum + m.amount, 0);
 
-  const totalSipap = activeMovements
-    .filter((m) => m.paymentMethod === 'TRANSFERENCIA_SIPAP' && m.movementType === 'INGRESO')
+  const totalTurnoEgresos = activeMovements
+    .filter((m) => m.movementType === 'EGRESO')
     .reduce((sum, m) => sum + m.amount, 0);
+
+  const totalTurnoNeto = totalTurnoIngresos - totalTurnoEgresos;
+
+  const totalSipap = activeMovements
+    .filter((m) => m.paymentMethod === 'TRANSFERENCIA_SIPAP')
+    .reduce((sum, m) => sum + (m.movementType === 'INGRESO' ? m.amount : -m.amount), 0);
 
   const totalQrYPos = activeMovements
     .filter(
       (m) =>
-        (m.paymentMethod === 'QR_BANCARIO' ||
-          m.paymentMethod === 'TARJETA_DEBITO' ||
-          m.paymentMethod === 'TARJETA_CREDITO') &&
-        m.movementType === 'INGRESO'
+        m.paymentMethod === 'QR_BANCARIO' ||
+        m.paymentMethod === 'TARJETA_DEBITO' ||
+        m.paymentMethod === 'TARJETA_CREDITO'
     )
-    .reduce((sum, m) => sum + m.amount, 0);
+    .reduce((sum, m) => sum + (m.movementType === 'INGRESO' ? m.amount : -m.amount), 0);
 
   // Active cashier user
   const activeCashier = activeRegister
@@ -116,8 +132,22 @@ export const CashRegisterManagementView: React.FC = () => {
     (cr) => cr.branchId === selectedBranchId
   );
 
-  // Branch payments
+  // Branch payments + lightweight search filter
   const branchPayments = payments.filter((p) => p.branchId === selectedBranchId);
+  const filteredBranchPayments = receiptSearch.trim()
+    ? branchPayments.filter((p) => {
+        const term = receiptSearch.trim().toLowerCase();
+        const pat = patients.find((pt) => pt.id === p.patientId);
+        const patName = `${pat?.firstName || ''} ${pat?.lastName || ''}`.toLowerCase();
+        const patCi = (pat?.documentNumber || '').toLowerCase();
+        return (
+          (p.receiptNumber || '').toLowerCase().includes(term) ||
+          patName.includes(term) ||
+          patCi.includes(term) ||
+          (p.notes || '').toLowerCase().includes(term)
+        );
+      })
+    : branchPayments;
 
   return (
     <div className="space-y-6">
@@ -227,13 +257,14 @@ export const CashRegisterManagementView: React.FC = () => {
 
                 <div className="bg-white/80 p-3 rounded-xl border border-emerald-100">
                   <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                    Total Recaudado Hoy
+                    Neto Recaudado Hoy
                   </span>
                   <p className="text-lg font-black text-slate-900 mt-1">
-                    ₲ {totalTurnoIngresos.toLocaleString('es-PY')}
+                    ₲ {totalTurnoNeto.toLocaleString('es-PY')}
                   </p>
                   <span className="text-[10px] text-slate-400">
-                    {activeMovements.filter((m) => m.movementType === 'INGRESO').length} cobros
+                    {activeMovements.filter((m) => m.movementType === 'INGRESO').length} ingresos
+                    {totalTurnoEgresos > 0 ? ` • -₲ ${totalTurnoEgresos.toLocaleString('es-PY')} egresos` : ''}
                   </span>
                 </div>
 
@@ -433,10 +464,20 @@ export const CashRegisterManagementView: React.FC = () => {
       {/* Sub-Tab 2: Receipts Issued */}
       {activeTab === 'receipts' && (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-          <div className="px-6 py-4 border-b border-slate-200">
+          <div className="px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
               Recibos de Dinero Emitidos en {currentBranch?.name}
             </h3>
+            <div className="relative w-full sm:w-72">
+              <Search className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={receiptSearch}
+                onChange={(e) => setReceiptSearch(e.target.value)}
+                placeholder="Buscar por nro. recibo, paciente o C.I..."
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -453,19 +494,25 @@ export const CashRegisterManagementView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {branchPayments.length === 0 ? (
+                {filteredBranchPayments.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-slate-500">
-                      No se han emitido recibos en esta sucursal aún.
+                      {receiptSearch.trim()
+                        ? 'No se encontraron recibos que coincidan con la búsqueda.'
+                        : 'No se han emitido recibos en esta sucursal aún.'}
                     </td>
                   </tr>
                 ) : (
-                  branchPayments.map((p) => {
+                  filteredBranchPayments.map((p) => {
                     const pat = patients.find((pt) => pt.id === p.patientId);
+                    const isAnnulled = p.status === 'ANULADO';
 
                     return (
-                      <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-teal-800">
+                      <tr
+                        key={p.id}
+                        className={`hover:bg-slate-50 transition-colors ${isAnnulled ? 'bg-rose-50/30 opacity-75' : ''}`}
+                      >
+                        <td className={`py-3 px-4 font-mono font-bold ${isAnnulled ? 'text-slate-400 line-through' : 'text-teal-800'}`}>
                           {p.receiptNumber}
                         </td>
 
@@ -494,7 +541,7 @@ export const CashRegisterManagementView: React.FC = () => {
                           </span>
                         </td>
 
-                        <td className="py-3 px-4 text-right font-black text-slate-900 text-sm">
+                        <td className={`py-3 px-4 text-right font-black text-sm ${isAnnulled ? 'text-rose-500 line-through' : 'text-slate-900'}`}>
                           ₲ {p.amount.toLocaleString('es-PY')}
                         </td>
 

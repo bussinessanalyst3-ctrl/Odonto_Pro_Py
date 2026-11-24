@@ -15,6 +15,7 @@ import {
   withOrgTransactionLock,
 } from '../stateStore.ts';
 import { authenticateServerRequest, denyIfModuleNotAllowed } from '../security.ts';
+import { getTodayAsuncionISO } from '../../src/config/appBrand.ts';
 
 function normalizeTimeStr(val: string): string {
   const s = String(val || '').trim();
@@ -30,9 +31,40 @@ function timeToMinutes(timeStr: string): number {
 
 function addMinutesToTime(startTime: string, durationMin: number): string {
   const totalMin = timeToMinutes(startTime) + durationMin;
-  const hh = Math.floor(totalMin / 60) % 24;
+  if (totalMin >= 24 * 60) {
+    return '23:59:00';
+  }
+  const hh = Math.floor(totalMin / 60);
   const mm = totalMin % 60;
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`;
+}
+
+function updatePatientBranchVisitDates(
+  patientBranches: any[],
+  patientId: string,
+  branchId: string,
+  visitDate: string
+) {
+  const existing = patientBranches.find(
+    (pb: any) => pb.patientId === patientId && pb.branchId === branchId
+  );
+  if (existing) {
+    if (!existing.firstVisitDate || visitDate < existing.firstVisitDate) {
+      existing.firstVisitDate = visitDate;
+    }
+    if (!existing.lastVisitDate || visitDate > existing.lastVisitDate) {
+      existing.lastVisitDate = visitDate;
+    }
+    return existing;
+  }
+  const created = {
+    patientId,
+    branchId,
+    firstVisitDate: visitDate,
+    lastVisitDate: visitDate,
+  };
+  patientBranches.push(created);
+  return created;
 }
 
 function getNextReceiptNumberForOrg(data: any, orgId: string): string {
@@ -139,10 +171,20 @@ export function createClinicalBillingRouter(): express.Router {
       const patientId = String(body.patientId || '').trim();
       const odontologistId = String(body.odontologistId || '').trim();
       const serviceId = body.serviceId ? String(body.serviceId).trim() : null;
-      const dentalChairId = body.dentalChairId ? String(body.dentalChairId).trim() : null;
+      const dentalChairIdInput = body.dentalChairId ? String(body.dentalChairId).trim() : null;
       const appointmentDate = String(body.appointmentDate || '').trim();
       const startTime = normalizeTimeStr(String(body.startTime || ''));
       const durationMin = Math.max(5, Number(body.durationMin) || 30);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(appointmentDate)) {
+        return res.status(400).json({
+          error: 'La fecha de la cita debe tener formato válido (AAAA-MM-DD).',
+        });
+      }
+      if (!body.endTime && startTime && timeToMinutes(startTime) + durationMin > 23 * 60 + 59) {
+        return res.status(400).json({
+          error: 'El horario de la cita supera el cierre del día (23:59). Ajuste la hora de inicio o la duración.',
+        });
+      }
       const endTime = body.endTime ? normalizeTimeStr(String(body.endTime)) : addMinutesToTime(startTime, durationMin);
 
       if (!branchId || !patientId || !odontologistId || !appointmentDate || !startTime || !endTime) {
@@ -194,6 +236,11 @@ export function createClinicalBillingRouter(): express.Router {
           return res.status(403).json({ error: '403 Prohibido: Profesional pertenece a otra organización.' });
         }
 
+        let dentalChairId = dentalChairIdInput;
+        const branchChairs = (data.dentalChairs || []).filter(
+          (c: any) => c.organizationId === orgId && c.branchId === branchId && c.status !== 'INACTIVE'
+        );
+
         if (dentalChairId) {
           const chair = (data.dentalChairs || []).find((c: any) => c.id === dentalChairId);
           if (!chair || chair.organizationId !== orgId || chair.branchId !== branchId) {
@@ -202,10 +249,27 @@ export function createClinicalBillingRouter(): express.Router {
         }
 
         const settings = (data.branchSettings || []).find((bs: any) => bs.branchId === branchId);
-        if (!settings?.allowDoubleBooking) {
-          const newStart = timeToMinutes(startTime);
-          const newEnd = timeToMinutes(endTime);
+        const newStart = timeToMinutes(startTime);
+        const newEnd = timeToMinutes(endTime);
 
+        if (!dentalChairId && branchChairs.length > 0) {
+          const occupiedChairIds = new Set<string>();
+          for (const existing of data.appointments) {
+            if (existing.branchId !== branchId) continue;
+            if (existing.appointmentDate !== appointmentDate) continue;
+            if (existing.status === 'CANCELADA' || existing.status === 'NO_ASISTIO') continue;
+            if (!existing.dentalChairId) continue;
+            const exStart = timeToMinutes(normalizeTimeStr(existing.startTime));
+            const exEnd = timeToMinutes(normalizeTimeStr(existing.endTime));
+            if (newStart < exEnd && newEnd > exStart) {
+              occupiedChairIds.add(existing.dentalChairId);
+            }
+          }
+          const freeChair = branchChairs.find((c: any) => !occupiedChairIds.has(c.id));
+          dentalChairId = freeChair ? freeChair.id : branchChairs[0].id;
+        }
+
+        if (!settings?.allowDoubleBooking) {
           for (const existing of data.appointments) {
             if (existing.branchId !== branchId) continue;
             if (existing.appointmentDate !== appointmentDate) continue;
@@ -257,21 +321,13 @@ export function createClinicalBillingRouter(): express.Router {
 
           data.appointments.unshift(record);
 
-          const todayStr = nowIso.split('T')[0];
-          let patientBranch = data.patientBranches.find(
-            (pb: any) => pb.patientId === patientId && pb.branchId === branchId
+          const visitDateStr = appointmentDate || getTodayAsuncionISO();
+          const patientBranch = updatePatientBranchVisitDates(
+            data.patientBranches,
+            patientId,
+            branchId,
+            visitDateStr
           );
-          if (patientBranch) {
-            patientBranch.lastVisitDate = todayStr;
-          } else {
-            patientBranch = {
-              patientId,
-              branchId,
-              firstVisitDate: todayStr,
-              lastVisitDate: todayStr,
-            };
-            data.patientBranches.push(patientBranch);
-          }
 
           const auditLog = {
             id: crypto.randomUUID(),
@@ -343,13 +399,17 @@ export function createClinicalBillingRouter(): express.Router {
       const amount = Number(req.body?.amount);
       const paymentMethod = String(req.body?.paymentMethod || '').trim();
       const requestedReceipt = req.body?.receiptNumber ? String(req.body.receiptNumber).trim() : '';
+      const rawPaymentDate = req.body?.paymentDate ? String(req.body.paymentDate).trim() : '';
       const autoProgressIfPaid = Boolean(req.body?.autoProgressIfPaid);
 
-      if (!Number.isFinite(amount) || amount <= 0) {
-        return res.status(400).json({ error: 'El monto a abonar debe ser superior a ₲ 0.' });
+      if (!Number.isFinite(amount) || !Number.isInteger(amount) || amount <= 0) {
+        return res.status(400).json({ error: 'El monto a abonar en Guaraníes (PYG) debe ser un número entero mayor a ₲ 0.' });
       }
       if (!paymentMethod) {
         return res.status(400).json({ error: 'Debe especificar el medio de cobro.' });
+      }
+      if (rawPaymentDate && !/^\d{4}-\d{2}-\d{2}$/.test(rawPaymentDate)) {
+        return res.status(400).json({ error: 'La fecha del cobro debe tener formato válido (AAAA-MM-DD).' });
       }
 
       const preTreat = (initialData.treatments || []).find((t: any) => t.id === treatmentId);
@@ -424,6 +484,11 @@ export function createClinicalBillingRouter(): express.Router {
 
         try {
           const nowIso = new Date().toISOString();
+          const todayAsuncion = getTodayAsuncionISO();
+          const isHistoricalPayment = Boolean(rawPaymentDate && rawPaymentDate < todayAsuncion);
+          const paymentCreatedAtIso = isHistoricalPayment
+            ? `${rawPaymentDate}T16:00:00.000Z`
+            : nowIso;
           const auditCountBefore = data.auditLogs.length;
 
           treat.paidAmount = Number(treat.paidAmount || 0) + amount;
@@ -448,34 +513,39 @@ export function createClinicalBillingRouter(): express.Router {
             amount,
             paymentMethod,
             status: 'COMPLETADO',
-            notes: `Pago abonado a cuenta del tratamiento ${treat.title}`,
+            notes: isHistoricalPayment
+              ? `Pago histórico (${rawPaymentDate}) abonado a cuenta del tratamiento ${treat.title}`
+              : `Pago abonado a cuenta del tratamiento ${treat.title}`,
             receivedBy: auth.user!.id,
             historicalReceivedByName: getUserDisplayName(auth.user!),
-            createdAt: nowIso,
+            createdAt: paymentCreatedAtIso,
           };
 
           data.payments.unshift(paymentRecord);
 
           let createdMovement: any = null;
-          const openRegister = (data.cashRegisters || []).find(
-            (cr: any) => cr.organizationId === orgId && cr.branchId === treat.branchId && cr.status === 'ABIERTA'
-          );
-          if (openRegister) {
-            const movementId = crypto.randomUUID();
-            createdMovement = {
-              id: movementId,
-              cashRegisterId: openRegister.id,
-              movementType: 'INGRESO',
-              amount,
-              paymentMethod,
-              concept: `Cobro tratamiento ${treat.title} (Recibo ${paymentRecord.receiptNumber})`,
-              referenceNumber: paymentRecord.receiptNumber,
-              performedBy: auth.user!.id,
-              historicalPerformedByName: getUserDisplayName(auth.user!),
-              createdAt: nowIso,
-            };
-            data.cashMovements.unshift(createdMovement);
-            paymentRecord.cashMovementId = movementId;
+          // Los cobros históricos (fecha pasada) actualizan saldo sin distorsionar el cajón de la caja abierta hoy
+          if (!isHistoricalPayment) {
+            const openRegister = (data.cashRegisters || []).find(
+              (cr: any) => cr.organizationId === orgId && cr.branchId === treat.branchId && cr.status === 'ABIERTA'
+            );
+            if (openRegister) {
+              const movementId = crypto.randomUUID();
+              createdMovement = {
+                id: movementId,
+                cashRegisterId: openRegister.id,
+                movementType: 'INGRESO',
+                amount,
+                paymentMethod,
+                concept: `Cobro tratamiento ${treat.title} (Recibo ${paymentRecord.receiptNumber})`,
+                referenceNumber: paymentRecord.receiptNumber,
+                performedBy: auth.user!.id,
+                historicalPerformedByName: getUserDisplayName(auth.user!),
+                createdAt: nowIso,
+              };
+              data.cashMovements.unshift(createdMovement);
+              paymentRecord.cashMovementId = movementId;
+            }
           }
 
           data.auditLogs.unshift({
@@ -509,6 +579,7 @@ export function createClinicalBillingRouter(): express.Router {
             paymentId: paymentRecord.id,
             odontologistUserId: linkedQuote?.odontologistId || treat.odontologistId || null,
             amount,
+            eventDate: rawPaymentDate || todayAsuncion,
             actorUserId: auth.user!.id,
           });
 
@@ -652,19 +723,36 @@ export function createClinicalBillingRouter(): express.Router {
             (cr: any) => cr.organizationId === orgId && cr.branchId === payment.branchId && cr.status === 'ABIERTA'
           );
           if (openRegister) {
-            counterMovement = {
-              id: crypto.randomUUID(),
-              cashRegisterId: openRegister.id,
-              movementType: 'EGRESO',
-              amount: Number(payment.amount),
-              paymentMethod: payment.paymentMethod,
-              concept: `[ANULACIÓN] Recibo ${payment.receiptNumber}: ${reason}`,
-              referenceNumber: `ANUL-${payment.receiptNumber}`,
-              performedBy: auth.user!.id,
-              historicalPerformedByName: getUserDisplayName(auth.user!),
-              createdAt: nowIso,
-            };
-            data.cashMovements.unshift(counterMovement);
+            const origMovement = payment.cashMovementId
+              ? (data.cashMovements || []).find((m: any) => m.id === payment.cashMovementId)
+              : null;
+            let paymentDateAsuncion = '';
+            try {
+              paymentDateAsuncion = new Date(payment.createdAt).toLocaleDateString('en-CA', {
+                timeZone: 'America/Asuncion',
+              });
+            } catch {
+              paymentDateAsuncion = '';
+            }
+            const belongsToOpenRegister = origMovement
+              ? origMovement.cashRegisterId === openRegister.id
+              : paymentDateAsuncion === getTodayAsuncionISO();
+
+            if (belongsToOpenRegister) {
+              counterMovement = {
+                id: crypto.randomUUID(),
+                cashRegisterId: openRegister.id,
+                movementType: 'EGRESO',
+                amount: Number(payment.amount),
+                paymentMethod: payment.paymentMethod,
+                concept: `[ANULACIÓN] Recibo ${payment.receiptNumber}: ${reason}`,
+                referenceNumber: `ANUL-${payment.receiptNumber}`,
+                performedBy: auth.user!.id,
+                historicalPerformedByName: getUserDisplayName(auth.user!),
+                createdAt: nowIso,
+              };
+              data.cashMovements.unshift(counterMovement);
+            }
           }
 
           reverseCommissionsForAnnulledPayment(data, paymentId, reason, auth.user!.id);
@@ -757,8 +845,8 @@ export function createClinicalBillingRouter(): express.Router {
       if (!branchId) {
         return res.status(400).json({ error: 'Debe seleccionar una sucursal.' });
       }
-      if (!Number.isFinite(openingAmount) || openingAmount < 0) {
-        return res.status(400).json({ error: 'El fondo inicial de caja debe ser mayor o igual a ₲ 0.' });
+      if (!Number.isFinite(openingAmount) || !Number.isInteger(openingAmount) || openingAmount < 0) {
+        return res.status(400).json({ error: 'El fondo inicial de caja en Guaraníes (PYG) debe ser un número entero mayor o igual a ₲ 0.' });
       }
 
       const preBranch = (initialData.branches || []).find((b: any) => b.id === branchId);
@@ -897,8 +985,8 @@ export function createClinicalBillingRouter(): express.Router {
       if (!['INGRESO', 'EGRESO', 'AJUSTE'].includes(movementType)) {
         return res.status(400).json({ error: 'Tipo de movimiento inválido (use INGRESO, EGRESO o AJUSTE).' });
       }
-      if (!Number.isFinite(amount) || amount <= 0) {
-        return res.status(400).json({ error: 'El monto del movimiento debe ser superior a ₲ 0.' });
+      if (!Number.isFinite(amount) || !Number.isInteger(amount) || amount <= 0) {
+        return res.status(400).json({ error: 'El monto del movimiento en Guaraníes (PYG) debe ser un número entero mayor a ₲ 0.' });
       }
       if (!paymentMethod || !concept) {
         return res.status(400).json({ error: 'Medio de pago y concepto son obligatorios.' });
@@ -951,11 +1039,14 @@ export function createClinicalBillingRouter(): express.Router {
           }
         }
 
-        const shouldEmitPayment = Boolean(requestedReceipt || patientId || movementType === 'INGRESO');
-        const resolvedReceipt =
-          shouldEmitPayment && movementType === 'INGRESO'
-            ? requestedReceipt || getNextReceiptNumberForOrg(data, orgId)
-            : requestedReceipt;
+        const linkedTreatment = treatmentId
+          ? (data.treatments || []).find((t: any) => t.id === treatmentId && t.organizationId === orgId)
+          : null;
+        const explicitPatientId = patientId || linkedTreatment?.patientId || '';
+        const shouldEmitPayment = Boolean(explicitPatientId && movementType === 'INGRESO');
+        const resolvedReceipt = shouldEmitPayment
+          ? requestedReceipt || getNextReceiptNumberForOrg(data, orgId)
+          : '';
 
         if (resolvedReceipt) {
           const dupReceipt = data.payments.some(
@@ -1000,9 +1091,8 @@ export function createClinicalBillingRouter(): express.Router {
 
           let createdPayment: any = null;
           let generatedCommissions: any[] = [];
-          if (shouldEmitPayment && (resolvedReceipt || patientId)) {
-            const patientIdResolved =
-              patientId || (data.patients || []).find((p: any) => p.organizationId === orgId)?.id || null;
+          if (shouldEmitPayment && explicitPatientId) {
+            const patientIdResolved = explicitPatientId;
             if (patientIdResolved) {
               const payId = crypto.randomUUID();
               createdPayment = {
@@ -1120,8 +1210,8 @@ export function createClinicalBillingRouter(): express.Router {
       const closingAmountReal = Number(req.body?.closingAmountReal);
       const observations = req.body?.observations ? String(req.body.observations).trim() : '';
 
-      if (!Number.isFinite(closingAmountReal) || closingAmountReal < 0) {
-        return res.status(400).json({ error: 'El monto físico contado debe ser mayor o igual a ₲ 0.' });
+      if (!Number.isFinite(closingAmountReal) || !Number.isInteger(closingAmountReal) || closingAmountReal < 0) {
+        return res.status(400).json({ error: 'El monto físico contado en Guaraníes (PYG) debe ser un número entero mayor o igual a ₲ 0.' });
       }
 
       const preReg = (initialData.cashRegisters || []).find((cr: any) => cr.id === cashRegisterId);
@@ -1320,16 +1410,27 @@ export function createClinicalBillingRouter(): express.Router {
                 .filter((tn: any) => tn !== null && tn !== undefined);
 
               const patient = (data.patients || []).find((p: any) => p.id === quote.patientId);
-              const plan = patient?.insurancePlanId
-                ? (data.insurancePlans || []).find((p: any) => p.id === patient.insurancePlanId)
+              // Respetar estrictamente el plan congelado en el presupuesto (null = Particular; undefined = compatibilidad legado)
+              const resolvedPlanId =
+                quote.planId !== undefined
+                  ? quote.planId || null
+                  : patient?.modality === 'PLAN_SEGURO'
+                    ? patient?.insurancePlanId || null
+                    : null;
+              const plan = resolvedPlanId
+                ? (data.insurancePlans || []).find((p: any) => p.id === resolvedPlanId)
                 : null;
 
-              const modality: 'PARTICULAR' | 'PLAN_SEGURO' =
-                patient?.modality === 'PLAN_SEGURO' ? 'PLAN_SEGURO' : 'PARTICULAR';
-              const planId = modality === 'PLAN_SEGURO' ? patient?.insurancePlanId || null : null;
-              const planName = plan?.name || null;
+              const modality: 'PARTICULAR' | 'PLAN_SEGURO' = resolvedPlanId ? 'PLAN_SEGURO' : 'PARTICULAR';
+              const planId = resolvedPlanId;
+              const planName = quote.planName || plan?.name || null;
               const totalAmt = Number(quote.finalAmount ?? quote.totalAmount ?? 0);
-              const origListPrice = Number(quote.totalAmount ?? totalAmt);
+              const itemsOrigSum = items.reduce(
+                (sum: number, it: any) =>
+                  sum + Number(it.originalListPrice ?? it.unitPrice ?? 0) * Math.max(1, Number(it.quantity || 1)),
+                0
+              );
+              const origListPrice = Math.max(itemsOrigSum, Number(quote.totalAmount ?? totalAmt));
 
               const treatmentId = crypto.randomUUID();
               const docId =
@@ -1355,7 +1456,7 @@ export function createClinicalBillingRouter(): express.Router {
                 paidAmount: 0,
                 balanceDue: totalAmt,
                 status: 'EN_PROGRESO',
-                startDate: nowIso.split('T')[0],
+                startDate: getTodayAsuncionISO(),
                 completedDate: null,
                 toothNumbers,
                 odontologistId: docId,
@@ -1626,7 +1727,7 @@ export function createClinicalBillingRouter(): express.Router {
 
           treat.status = nextStatus;
           if (nextStatus === 'COMPLETADO') {
-            treat.completedDate = completedDate || nowIso.split('T')[0];
+            treat.completedDate = completedDate || getTodayAsuncionISO();
           }
           treat.updatedAt = nowIso;
 
@@ -1658,6 +1759,7 @@ export function createClinicalBillingRouter(): express.Router {
               treatmentId: treat.id,
               odontologistUserId: linkedQuote?.odontologistId || treat.odontologistId || auth.user!.id,
               amount: Number(treat.totalAmount || 0),
+              eventDate: treat.completedDate || getTodayAsuncionISO(),
               actorUserId: auth.user!.id,
             });
           }
@@ -1890,15 +1992,28 @@ export function createClinicalBillingRouter(): express.Router {
           return res.status(403).json({ error: '403 Prohibido: Profesional pertenece a otra organización.' });
         }
 
+        const rawRecordDate = body.recordDate ? String(body.recordDate).trim() : '';
+        if (rawRecordDate && !/^\d{4}-\d{2}-\d{2}$/.test(rawRecordDate)) {
+          return res.status(400).json({ error: 'La fecha de atención clínica debe tener formato válido (AAAA-MM-DD).' });
+        }
+
         const rollbackSnap = captureCollectionsSnapshot(data, [
           'clinicalRecords',
+          'appointments',
           'patientBranches',
           'auditLogs',
         ]);
 
         try {
           const nowIso = new Date().toISOString();
+          const todayPy = getTodayAsuncionISO();
+          const effectiveRecordDate = rawRecordDate || todayPy;
+          const recordCreatedAtIso =
+            rawRecordDate && rawRecordDate !== todayPy
+              ? new Date(`${rawRecordDate}T16:00:00.000Z`).toISOString()
+              : nowIso;
           const recordId = crypto.randomUUID();
+          const appointmentId = body.appointmentId ? String(body.appointmentId).trim() : null;
           const newRecord = {
             id: recordId,
             organizationId: orgId,
@@ -1907,7 +2022,7 @@ export function createClinicalBillingRouter(): express.Router {
             odontologistId,
             historicalDoctorName: getUserDisplayName(doctor),
             odontologistLicenseSnapshot: doctor.medicalLicenseNumber || doctor.professionalLicense || null,
-            appointmentId: body.appointmentId ? String(body.appointmentId).trim() : null,
+            appointmentId,
             reasonForConsultation: String(body.reasonForConsultation || 'Consulta odontológica programada').trim(),
             diagnosis,
             treatmentPerformed,
@@ -1915,27 +2030,30 @@ export function createClinicalBillingRouter(): express.Router {
             recommendations: String(body.recommendations || '').trim(),
             internalNotes: String(body.internalNotes || '').trim(),
             attachments: [],
-            createdAt: nowIso,
+            createdAt: recordCreatedAtIso,
             updatedAt: nowIso,
           };
 
           data.clinicalRecords.unshift(newRecord);
 
-          const todayStr = nowIso.split('T')[0];
-          let patientBranch = data.patientBranches.find(
-            (pb: any) => pb.patientId === patientId && pb.branchId === branchId
-          );
-          if (patientBranch) {
-            patientBranch.lastVisitDate = todayStr;
-          } else {
-            patientBranch = {
-              patientId,
-              branchId,
-              firstVisitDate: todayStr,
-              lastVisitDate: todayStr,
-            };
-            data.patientBranches.push(patientBranch);
+          let finalizedAppointment: any = null;
+          if (appointmentId && Array.isArray(data.appointments)) {
+            const linkedApp = data.appointments.find(
+              (a: any) => a.id === appointmentId && a.organizationId === orgId && a.patientId === patientId
+            );
+            if (linkedApp && linkedApp.status !== 'FINALIZADA' && linkedApp.status !== 'CANCELADA') {
+              linkedApp.status = 'FINALIZADA';
+              linkedApp.updatedAt = nowIso;
+              finalizedAppointment = linkedApp;
+            }
           }
+
+          const patientBranch = updatePatientBranchVisitDates(
+            data.patientBranches,
+            patientId,
+            branchId,
+            effectiveRecordDate
+          );
 
           const auditLog = {
             id: crypto.randomUUID(),
@@ -1948,8 +2066,8 @@ export function createClinicalBillingRouter(): express.Router {
             ipAddress: req.ip || '127.0.0.1',
             userAgent: req.headers['user-agent'] || 'Backend Clinical Engine',
             oldValues: null,
-            newValues: { diagnosis, odontologistId, patientId },
-            description: `Evolución clínica firmada por Dr(a). ${getUserDisplayName(doctor)} para ${patient.firstName} ${patient.lastName}`,
+            newValues: { diagnosis, odontologistId, patientId, recordDate: effectiveRecordDate },
+            description: `Evolución clínica (${effectiveRecordDate}) firmada por Dr(a). ${getUserDisplayName(doctor)} para ${patient.firstName} ${patient.lastName}`,
             createdAt: nowIso,
           };
           data.auditLogs.unshift(auditLog);
@@ -1957,6 +2075,7 @@ export function createClinicalBillingRouter(): express.Router {
           const stateVersion = await saveDatabaseStateStrict({
             upserts: {
               clinicalRecords: [newRecord],
+              ...(finalizedAppointment ? { appointments: [finalizedAppointment] } : {}),
               patientBranches: [patientBranch],
               auditLogs: [auditLog],
             },
@@ -1964,6 +2083,7 @@ export function createClinicalBillingRouter(): express.Router {
 
           return res.status(201).json({
             clinicalRecord: newRecord,
+            ...(finalizedAppointment ? { appointment: finalizedAppointment } : {}),
             patientBranch,
             auditLogs: [auditLog],
             stateVersion,

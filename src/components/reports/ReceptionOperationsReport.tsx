@@ -1,50 +1,75 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   Clock,
   UserCheck,
   AlertCircle,
   CheckCircle2,
-  DollarSign,
   Building2,
-  Users,
   Stethoscope,
-  Phone,
-  ShieldCheck,
-  ChevronRight
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
+import {
+  ReportPeriodFilter,
+  getPeriodLabel,
+  isDateInReportPeriod,
+} from '../../utils/reportPeriod.ts';
 
 interface ReceptionOperationsReportProps {
   selectedBranchId: string;
+  periodFilter?: ReportPeriodFilter;
 }
 
 export const ReceptionOperationsReport: React.FC<ReceptionOperationsReportProps> = ({
   selectedBranchId,
+  periodFilter,
 }) => {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    return dbStore.subscribe(() => setTick((t) => t + 1));
+  }, []);
+
   const snapshot = dbStore.getSnapshot();
   const appointments = snapshot.appointments || [];
   const cashRegisters = snapshot.cashRegisters || [];
   const patients = snapshot.patients || [];
-  const doctors = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO');
-  const branches = snapshot.branches;
+  const allUsers = snapshot.users || [];
+  const branches = snapshot.branches || [];
 
-  const filteredAppointments = selectedBranchId
-    ? appointments.filter((a) => a.branchId === selectedBranchId)
-    : appointments;
+  const todayIso = getTodayAsuncionISO();
+  const activePeriod: ReportPeriodFilter = periodFilter || { preset: 'TODAY' };
+  const periodLabel = getPeriodLabel(activePeriod, todayIso);
+
+  const filteredAppointments = appointments
+    .filter((a) => {
+      if (selectedBranchId && a.branchId !== selectedBranchId) return false;
+      return isDateInReportPeriod(a.appointmentDate, activePeriod, todayIso);
+    })
+    .sort((a, b) => {
+      const dateCmp = String(b.appointmentDate || '').localeCompare(String(a.appointmentDate || ''));
+      if (dateCmp !== 0) return dateCmp;
+      return String(a.startTime || '').localeCompare(String(b.startTime || ''));
+    });
 
   const activeCashRegister = cashRegisters.find((cr) => {
     if (selectedBranchId && cr.branchId !== selectedBranchId) return false;
     return cr.status === 'ABIERTA';
   });
 
-  // Tally appointment statuses
+  // Tally appointment statuses using real Agenda states
   const statusCounts = {
-    CONFIRMADA: filteredAppointments.filter((a) => a.status === 'CONFIRMADA').length,
-    EN_ATENCION: filteredAppointments.filter((a) => a.status === 'EN_ATENCION').length,
-    COMPLETADA: filteredAppointments.filter((a) => a.status === 'COMPLETADA').length,
-    CANCELADA: filteredAppointments.filter((a) => a.status === 'CANCELADA').length,
+    POR_LLEGAR: filteredAppointments.filter(
+      (a) => a.status === 'CONFIRMADA' || a.status === 'PENDIENTE'
+    ).length,
+    EN_ATENCION_O_SALA: filteredAppointments.filter(
+      (a) => a.status === 'EN_ATENCION' || a.status === 'EN_SALA'
+    ).length,
+    FINALIZADA: filteredAppointments.filter((a) => a.status === 'FINALIZADA').length,
+    CANCELADA: filteredAppointments.filter(
+      (a) => a.status === 'CANCELADA' || a.status === 'NO_ASISTIO'
+    ).length,
   };
 
   return (
@@ -52,16 +77,16 @@ export const ReceptionOperationsReport: React.FC<ReceptionOperationsReportProps>
       {/* Top Header */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base font-bold text-slate-900">
               Control Operativo de Recepción & Sala de Espera
             </h3>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 border border-blue-200">
-              Operaciones de Turno
+              {periodLabel}
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Gestión en tiempo real de pacientes citados, tiempos de espera, asignación de sillones y estado de caja
+            Gestión en tiempo real de pacientes citados, sala de espera, asignación de sillones y estado de caja
           </p>
         </div>
 
@@ -82,46 +107,52 @@ export const ReceptionOperationsReport: React.FC<ReceptionOperationsReportProps>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Citas Agendadas Hoy</span>
+            <span className="text-xs font-medium">
+              {activePeriod.preset === 'TODAY' ? 'Citas Agendadas Hoy' : 'Citas del Período'}
+            </span>
             <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
               <Calendar className="h-4 w-4" />
             </div>
           </div>
           <div className="text-2xl font-bold text-slate-900">{filteredAppointments.length}</div>
-          <div className="text-[11px] text-slate-500 mt-1">Pacientes citados en agenda</div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            {statusCounts.CANCELADA > 0
+              ? `${statusCounts.CANCELADA} canceladas / ausentes`
+              : 'Pacientes citados en agenda'}
+          </div>
         </div>
 
         <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">En Sillón / Atención</span>
+            <span className="text-xs font-medium">En Sala / Sillón</span>
             <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
               <Clock className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-amber-700">{statusCounts.EN_ATENCION}</div>
-          <div className="text-[11px] text-amber-600 font-medium mt-1">Tratamiento en curso</div>
+          <div className="text-2xl font-bold text-amber-700">{statusCounts.EN_ATENCION_O_SALA}</div>
+          <div className="text-[11px] text-amber-600 font-medium mt-1">En espera o atención activa</div>
         </div>
 
         <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Completadas con Éxito</span>
+            <span className="text-xs font-medium">Finalizadas con Éxito</span>
             <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
               <CheckCircle2 className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-emerald-700">{statusCounts.COMPLETADA}</div>
-          <div className="text-[11px] text-emerald-600 font-medium mt-1">Altas y cobros efectuados</div>
+          <div className="text-2xl font-bold text-emerald-700">{statusCounts.FINALIZADA}</div>
+          <div className="text-[11px] text-emerald-600 font-medium mt-1">Atenciones concluidas</div>
         </div>
 
         <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Confirmadas / Por Llegar</span>
+            <span className="text-xs font-medium">Confirmadas / Pendientes</span>
             <div className="p-2 rounded-xl bg-teal-50 text-teal-600">
               <UserCheck className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-teal-700">{statusCounts.CONFIRMADA}</div>
-          <div className="text-[11px] text-teal-600 font-medium mt-1">Recordatorio enviado vía WhatsApp</div>
+          <div className="text-2xl font-bold text-teal-700">{statusCounts.POR_LLEGAR}</div>
+          <div className="text-[11px] text-teal-600 font-medium mt-1">Por llegar a clínica</div>
         </div>
       </div>
 
@@ -130,10 +161,10 @@ export const ReceptionOperationsReport: React.FC<ReceptionOperationsReportProps>
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <div>
             <h4 className="text-sm font-bold text-slate-900">
-              Flujo de Pacientes de la Jornada
+              Flujo de Pacientes — {periodLabel}
             </h4>
             <p className="text-xs text-slate-500 mt-0.5">
-              Horarios, profesional asignado y estado en tiempo real
+              Fecha, horario, profesional asignado y estado real de cada cita
             </p>
           </div>
           <span className="text-xs font-semibold text-slate-600">
@@ -141,60 +172,79 @@ export const ReceptionOperationsReport: React.FC<ReceptionOperationsReportProps>
           </span>
         </div>
 
-        <div className="divide-y divide-slate-100">
-          {filteredAppointments.map((app) => {
-            const patient = patients.find((p) => p.id === app.patientId);
-            const doctor = doctors.find((d) => d.id === app.odontologistId);
-            const branch = branches.find((b) => b.id === app.branchId);
+        {filteredAppointments.length === 0 ? (
+          <div className="py-12 px-6 text-center text-xs text-slate-400">
+            No se registran turnos para la sucursal y el período seleccionado ({periodLabel}).
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {filteredAppointments.map((app) => {
+              const patient = patients.find((p) => p.id === app.patientId);
+              const doctor = allUsers.find((u) => u.id === app.odontologistId);
+              const branch = branches.find((b) => b.id === app.branchId);
 
-            return (
-              <div key={app.id} className="p-4 hover:bg-slate-50/60 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start sm:items-center gap-3.5">
-                  <div className="h-10 w-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold text-xs shrink-0 border border-teal-200">
-                    <Clock className="h-4 w-4" />
+              return (
+                <div
+                  key={app.id}
+                  className="p-4 hover:bg-slate-50/60 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="flex items-start sm:items-center gap-3.5">
+                    <div className="px-2.5 py-1.5 rounded-xl bg-teal-50 text-teal-700 flex flex-col items-center justify-center font-bold text-xs shrink-0 border border-teal-200 min-w-[74px]">
+                      <span className="text-[10px] font-medium text-teal-600">{app.appointmentDate}</span>
+                      <span>{String(app.startTime || '').slice(0, 5)}</span>
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900">
+                          {patient ? `${patient.firstName} ${patient.lastName}` : 'Paciente'}
+                        </span>
+                        <span className="text-[11px] text-slate-500">
+                          CI: {patient?.documentNumber || '—'}
+                        </span>
+                        {patient?.phone && (
+                          <span className="text-[11px] text-slate-400">• Cel: {patient.phone}</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] text-slate-500 mt-1">
+                        <span className="flex items-center gap-1">
+                          <Stethoscope className="h-3 w-3 text-teal-600" />
+                          Dr(a). {doctor ? `${doctor.firstName} ${doctor.lastName}` : 'Odontólogo'}
+                        </span>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Building2 className="h-3 w-3 text-slate-400" />
+                          {branch?.name || 'Sucursal'}
+                        </span>
+                        <span>•</span>
+                        <span>Motivo: {app.reason || 'Consulta'}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-900">
-                        {patient ? `${patient.firstName} ${patient.lastName}` : 'Paciente'}
-                      </span>
-                      <span className="text-[11px] text-slate-500">CI: {patient?.documentNumber}</span>
-                      <span className="text-[11px] text-slate-400">• Cel: {patient?.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
-                      <span className="flex items-center gap-1">
-                        <Stethoscope className="h-3 w-3 text-teal-600" />
-                        Dr(a). {doctor ? `${doctor.firstName} ${doctor.lastName}` : 'Odontólogo'}
-                      </span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1">
-                        <Building2 className="h-3 w-3 text-slate-400" />
-                        {branch?.name}
-                      </span>
-                      <span>•</span>
-                      <span>Motivo: {app.reason || 'Consulta'}</span>
-                    </div>
+
+                  <div className="flex items-center gap-2 sm:self-center">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                        app.status === 'EN_ATENCION'
+                          ? 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse'
+                          : app.status === 'EN_SALA'
+                          ? 'bg-purple-100 text-purple-800 border-purple-300'
+                          : app.status === 'FINALIZADA'
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : app.status === 'CANCELADA' || app.status === 'NO_ASISTIO'
+                          ? 'bg-rose-100 text-rose-800 border-rose-300'
+                          : 'bg-blue-100 text-blue-800 border-blue-300'
+                      }`}
+                    >
+                      {app.status}
+                    </span>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2 sm:self-center">
-                  <span
-                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
-                      app.status === 'EN_ATENCION'
-                        ? 'bg-amber-100 text-amber-800 border-amber-300 animate-pulse'
-                        : app.status === 'COMPLETADA'
-                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                        : 'bg-blue-100 text-blue-800 border-blue-300'
-                    }`}
-                  >
-                    {app.status}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
 };
+

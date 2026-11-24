@@ -27,9 +27,6 @@ export const AuditLogDetailModal: React.FC<AuditLogDetailModalProps> = ({ log, o
   const user = snapshot.users.find((u) => u.id === log.userId);
   const branch = snapshot.branches.find((b) => b.id === log.branchId);
 
-  // Generate simulated hash for tamper-evident audit record verification
-  const simulatedHash = `SHA256-${log.id.slice(0, 8)}-${log.action}-${new Date(log.createdAt).getTime().toString(16).toUpperCase()}`;
-
   const isSensitive = log.action === 'READ_SENSITIVE' || log.entity === 'CLINICAL_RECORD';
 
   return (
@@ -92,6 +89,7 @@ export const AuditLogDetailModal: React.FC<AuditLogDetailModalProps> = ({ log, o
                 <div className="text-[11px] text-slate-500 font-medium">Fecha & Hora Exacta (PY)</div>
                 <div className="font-bold text-slate-900 mt-0.5">
                   {new Date(log.createdAt).toLocaleString('es-PY', {
+                    timeZone: 'America/Asuncion',
                     dateStyle: 'full',
                     timeStyle: 'medium',
                   })}
@@ -105,11 +103,13 @@ export const AuditLogDetailModal: React.FC<AuditLogDetailModalProps> = ({ log, o
               <div>
                 <div className="text-[11px] text-slate-500 font-medium">Operador Responsable</div>
                 <div className="font-bold text-slate-900 mt-0.5">
-                  {user ? `${user.firstName} ${user.lastName}` : 'Sistema / Automático'}
+                  {user
+                    ? `${user.firstName} ${user.lastName}`
+                    : (log as any).historicalUserName || 'Sistema / Automático'}
                 </div>
                 {user && (
                   <div className="text-[11px] text-teal-700">
-                    Rol: {user.roleId} • Doc: {user.documentNumber}
+                    Rol: {user.roleId}{user.documentNumber ? ` • Doc: ${user.documentNumber}` : ''}
                   </div>
                 )}
               </div>
@@ -120,8 +120,8 @@ export const AuditLogDetailModal: React.FC<AuditLogDetailModalProps> = ({ log, o
               <Globe className="h-4 w-4 text-teal-600 shrink-0 mt-0.5" />
               <div>
                 <div className="text-[11px] text-slate-500 font-medium">Dirección IP de Conexión</div>
-                <div className="font-mono font-bold text-slate-900 mt-0.5">{log.ipAddress || '190.52.144.12'}</div>
-                <div className="text-[10px] text-slate-500">ISP: Tigo / Personal Paraguay</div>
+                <div className="font-mono font-bold text-slate-900 mt-0.5">{log.ipAddress || 'No registrada'}</div>
+                <div className="text-[10px] text-slate-500">Origen reportado por el servidor</div>
               </div>
             </div>
 
@@ -143,7 +143,7 @@ export const AuditLogDetailModal: React.FC<AuditLogDetailModalProps> = ({ log, o
             <div className="w-full">
               <div className="text-[11px] text-slate-500 font-medium">Agente de Navegador / Dispositivo</div>
               <div className="font-mono text-[11px] text-slate-700 break-all mt-0.5">
-                {log.userAgent || 'OdontoPro Web Client / Chromium v128'}
+                {log.userAgent || 'No registrado'}
               </div>
             </div>
           </div>
@@ -182,17 +182,17 @@ export const AuditLogDetailModal: React.FC<AuditLogDetailModalProps> = ({ log, o
             </div>
           </div>
 
-          {/* Tamper Evident Verification Badge */}
+          {/* Immutable Record Reference */}
           <div className="p-3.5 bg-teal-50/70 border border-teal-200 rounded-2xl flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Lock className="h-4 w-4 text-teal-700 shrink-0" />
               <div>
-                <span className="font-bold text-teal-900 text-[11px]">Sello Criptográfico de Integridad: </span>
-                <span className="font-mono text-[10px] text-teal-800">{simulatedHash}</span>
+                <span className="font-bold text-teal-900 text-[11px]">ID de Registro Inmutable: </span>
+                <span className="font-mono text-[10px] text-teal-800 break-all">{log.id}</span>
               </div>
             </div>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800">
-              VÁLIDO
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 shrink-0">
+              SOLO LECTURA
             </span>
           </div>
         </div>

@@ -11,17 +11,22 @@ import {
   RefreshCw,
   Eye,
   Stethoscope,
-  Sparkles,
   ChevronLeft,
   ChevronRight,
+  X,
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { getApiBaseUrl } from '../../config/apiConfig.ts';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
+import { toAsuncionDateISO } from '../../utils/reportPeriod.ts';
 import { AuditLogDetailModal } from './AuditLogDetailModal.tsx';
 
 const PAGE_SIZE = 25;
 
 export const AuditLogsView: React.FC = () => {
+  const [, setStoreTick] = useState(0);
+  useEffect(() => dbStore.subscribe(() => setStoreTick((t) => t + 1)), []);
+
   const snapshot = dbStore.getSnapshot();
   const localLogs = snapshot.auditLogs || [];
   const users = snapshot.users || [];
@@ -32,6 +37,8 @@ export const AuditLogsView: React.FC = () => {
   const [selectedEntity, setSelectedEntity] = useState<string>('ALL');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [selectedUserId] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const [selectedLogForDetail, setSelectedLogForDetail] = useState<any>(null);
   const [offset, setOffset] = useState<number>(0);
 
@@ -43,6 +50,7 @@ export const AuditLogsView: React.FC = () => {
     uniqueIpsCount: number;
   } | null>(null);
   const [isLoadingServer, setIsLoadingServer] = useState<boolean>(false);
+  const [isExportingCsv, setIsExportingCsv] = useState<boolean>(false);
 
   const fetchAuditPage = useCallback(async () => {
     const token = dbStore.getSessionToken();
@@ -64,6 +72,8 @@ export const AuditLogsView: React.FC = () => {
       if (selectedEntity !== 'ALL') params.set('entity', selectedEntity);
       if (selectedBranchId) params.set('branchId', selectedBranchId);
       if (selectedUserId) params.set('userId', selectedUserId);
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
       if (searchTerm.trim()) params.set('search', searchTerm.trim());
 
       const headers: Record<string, string> = {};
@@ -94,7 +104,7 @@ export const AuditLogsView: React.FC = () => {
     } finally {
       setIsLoadingServer(false);
     }
-  }, [offset, selectedAction, selectedEntity, selectedBranchId, selectedUserId, searchTerm]);
+  }, [offset, selectedAction, selectedEntity, selectedBranchId, selectedUserId, dateFrom, dateTo, searchTerm]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -105,7 +115,7 @@ export const AuditLogsView: React.FC = () => {
 
   useEffect(() => {
     setOffset(0);
-  }, [searchTerm, selectedAction, selectedEntity, selectedBranchId, selectedUserId]);
+  }, [searchTerm, selectedAction, selectedEntity, selectedBranchId, selectedUserId, dateFrom, dateTo]);
 
   // Local fallback filtering
   const localFilteredLogs = localLogs.filter((log) => {
@@ -113,19 +123,26 @@ export const AuditLogsView: React.FC = () => {
     if (selectedEntity !== 'ALL' && log.entity !== selectedEntity) return false;
     if (selectedBranchId && log.branchId !== selectedBranchId) return false;
     if (selectedUserId && log.userId !== selectedUserId) return false;
+    if (dateFrom || dateTo) {
+      const logDateIso = toAsuncionDateISO(log.createdAt);
+      if (!logDateIso) return false;
+      if (dateFrom && logDateIso < dateFrom) return false;
+      if (dateTo && logDateIso > dateTo) return false;
+    }
 
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       const user = users.find((u) => u.id === log.userId);
       const userMatch =
         user &&
-        (`${user.firstName} ${user.lastName}`.toLowerCase().includes(term) ||
+        (`${user.firstName || ''} ${user.lastName || ''}`.toLowerCase().includes(term) ||
           String((user as any).documentNumber || '').includes(term) ||
-          user.email.toLowerCase().includes(term));
+          (user.email || '').toLowerCase().includes(term));
       const ipMatch = log.ipAddress?.toLowerCase().includes(term);
       const descMatch = log.description?.toLowerCase().includes(term);
       const entityMatch = log.entity?.toLowerCase().includes(term);
-      if (!userMatch && !ipMatch && !descMatch && !entityMatch) return false;
+      const actionMatch = log.action?.toLowerCase().includes(term);
+      if (!userMatch && !ipMatch && !descMatch && !entityMatch && !actionMatch) return false;
     }
 
     return true;
@@ -137,65 +154,117 @@ export const AuditLogsView: React.FC = () => {
     ? serverLogs!
     : localFilteredLogs.slice(offset, offset + PAGE_SIZE);
 
-  const logs = localLogs;
-
   // Tally stats
   const sensitiveAccessesCount =
     serverStats?.sensitiveAccessesCount ??
-    logs.filter((l) => l.action === 'READ_SENSITIVE' || l.entity === 'CLINICAL_RECORD').length;
+    localFilteredLogs.filter((l) => l.action === 'READ_SENSITIVE' || l.entity === 'CLINICAL_RECORD').length;
   const financialOperationsCount =
     serverStats?.financialOperationsCount ??
-    logs.filter((l) => l.action === 'CASH_MOVEMENT' || l.action === 'CLOSE_CASH_REGISTER' || l.entity === 'PAYMENT').length;
+    localFilteredLogs.filter(
+      (l) =>
+        l.action === 'CASH_MOVEMENT' ||
+        l.action === 'CLOSE_CASH_REGISTER' ||
+        l.action === 'PAYMENT_ANNUL' ||
+        l.entity === 'PAYMENT'
+    ).length;
   const uniqueIpsCount =
-    serverStats?.uniqueIpsCount ?? new Set(logs.map((l) => l.ipAddress).filter(Boolean)).size;
+    serverStats?.uniqueIpsCount ?? new Set(localFilteredLogs.map((l) => l.ipAddress).filter(Boolean)).size;
 
-  // Simulator helper: Trigger a new live audit log of sensitive medical access
-  const handleSimulateSensitiveAccess = () => {
-    const randomPatient = snapshot.patients[0];
-    const dentist = users.find((u) => u.roleId === 'ODONTOLOGO') || users[0];
-    if (!dentist) return;
-    const patientDesc = randomPatient
-      ? `${randomPatient.firstName} ${randomPatient.lastName} (CI ${randomPatient.documentNumber})`
-      : 'Registro clínico de verificación MSPBS';
-    dbStore.addAuditLog({
-      action: 'READ_SENSITIVE',
-      entity: 'CLINICAL_RECORD',
-      entityId: randomPatient ? randomPatient.id : 'audit-check',
-      userId: dentist.id,
-      branchId: snapshot.branches[0]?.id || null,
-      ipAddress: '190.52.144.' + (Math.floor(Math.random() * 80) + 10),
-      description: `Auditoría preventiva: Lectura de antecedentes médicos confidenciales (${patientDesc}) por ${dentist.firstName} ${dentist.lastName}`,
-    });
+  const hasActiveFilters = Boolean(
+    searchTerm.trim() || selectedAction !== 'ALL' || selectedEntity !== 'ALL' || selectedBranchId || dateFrom || dateTo
+  );
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setSelectedAction('ALL');
+    setSelectedEntity('ALL');
+    setSelectedBranchId('');
+    setDateFrom('');
+    setDateTo('');
   };
 
-  // Export CSV
-  const handleExportCSV = () => {
-    const exportSource = isServerPaginated ? displayedLogs : localFilteredLogs;
-    const headers = ['Timestamp', 'Accion', 'Entidad', 'Descripcion', 'Operador', 'Rol', 'Sucursal', 'IP_Address'];
-    const rows = exportSource.map((l) => {
-      const u = users.find((usr) => usr.id === l.userId);
-      const b = branches.find((br) => br.id === l.branchId);
-      return [
-        `"${new Date(l.createdAt).toISOString()}"`,
-        l.action,
-        l.entity,
-        `"${(l.description || '').replace(/"/g, '""')}"`,
-        `"${u ? `${u.firstName} ${u.lastName}` : 'Sistema'}"`,
-        u?.roleId || 'SISTEMA',
-        `"${b?.name || 'Central'}"`,
-        l.ipAddress || '190.52.144.12',
-      ];
-    });
+  // Export CSV (en modo servidor solicita hasta 500 registros filtrados reales, no solo la página actual)
+  const handleExportCSV = async () => {
+    setIsExportingCsv(true);
+    try {
+      let exportSource = isServerPaginated ? displayedLogs : localFilteredLogs;
 
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Libro_Auditoria_OdontoPro_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      if (isServerPaginated && totalMatching > displayedLogs.length && typeof fetch !== 'undefined') {
+        try {
+          const token = dbStore.getSessionToken();
+          const params = new URLSearchParams({
+            limit: String(Math.min(totalMatching, 500)),
+            offset: '0',
+          });
+          if (selectedAction !== 'ALL') params.set('action', selectedAction);
+          if (selectedEntity !== 'ALL') params.set('entity', selectedEntity);
+          if (selectedBranchId) params.set('branchId', selectedBranchId);
+          if (selectedUserId) params.set('userId', selectedUserId);
+          if (dateFrom) params.set('dateFrom', dateFrom);
+          if (dateTo) params.set('dateTo', dateTo);
+          if (searchTerm.trim()) params.set('search', searchTerm.trim());
+
+          const headers: Record<string, string> = {};
+          if (token && !token.startsWith('httpOnly_')) {
+            headers.Authorization = `Bearer ${token}`;
+          }
+          const res = await fetch(`${getApiBaseUrl()}/api/audit-logs?${params.toString()}`, {
+            method: 'GET',
+            credentials: 'include',
+            headers,
+          });
+          if (res.ok) {
+            const payload = await res.json();
+            if (Array.isArray(payload?.logs)) {
+              exportSource = payload.logs;
+            }
+          }
+        } catch {
+          // Fallback silencioso a los registros visibles
+        }
+      }
+
+      const headers = ['Fecha_Hora_PY', 'Accion', 'Entidad', 'Descripcion', 'Operador', 'Rol', 'Sucursal', 'IP_Address'];
+      const rows = exportSource.map((l) => {
+        const u = users.find((usr) => usr.id === l.userId);
+        const b = branches.find((br) => br.id === l.branchId);
+        const formattedPy = new Date(l.createdAt).toLocaleString('es-PY', {
+          timeZone: 'America/Asuncion',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        });
+        const operatorName = u
+          ? `${u.firstName} ${u.lastName}`
+          : (l as any).historicalUserName || 'Sistema';
+        return [
+          `"${formattedPy}"`,
+          l.action,
+          l.entity,
+          `"${(l.description || '').replace(/"/g, '""')}"`,
+          `"${operatorName}"`,
+          u?.roleId || 'SISTEMA',
+          `"${b?.name || 'Central'}"`,
+          l.ipAddress || 'No registrada',
+        ];
+      });
+
+      const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Libro_Auditoria_ODONTOPRO_${getTodayAsuncionISO()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsExportingCsv(false);
+    }
   };
 
   // Get action color styling
@@ -206,8 +275,12 @@ export const AuditLogsView: React.FC = () => {
       case 'CREATE':
         return 'bg-emerald-100 text-emerald-800 border-emerald-300';
       case 'UPDATE':
+      case 'UPDATE_SETTINGS':
+      case 'UPDATE_CHAIRS':
+      case 'STATUS_CHANGE':
         return 'bg-amber-100 text-amber-800 border-amber-300';
       case 'DELETE':
+      case 'PAYMENT_ANNUL':
         return 'bg-rose-100 text-rose-800 border-rose-300';
       case 'LOGIN':
         return 'bg-blue-100 text-blue-800 border-blue-300';
@@ -245,20 +318,12 @@ export const AuditLogsView: React.FC = () => {
 
           <div className="flex items-center flex-wrap gap-2">
             <button
-              onClick={handleSimulateSensitiveAccess}
-              className="px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
-              title="Dispara un evento de lectura de historia clínica para probar la trazabilidad en vivo"
-            >
-              <Sparkles className="h-4 w-4 text-purple-600" />
-              <span>Simular Acceso Sensible (MSPBS)</span>
-            </button>
-
-            <button
               onClick={handleExportCSV}
-              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              disabled={isExportingCsv}
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
             >
               <Download className="h-3.5 w-3.5" />
-              <span>Exportar Libro CSV</span>
+              <span>{isExportingCsv ? 'Exportando...' : 'Exportar Libro CSV'}</span>
             </button>
 
             <button
@@ -300,14 +365,18 @@ export const AuditLogsView: React.FC = () => {
               onChange={(e) => setSelectedAction(e.target.value)}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
             >
-              <option value="ALL">Todas las Acciones ({logs.length})</option>
-              <option value="READ_SENSITIVE">🟣 Lectura Sensible (MSPBS)</option>
-              <option value="CREATE">🟢 Creación (CREATE)</option>
-              <option value="UPDATE">🟡 Modificación (UPDATE)</option>
-              <option value="DELETE">🔴 Eliminación (DELETE)</option>
-              <option value="LOGIN">🔵 Acceso / Login (LOGIN)</option>
-              <option value="CASH_MOVEMENT">💵 Movimiento de Caja</option>
-              <option value="CLOSE_CASH_REGISTER">🔒 Cierre de Caja</option>
+              <option value="ALL">Todas las Acciones ({totalMatching})</option>
+              <option value="READ_SENSITIVE">Lectura Sensible (MSPBS)</option>
+              <option value="CREATE">Creación (CREATE)</option>
+              <option value="UPDATE">Modificación (UPDATE)</option>
+              <option value="DELETE">Eliminación / Baja (DELETE)</option>
+              <option value="PAYMENT_ANNUL">Anulación de Cobro</option>
+              <option value="STATUS_CHANGE">Cambio de Estado</option>
+              <option value="LOGIN">Acceso / Login (LOGIN)</option>
+              <option value="CASH_MOVEMENT">Movimiento de Caja</option>
+              <option value="CLOSE_CASH_REGISTER">Cierre de Caja</option>
+              <option value="UPDATE_CHAIRS">Sillones Odontológicos</option>
+              <option value="UPDATE_SETTINGS">Parámetros de Sucursal</option>
             </select>
           </div>
 
@@ -319,6 +388,8 @@ export const AuditLogsView: React.FC = () => {
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
             >
               <option value="ALL">Todas las Entidades</option>
+              <option value="SERVICE">Catálogo de Servicios</option>
+              <option value="TREATMENT">Tratamientos</option>
               <option value="CLINICAL_RECORD">Fichas Clínicas</option>
               <option value="ODONTOGRAM">Odontogramas</option>
               <option value="PATIENT">Pacientes</option>
@@ -326,7 +397,11 @@ export const AuditLogsView: React.FC = () => {
               <option value="PAYMENT">Pagos / Recibos</option>
               <option value="CASH_REGISTER">Caja Diaria</option>
               <option value="APPOINTMENT">Citas / Agenda</option>
+              <option value="EMPLOYEE">Personal / Nómina</option>
+              <option value="PAYROLL_SETTLEMENT">Liquidaciones</option>
+              <option value="STAFF_PAYMENT">Pagos al Personal</option>
               <option value="BRANCH">Sucursales</option>
+              <option value="ORGANIZATION">Organización</option>
               <option value="USER">Usuarios / Roles</option>
             </select>
           </div>
@@ -347,6 +422,40 @@ export const AuditLogsView: React.FC = () => {
             </select>
           </div>
         </div>
+
+        {/* Date Range Filter Row (Hora Paraguay) */}
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <label htmlFor="audit-date-from" className="font-semibold">Desde:</label>
+            <input
+              id="audit-date-from"
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <label htmlFor="audit-date-to" className="font-semibold">Hasta:</label>
+            <input
+              id="audit-date-to"
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+          </div>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold inline-flex items-center gap-1 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+              <span>Limpiar filtros</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -358,8 +467,8 @@ export const AuditLogsView: React.FC = () => {
               <FileText className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-slate-900">{isServerPaginated ? totalMatching : logs.length}</div>
-          <div className="text-[11px] text-slate-500 mt-1">Con firma inmutable y timestamp</div>
+          <div className="text-2xl font-bold text-slate-900">{totalMatching}</div>
+          <div className="text-[11px] text-slate-500 mt-1">Registro inmutable con fecha y hora (PY)</div>
         </div>
 
         <div className="bg-white rounded-3xl p-5 border border-purple-200 bg-purple-50/40 shadow-xs">
@@ -464,6 +573,7 @@ export const AuditLogsView: React.FC = () => {
                       <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
                         <div className="font-medium text-slate-900">
                           {new Date(log.createdAt).toLocaleDateString('es-PY', {
+                            timeZone: 'America/Asuncion',
                             day: '2-digit',
                             month: '2-digit',
                             year: 'numeric',
@@ -471,6 +581,7 @@ export const AuditLogsView: React.FC = () => {
                         </div>
                         <div className="text-[11px] text-slate-400 font-mono">
                           {new Date(log.createdAt).toLocaleTimeString('es-PY', {
+                            timeZone: 'America/Asuncion',
                             hour: '2-digit',
                             minute: '2-digit',
                             second: '2-digit',
@@ -498,7 +609,9 @@ export const AuditLogsView: React.FC = () => {
 
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="font-semibold text-slate-900">
-                          {user ? `${user.firstName} ${user.lastName}` : 'Sistema Central'}
+                          {user
+                            ? `${user.firstName} ${user.lastName}`
+                            : (log as any).historicalUserName || 'Sistema Central'}
                         </div>
                         <div className="text-[11px] text-slate-500">
                           {user ? `Rol: ${user.roleId}` : 'Tarea Automática'}
@@ -506,7 +619,7 @@ export const AuditLogsView: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-4 whitespace-nowrap text-slate-500">
-                        <div className="font-mono text-[11px] text-slate-800">{log.ipAddress || '190.52.144.12'}</div>
+                        <div className="font-mono text-[11px] text-slate-800">{log.ipAddress || 'No registrada'}</div>
                         <div className="text-[11px] text-slate-400">{branch?.name || 'Sede Central'}</div>
                       </td>
 

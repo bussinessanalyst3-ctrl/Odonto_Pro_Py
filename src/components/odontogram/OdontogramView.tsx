@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Sparkles,
   History,
@@ -21,6 +21,7 @@ import { dbStore } from '../../db/inMemoryStore.ts';
 import { ToothSVG, ToothData } from './ToothSVG.tsx';
 import { ToothClinicalDrawer, CONDITIONS_CATALOG } from './ToothClinicalDrawer.tsx';
 import { useAuth } from '../../auth/authContext.tsx';
+import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 
 interface OdontogramViewProps {
   initialPatientId?: string;
@@ -34,6 +35,12 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
   onNavigateToQuotes,
 }) => {
   const { session } = useAuth();
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    return dbStore.subscribe(() => setTick((t) => t + 1));
+  }, []);
+
   const snapshot = dbStore.getSnapshot();
 
   // Selected patient
@@ -41,6 +48,16 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
     initialPatientId || snapshot.patients[0]?.id || ''
   );
   const [patientSearch, setPatientSearch] = useState<string>('');
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialPatientId) {
+      setSelectedPatientId(initialPatientId);
+      setSelectedOdontogramId(null);
+    } else if (!selectedPatientId && snapshot.patients.length > 0) {
+      setSelectedPatientId(snapshot.patients[0].id);
+    }
+  }, [initialPatientId, snapshot.patients.length]);
 
   // Dentition type: ADULTO (32 teeth) vs PEDIATRICO (20 teeth)
   const [dentitionType, setDentitionType] = useState<'ADULTO' | 'PEDIATRICO'>('ADULTO');
@@ -138,35 +155,36 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
     };
   }, [activeItems]);
 
-  // Handle surface click (either apply quick tool or open modal)
-  const handleSurfaceClick = (toothNumber: number, surface: string) => {
-    if (!activeOdontogram) {
-      // Prompt creation of initial odontogram
-      handleCreateFirstVersion();
-      return;
-    }
+  const resolveDentistId = () => {
+    if (session?.role === 'ODONTOLOGO' && session.userId) return session.userId;
+    return (
+      snapshot.users.find((u) => u.roleId === 'ODONTOLOGO' && u.status !== 'INACTIVE')?.id ||
+      session?.userId ||
+      snapshot.users[0]?.id ||
+      ''
+    );
+  };
 
-    if (quickTool) {
-      const condObj = CONDITIONS_CATALOG.find((c) => c.id === quickTool);
-      dbStore.updateToothCondition({
-        odontogramId: activeOdontogram.id,
-        toothNumber,
-        surface,
-        condition: quickTool,
-        colorCode: condObj?.color || '#EF4444',
-        actorUserId: session?.userId,
-      });
-    } else {
-      setModalToothNumber(toothNumber);
-    }
+  const flushOdontogramSync = () => {
+    if (!hasBackendSession()) return;
+    setSyncError(null);
+    void dbStore.flushPendingSyncStrict().catch((err: any) => {
+      setSyncError(err?.message || 'No se pudo confirmar el guardado del odontograma en el servidor.');
+    });
   };
 
   const handleCreateFirstVersion = () => {
-    const dentistId =
-      session?.role === 'ODONTOLOGO'
-        ? session.userId
-        : snapshot.users.find((u) => u.roleId === 'ODONTOLOGO')?.id || snapshot.users[0].id;
+    if (!selectedPatientId || !patient) {
+      setSyncError('Debe registrar y seleccionar un paciente antes de inicializar el odontograma.');
+      return null;
+    }
+    const dentistId = resolveDentistId();
+    if (!dentistId) {
+      setSyncError('No se encontró un profesional activo para firmar el odontograma.');
+      return null;
+    }
 
+    setSyncError(null);
     const created = dbStore.createOdontogramVersion({
       patientId: selectedPatientId,
       odontologistId: dentistId,
@@ -175,14 +193,44 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
       actorUserId: session?.userId,
     });
     setSelectedOdontogramId(created.id);
+    flushOdontogramSync();
+    return created;
+  };
+
+  // Handle surface click (either apply quick tool or open modal)
+  const handleSurfaceClick = (toothNumber: number, surface: string) => {
+    let targetOdontogram = activeOdontogram;
+    if (!targetOdontogram) {
+      targetOdontogram = handleCreateFirstVersion();
+      if (!targetOdontogram) return;
+    }
+
+    if (quickTool) {
+      const condObj = CONDITIONS_CATALOG.find((c) => c.id === quickTool);
+      dbStore.updateToothCondition({
+        odontogramId: targetOdontogram.id,
+        toothNumber,
+        surface,
+        condition: quickTool,
+        colorCode: condObj?.color || '#EF4444',
+        actorUserId: session?.userId,
+      });
+      flushOdontogramSync();
+    } else {
+      setModalToothNumber(toothNumber);
+    }
   };
 
   const handleSaveNewVersion = () => {
-    if (!patient) return;
-    const dentistId =
-      session?.role === 'ODONTOLOGO'
-        ? session.userId
-        : snapshot.users.find((u) => u.roleId === 'ODONTOLOGO')?.id || snapshot.users[0].id;
+    if (!patient || !selectedPatientId) {
+      setSyncError('Debe seleccionar un paciente válido para guardar una nueva versión.');
+      return;
+    }
+    const dentistId = resolveDentistId();
+    if (!dentistId) {
+      setSyncError('No se encontró un profesional activo para firmar la evolución.');
+      return;
+    }
 
     // Clone current items into new version
     const clonedItems = activeItems.map((it) => ({
@@ -194,6 +242,7 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
       colorCode: it.colorCode,
     }));
 
+    setSyncError(null);
     const created = dbStore.createOdontogramVersion({
       patientId: selectedPatientId,
       odontologistId: dentistId,
@@ -206,15 +255,17 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
     setSelectedOdontogramId(created.id);
     setIsCreatingVersion(false);
     setNewVersionNotes('');
+    flushOdontogramSync();
   };
 
   // Filtered patients for dropdown
   const filteredPatients = snapshot.patients.filter((p) => {
-    const q = patientSearch.toLowerCase();
+    const q = patientSearch.trim().toLowerCase();
+    if (!q) return true;
     return (
-      p.firstName.toLowerCase().includes(q) ||
-      p.lastName.toLowerCase().includes(q) ||
-      p.nationalId.includes(q)
+      (p.firstName || '').toLowerCase().includes(q) ||
+      (p.lastName || '').toLowerCase().includes(q) ||
+      (p.documentNumber || '').toLowerCase().includes(q)
     );
   });
 
@@ -309,11 +360,15 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
                 }}
                 className="w-full text-xs font-semibold p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
               >
-                {snapshot.patients.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.firstName} {p.lastName} — C.I. {p.nationalId}
-                  </option>
-                ))}
+                {snapshot.patients.length === 0 ? (
+                  <option value="">No hay pacientes registrados</option>
+                ) : (
+                  filteredPatients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.firstName} {p.lastName} — C.I. {p.documentNumber || 'Sin C.I.'}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
           </div>
@@ -373,6 +428,7 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
                   patientOdontograms.map((o) => {
                     const doc = snapshot.users.find((u) => u.id === o.odontologistId);
                     const d = new Date(o.createdAt).toLocaleDateString('es-PY', {
+                      timeZone: 'America/Asuncion',
                       day: '2-digit',
                       month: 'short',
                       year: 'numeric',
@@ -388,6 +444,22 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
             </div>
           </div>
         </div>
+
+        {syncError && (
+          <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-medium text-rose-800 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+              <span>{syncError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSyncError(null)}
+              className="text-rose-700 font-bold px-2 py-0.5 rounded-lg hover:bg-rose-100"
+            >
+              Cerrar
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Quick Tool Palette Bar */}
@@ -581,6 +653,7 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
               <span className="font-semibold text-slate-700">Última Actualización: </span>
               <span>
                 {new Date(activeOdontogram.updatedAt).toLocaleDateString('es-PY', {
+                  timeZone: 'America/Asuncion',
                   day: '2-digit',
                   month: 'long',
                   year: 'numeric',
@@ -643,9 +716,13 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
         patientId={selectedPatientId}
         onClose={() => setModalToothNumber(null)}
         onSave={(num, surf, cond, mat, notes, col) => {
-          if (!activeOdontogram) return;
+          let targetOdontogram = activeOdontogram;
+          if (!targetOdontogram) {
+            targetOdontogram = handleCreateFirstVersion();
+          }
+          if (!targetOdontogram) return;
           dbStore.updateToothCondition({
-            odontogramId: activeOdontogram.id,
+            odontogramId: targetOdontogram.id,
             toothNumber: num,
             surface: surf,
             condition: cond,
@@ -654,24 +731,50 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
             colorCode: col,
             actorUserId: session?.userId,
           });
+          flushOdontogramSync();
         }}
         onCreateTreatment={(toothNum, cond) => {
           if (onNavigateToTreatments) {
             onNavigateToTreatments(selectedPatientId, toothNum);
           }
         }}
-        onCreateBudget={(toothNum, cond, surf) => {
-          // Crear automáticamente un presupuesto borrador para esta pieza
-          const branchId = patient?.primaryBranchId || snapshot.branches[0].id;
-          const servicePrice = cond === 'CARIES' ? 250000 : cond === 'ENDODONCIA' ? 550000 : cond === 'CORONA' ? 1200000 : 350000;
-          const serviceDesc = `${cond === 'CARIES' ? 'Restauración Estética con Resina' : cond} (Pieza ${toothNum} Cara ${surf})`;
-          
-          dbStore.createQuote({
+        onCreateBudget={async (toothNum, cond, surf) => {
+          const branchId = patient?.primaryBranchId || snapshot.branches[0]?.id;
+          if (!branchId || !selectedPatientId) {
+            setSyncError('No se pudo determinar la sucursal o el paciente para generar el presupuesto.');
+            return;
+          }
+
+          const keywordMap: Record<string, string[]> = {
+            CARIES: ['resina', 'restaurac', 'obturac'],
+            ENDODONCIA: ['endodoncia', 'conducto'],
+            CORONA: ['corona'],
+            EXTRACCION: ['extracc', 'exodoncia'],
+            IMPLANTE: ['implante'],
+            PROTESIS: ['protesis', 'prótesis'],
+          };
+          const keywords = keywordMap[cond] || [];
+          const matchedService = (snapshot.services || []).find(
+            (s) =>
+              s.status !== 'INACTIVE' &&
+              keywords.some((kw) => String(s.name || '').toLowerCase().includes(kw))
+          );
+
+          const fallbackPrice =
+            cond === 'CARIES' ? 250000 : cond === 'ENDODONCIA' ? 550000 : cond === 'CORONA' ? 1200000 : 350000;
+          const servicePrice = matchedService?.basePrice && Number(matchedService.basePrice) > 0
+            ? Math.round(Number(matchedService.basePrice))
+            : fallbackPrice;
+          const baseName = matchedService?.name || (cond === 'CARIES' ? 'Restauración Estética con Resina' : cond);
+          const serviceDesc = `${baseName} (Pieza ${toothNum} Cara ${surf})`;
+
+          const quotePayload = {
             branchId,
             patientId: selectedPatientId,
-            odontologistId: activeOdontogram?.odontologistId || undefined,
+            odontologistId: activeOdontogram?.odontologistId || resolveDentistId() || undefined,
             items: [
               {
+                serviceId: matchedService?.id || undefined,
                 toothNumber: toothNum,
                 description: serviceDesc,
                 quantity: 1,
@@ -680,11 +783,37 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
               },
             ],
             notes: `Generado desde Odontograma FDI - Diagnóstico Pieza ${toothNum}`,
-            actorUserId: session?.userId,
-          });
+          };
 
-          if (onNavigateToQuotes) {
-            onNavigateToQuotes(selectedPatientId, toothNum);
+          try {
+            setSyncError(null);
+            if (hasBackendSession()) {
+              const res = await postAuthoritativeAction<{
+                quote?: any;
+                quoteItems?: any[];
+                auditLogs?: any[];
+                stateVersion?: number;
+              }>('/api/quotes', quotePayload);
+              dbStore.applyAuthoritativeSync(
+                {
+                  ...(res.quote ? { quotes: [res.quote] } : {}),
+                  ...(res.quoteItems?.length ? { quoteItems: res.quoteItems } : {}),
+                  ...(res.auditLogs?.length ? { auditLogs: res.auditLogs } : {}),
+                },
+                res.stateVersion
+              );
+            } else {
+              dbStore.createQuote({
+                ...quotePayload,
+                actorUserId: session?.userId,
+              });
+            }
+
+            if (onNavigateToQuotes) {
+              onNavigateToQuotes(selectedPatientId, toothNum);
+            }
+          } catch (err: any) {
+            setSyncError(err?.message || 'No se pudo generar el presupuesto desde el odontograma.');
           }
         }}
       />

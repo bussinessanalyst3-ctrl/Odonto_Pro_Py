@@ -1,87 +1,116 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
-  Users,
   DollarSign,
   TrendingUp,
-  Stethoscope,
-  Clock,
   CheckCircle2,
-  AlertCircle,
   Plus,
-  ArrowRight,
   Calculator,
-  Building2,
   Sparkles,
   CreditCard,
   ChevronRight,
-  ShieldAlert,
-  Armchair
+  Armchair,
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
-import { useAuth } from '../../auth/authContext.tsx';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import { TabType } from '../Header.tsx';
 import { getTodayAsuncionISO } from '../../config/appBrand.ts';
+import {
+  ReportPeriodFilter,
+  collectUniqueRevenueEntries,
+  getPeriodLabel,
+  isDateInReportPeriod,
+  toAsuncionDateISO,
+} from '../../utils/reportPeriod.ts';
 
 interface ExecutiveDashboardProps {
   onNavigateTab: (tab: TabType, payload?: any) => void;
   selectedBranchId: string;
+  periodFilter?: ReportPeriodFilter;
 }
 
 export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
   onNavigateTab,
   selectedBranchId,
+  periodFilter,
 }) => {
-  const { session } = useAuth();
-  const snapshot = dbStore.getSnapshot();
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    return dbStore.subscribe(() => setTick((t) => t + 1));
+  }, []);
 
-  const todayStr = getTodayAsuncionISO(); // Fecha actual de operación del consultorio
+  const snapshot = dbStore.getSnapshot();
+  const todayStr = getTodayAsuncionISO();
+  const activePeriod: ReportPeriodFilter = periodFilter || { preset: 'TODAY' };
+  const isTodayMode = activePeriod.preset === 'TODAY';
+  const periodLabel = getPeriodLabel(activePeriod, todayStr);
 
   // Filtrado por sucursal si está seleccionada
-  const appointments = snapshot.appointments.filter((a) =>
+  const appointments = (snapshot.appointments || []).filter((a) =>
     selectedBranchId ? a.branchId === selectedBranchId : true
   );
-  const todayAppointments = appointments.filter((a) => a.appointmentDate === todayStr);
+  const periodAppointments = appointments
+    .filter((a) => isDateInReportPeriod(a.appointmentDate, activePeriod, todayStr))
+    .sort((a, b) => {
+      const dateCmp = String(b.appointmentDate || '').localeCompare(String(a.appointmentDate || ''));
+      if (dateCmp !== 0) return dateCmp;
+      return String(a.startTime || '').localeCompare(String(b.startTime || ''));
+    });
 
-  const quotes = snapshot.quotes.filter((q) =>
-    selectedBranchId ? q.branchId === selectedBranchId : true
-  );
+  const validPayments = (snapshot.payments || []).filter((p) => {
+    if (p.status === 'ANULADO') return false;
+    if (selectedBranchId && p.branchId !== selectedBranchId) return false;
+    return true;
+  });
 
-  const payments = snapshot.payments.filter((p) =>
-    selectedBranchId ? p.branchId === selectedBranchId : true
-  );
+  const periodPayments = validPayments
+    .filter((p) => isDateInReportPeriod(p.createdAt || p.paymentDate, activePeriod, todayStr))
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
-  const todayPayments = payments.filter((p) => p.date === todayStr);
+  const revenueEntries = collectUniqueRevenueEntries({
+    payments: snapshot.payments || [],
+    cashMovements: snapshot.cashMovements || [],
+    cashRegisters: snapshot.cashRegisters || [],
+    branchId: selectedBranchId || undefined,
+    period: activePeriod,
+    todayIso: todayStr,
+  });
 
   const treatments = (snapshot.treatments || []).filter((t) =>
     selectedBranchId ? t.branchId === selectedBranchId : true
   );
 
-  // Cálculos de KPIs Clave
-  const totalCollectedToday = todayPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
-  const totalBilledQuotes = quotes.reduce((acc, q) => acc + (q.finalAmount || 0), 0);
-  const totalCollectedAllTime = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
-  const totalPendingBalance = Math.max(0, totalBilledQuotes - totalCollectedAllTime);
+  // Cálculos de KPIs Clave (sin doble contabilización ni anulados)
+  const totalCollectedPeriod = revenueEntries.reduce((acc, e) => acc + e.amount, 0);
 
-  const completedTodayCount = todayAppointments.filter((a) => a.status === 'FINALIZADA').length;
-  const inAttentionCount = todayAppointments.filter((a) => a.status === 'EN_ATENCION').length;
-  const inWaitingRoomCount = todayAppointments.filter((a) => a.status === 'EN_SALA').length;
-  const pendingOrConfirmedCount = todayAppointments.filter(
+  // Saldo pendiente real: suma de balanceDue de tratamientos activos (no cancelados)
+  const treatmentsWithDebt = treatments.filter(
+    (t) => t.status !== 'CANCELADO' && Math.round(Number(t.balanceDue || 0)) > 0
+  );
+  const totalPendingBalance = treatmentsWithDebt.reduce(
+    (acc, t) => acc + Math.max(0, Math.round(Number(t.balanceDue || 0))),
+    0
+  );
+
+  const completedPeriodCount = periodAppointments.filter((a) => a.status === 'FINALIZADA').length;
+  const inAttentionCount = periodAppointments.filter((a) => a.status === 'EN_ATENCION').length;
+  const inWaitingRoomCount = periodAppointments.filter((a) => a.status === 'EN_SALA').length;
+  const pendingOrConfirmedCount = periodAppointments.filter(
     (a) => a.status === 'CONFIRMADA' || a.status === 'PENDIENTE'
   ).length;
 
-  const activeTreatmentsCount = treatments.filter((t) => t.status === 'EN_CURSO').length;
+  const activeTreatments = treatments.filter((t) => t.status === 'EN_PROGRESO');
+  const activeTreatmentsCount = activeTreatments.length;
 
   return (
     <div className="space-y-6">
-      {/* Nivel 1: KPIs Críticos del Día en Guaraníes (PYG) */}
+      {/* Nivel 1: KPIs Críticos en Guaraníes (PYG) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Recaudación de Hoy */}
+        {/* Recaudación */}
         <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-2xs hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Recaudación de Hoy
+              {isTodayMode ? 'Recaudación de Hoy' : 'Recaudación del Período'}
             </span>
             <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
               <DollarSign className="h-5 w-5" />
@@ -89,20 +118,20 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-slate-900 tracking-tight">
-              {formatPYG(totalCollectedToday)}
+              {formatPYG(totalCollectedPeriod)}
             </div>
             <div className="flex items-center gap-1.5 text-xs text-emerald-700 font-semibold mt-1">
               <TrendingUp className="h-3.5 w-3.5" />
-              <span>{todayPayments.length} cobros en caja hoy</span>
+              <span>{revenueEntries.length} cobros efectivos • {periodLabel}</span>
             </div>
           </div>
         </div>
 
-        {/* Turnos del Día */}
+        {/* Turnos */}
         <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-2xs hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Agenda de Hoy
+              {isTodayMode ? 'Agenda de Hoy' : 'Citas del Período'}
             </span>
             <div className="h-9 w-9 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center font-bold">
               <Calendar className="h-5 w-5" />
@@ -110,7 +139,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-slate-900 tracking-tight">
-              {todayAppointments.length} <span className="text-sm font-normal text-slate-400">citas</span>
+              {periodAppointments.length} <span className="text-sm font-normal text-slate-400">citas</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mt-1">
               <span className="text-purple-700 font-bold">{inWaitingRoomCount} en espera</span>
@@ -132,7 +161,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-2xl font-black text-slate-900 tracking-tight">
-              {completedTodayCount} <span className="text-sm font-normal text-slate-400">finalizadas</span>
+              {completedPeriodCount} <span className="text-sm font-normal text-slate-400">finalizadas</span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
               {pendingOrConfirmedCount} pacientes pendientes de atención
@@ -155,7 +184,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               {formatPYG(totalPendingBalance)}
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Saldos en presupuestos aprobados
+              {treatmentsWithDebt.length} tratamientos activos con saldo
             </p>
           </div>
         </div>
@@ -200,14 +229,14 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
         </div>
       </div>
 
-      {/* Nivel 3: Flujo de Citas de Hoy y Tratamientos Activos */}
+      {/* Nivel 3: Flujo de Citas y Tratamientos Activos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Columna Izquierda (2/3): Línea de tiempo de la Agenda de Hoy */}
+        {/* Columna Izquierda (2/3): Línea de tiempo de la Agenda */}
         <div className="lg:col-span-2 p-6 bg-white rounded-3xl border border-slate-200 shadow-2xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-slate-900">
-                Flujo Clínico de Hoy ({todayStr})
+                Flujo Clínico — {periodLabel}
               </h3>
               <p className="text-xs text-slate-500">
                 Estado de pacientes en sala de espera, sillones y atenciones
@@ -215,23 +244,23 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
             </div>
             <button
               onClick={() => onNavigateTab('agenda')}
-              className="text-xs font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1"
+              className="text-xs font-bold text-teal-700 hover:text-teal-900 flex items-center gap-1 cursor-pointer"
             >
               <span>Ver Agenda Completa</span>
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
           </div>
 
-          {todayAppointments.length === 0 ? (
+          {periodAppointments.length === 0 ? (
             <div className="py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
               <Calendar className="h-8 w-8 text-slate-300 mx-auto mb-2" />
               <p className="text-xs text-slate-500 font-medium">
-                No hay turnos programados para la fecha seleccionada.
+                No hay turnos programados para el período seleccionado.
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {todayAppointments.map((app) => {
+              {periodAppointments.slice(0, 12).map((app) => {
                 const patient = snapshot.patients.find((p) => p.id === app.patientId);
                 const dentist = snapshot.users.find((u) => u.id === app.odontologistId);
                 const chair = (snapshot.dentalChairs || []).find((c) => c.id === app.dentalChairId);
@@ -243,7 +272,12 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                   >
                     <div className="flex items-center gap-3.5">
                       <div className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl font-black text-xs text-teal-800 text-center shrink-0">
-                        {app.startTime.slice(0, 5)}
+                        {!isTodayMode && (
+                          <div className="text-[10px] font-semibold text-slate-400">
+                            {app.appointmentDate}
+                          </div>
+                        )}
+                        <div>{String(app.startTime || '').slice(0, 5)}</div>
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
@@ -251,18 +285,18 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                             {patient ? `${patient.firstName} ${patient.lastName}` : 'Paciente'}
                           </span>
                           <span className="text-[11px] text-slate-400">
-                            C.I. {patient?.documentNumber}
+                            C.I. {patient?.documentNumber || '—'}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-0.5">
-                          <span>Dr. {dentist?.lastName || 'Odontólogo'}</span>
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] text-slate-500 mt-0.5">
+                          <span>Dr(a). {dentist ? `${dentist.firstName} ${dentist.lastName}` : 'Odontólogo'}</span>
                           <span>•</span>
                           <span className="flex items-center gap-1">
                             <Armchair className="h-3 w-3 text-slate-400" />
-                            {chair?.name || 'Sillón 1'}
+                            {chair?.name || 'Sillón asignado'}
                           </span>
                           <span>•</span>
-                          <span>{app.reason}</span>
+                          <span>{app.reason || 'Consulta'}</span>
                         </div>
                       </div>
                     </div>
@@ -276,6 +310,8 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                             ? 'bg-purple-100 text-purple-800'
                             : app.status === 'FINALIZADA'
                             ? 'bg-teal-100 text-teal-800'
+                            : app.status === 'CANCELADA' || app.status === 'NO_ASISTIO'
+                            ? 'bg-rose-100 text-rose-800'
                             : 'bg-amber-100 text-amber-800'
                         }`}
                       >
@@ -299,35 +335,41 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </h3>
               <button
                 onClick={() => onNavigateTab('cash')}
-                className="text-xs font-bold text-teal-700 hover:text-teal-900"
+                className="text-xs font-bold text-teal-700 hover:text-teal-900 cursor-pointer"
               >
                 Ir a Caja
               </button>
             </div>
 
-            <div className="space-y-2.5">
-              {payments.slice(0, 4).map((p) => {
-                const pat = snapshot.patients.find((pt) => pt.id === p.patientId);
-                return (
-                  <div
-                    key={p.id}
-                    className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <div className="font-bold text-slate-800">
-                        {pat ? `${pat.firstName} ${pat.lastName}` : 'Paciente'}
+            {periodPayments.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                Sin cobros registrados en este período.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {periodPayments.slice(0, 4).map((p) => {
+                  const pat = snapshot.patients.find((pt) => pt.id === p.patientId);
+                  return (
+                    <div
+                      key={p.id}
+                      className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs"
+                    >
+                      <div>
+                        <div className="font-bold text-slate-800">
+                          {pat ? `${pat.firstName} ${pat.lastName}` : 'Paciente'}
+                        </div>
+                        <span className="text-[11px] text-slate-400">
+                          {toAsuncionDateISO(p.createdAt || p.paymentDate)} • {p.receiptNumber} • {p.paymentMethod}
+                        </span>
                       </div>
-                      <span className="text-[11px] text-slate-400">
-                        Recibo {p.receiptNumber} • {p.paymentMethod}
+                      <span className="font-black text-emerald-700 shrink-0">
+                        {formatPYG(p.amount)}
                       </span>
                     </div>
-                    <span className="font-black text-emerald-700">
-                      {formatPYG(p.amount)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Planes de Tratamiento Activos */}
@@ -338,37 +380,44 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
               </h3>
               <button
                 onClick={() => onNavigateTab('treatments')}
-                className="text-xs font-bold text-teal-700 hover:text-teal-900"
+                className="text-xs font-bold text-teal-700 hover:text-teal-900 cursor-pointer"
               >
                 Ver todos
               </button>
             </div>
 
-            <div className="space-y-2">
-              {treatments.filter((t) => t.status === 'EN_CURSO').slice(0, 3).map((t) => {
-                const pat = snapshot.patients.find((pt) => pt.id === t.patientId);
-                return (
-                  <div
-                    key={t.id}
-                    className="p-3 bg-teal-50/50 rounded-2xl border border-teal-200/70 text-xs space-y-1"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-teal-950">{t.title}</span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
-                        En Curso
-                      </span>
+            {activeTreatments.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                Sin tratamientos en progreso actualmente.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {activeTreatments.slice(0, 3).map((t) => {
+                  const pat = snapshot.patients.find((pt) => pt.id === t.patientId);
+                  return (
+                    <div
+                      key={t.id}
+                      className="p-3 bg-teal-50/50 rounded-2xl border border-teal-200/70 text-xs space-y-1"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-teal-950 truncate">{t.title}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 shrink-0">
+                          En Progreso
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 flex items-center justify-between">
+                        <span>{pat ? `${pat.firstName} ${pat.lastName}` : 'Paciente'}</span>
+                        <span className="font-bold text-slate-700">{formatPYG(t.totalAmount)}</span>
+                      </div>
                     </div>
-                    <div className="text-[11px] text-slate-500 flex items-center justify-between">
-                      <span>{pat ? `${pat.firstName} ${pat.lastName}` : 'Paciente'}</span>
-                      <span className="font-bold text-slate-700">{formatPYG(t.totalAmount)}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
     </div>
   );
 };
+

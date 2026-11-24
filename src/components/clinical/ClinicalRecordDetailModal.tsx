@@ -29,6 +29,7 @@ export const ClinicalRecordDetailModal: React.FC<ClinicalRecordDetailModalProps>
   const branch = snapshot.branches.find((b) => b.id === record.branchId);
 
   const formattedDate = new Date(record.createdAt).toLocaleDateString('es-PY', {
+    timeZone: 'America/Asuncion',
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -88,10 +89,10 @@ export const ClinicalRecordDetailModal: React.FC<ClinicalRecordDetailModalProps>
               </div>
               <div className="text-slate-600 mt-0.5">
                 Cédula: <strong>C.I. {patient?.documentNumber}</strong> • Nacimiento:{' '}
-                {patient?.birthDate}
+                {patient?.birthDate || 'No registrada'}
               </div>
               <div className="text-slate-600 mt-0.5">
-                Ciudad: {patient?.city} • Contacto: {patient?.phone || patient?.whatsapp}
+                Ciudad: {patient?.city || 'Sin especificar'} • Contacto: {patient?.phone || patient?.whatsapp || 'Sin teléfono'}
               </div>
             </div>
 
@@ -163,7 +164,7 @@ export const ClinicalRecordDetailModal: React.FC<ClinicalRecordDetailModalProps>
                   Dr(a). {dentist ? `${dentist.firstName} ${dentist.lastName}` : ((record as any).historicalDoctorName || 'Odontólogo Tratante')}
                 </div>
                 <div className="text-teal-700 font-semibold">
-                  Registro Profesional MSPBS: {dentist?.professionalLicense || 'N° 9.155'}
+                  Registro Profesional MSPBS: {(record as any).odontologistLicenseSnapshot || dentist?.professionalLicense || 'Sin registro cargado'}
                 </div>
                 <div className="text-[11px] text-slate-400">
                   Firma Electrónica Médica Certificada - Ley N° 1682/01

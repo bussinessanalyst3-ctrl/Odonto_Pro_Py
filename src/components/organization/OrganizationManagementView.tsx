@@ -51,7 +51,7 @@ interface ThemePreset {
 }
 
 const THEME_PRESETS: ThemePreset[] = [
-  { id: 'teal', name: 'Turquesa OdontoPro', hex: '#0d9488', bgClass: 'bg-teal-600', borderClass: 'border-teal-500', desc: 'Estándar clínico, higiene y confianza' },
+  { id: 'teal', name: 'Turquesa ODONTOPRO', hex: '#0d9488', bgClass: 'bg-teal-600', borderClass: 'border-teal-500', desc: 'Estándar clínico, higiene y confianza' },
   { id: 'cyan', name: 'Cian Quirúrgico', hex: '#0891b2', bgClass: 'bg-cyan-600', borderClass: 'border-cyan-500', desc: 'Fresco, tecnológico e implantología' },
   { id: 'blue', name: 'Azul Hospitalario', hex: '#2563eb', bgClass: 'bg-blue-600', borderClass: 'border-blue-500', desc: 'Seriedad médica, seguros y mutuales' },
   { id: 'emerald', name: 'Verde Salud (Emerald)', hex: '#059669', bgClass: 'bg-emerald-600', borderClass: 'border-emerald-500', desc: 'Bienestar biológico y odontología natural' },
@@ -85,13 +85,16 @@ export const OrganizationManagementView: React.FC = () => {
   const { session, switchOrganization } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [, setStoreTick] = useState(0);
+  React.useEffect(() => dbStore.subscribe(() => setStoreTick((t) => t + 1)), []);
+
   // Estados del formulario de marca
   const [tradeName, setTradeName] = useState(branding.tradeName);
   const [legalName, setLegalName] = useState(branding.legalName);
   const [companyType, setCompanyType] = useState(branding.companyType || 'E.A.S.');
   const [taxId, setTaxId] = useState(branding.taxId);
-  const [timbradoNumber, setTimbradoNumber] = useState(branding.timbradoNumber || '15984260');
-  const [timbradoVencimiento, setTimbradoVencimiento] = useState(branding.timbradoVencimiento || '2026-12-31');
+  const [timbradoNumber, setTimbradoNumber] = useState(branding.timbradoNumber || '');
+  const [timbradoVencimiento, setTimbradoVencimiento] = useState(branding.timbradoVencimiento || '');
 
   // Estados del logo
   const [logoMode, setLogoMode] = useState<'upload' | 'icon' | 'url'>(
@@ -110,7 +113,7 @@ export const OrganizationManagementView: React.FC = () => {
   const [currency, setCurrency] = useState(branding.currency || 'PYG');
   const [currencySymbol, setCurrencySymbol] = useState(branding.currencySymbol || '₲');
   const [phone, setPhone] = useState(branding.phone || '');
-  const [whatsapp, setWhatsapp] = useState(branding.whatsapp || '+595 984 805 602');
+  const [whatsapp, setWhatsapp] = useState(branding.whatsapp || '');
   const [email, setEmail] = useState(branding.email || '');
   const [address, setAddress] = useState(branding.address || '');
   const [website, setWebsite] = useState(branding.website || '');
@@ -120,8 +123,8 @@ export const OrganizationManagementView: React.FC = () => {
     setLegalName(branding.legalName);
     setCompanyType(branding.companyType || 'E.A.S.');
     setTaxId(branding.taxId);
-    setTimbradoNumber(branding.timbradoNumber || '15984260');
-    setTimbradoVencimiento(branding.timbradoVencimiento || '2026-12-31');
+    setTimbradoNumber(branding.timbradoNumber || '');
+    setTimbradoVencimiento(branding.timbradoVencimiento || '');
     setLogoUrl(branding.logoUrl || '');
     setSelectedIcon(branding.logoIcon || 'shield');
     setPrimaryColor(branding.primaryColor || 'teal');
@@ -129,7 +132,7 @@ export const OrganizationManagementView: React.FC = () => {
     setCurrency(branding.currency || 'PYG');
     setCurrencySymbol(branding.currencySymbol || '₲');
     setPhone(branding.phone || '');
-    setWhatsapp(branding.whatsapp || '+595 984 805 602');
+    setWhatsapp(branding.whatsapp || '');
     setEmail(branding.email || '');
     setAddress(branding.address || '');
     setWebsite(branding.website || '');
@@ -329,10 +332,12 @@ export const OrganizationManagementView: React.FC = () => {
 
       setNotification('¡Configuración guardada y sincronizada exitosamente con el servidor central para todos los dispositivos (móvil y PC)!');
       setTimeout(() => setNotification(null), 6000);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error guardando configuración:', err);
-      setNotification('Se guardaron los cambios localmente.');
-      setTimeout(() => setNotification(null), 5000);
+      setErrorNotification(
+        err?.message || 'No se pudo confirmar el guardado en el servidor. Verifique la conexión e intente nuevamente.'
+      );
+      setTimeout(() => setErrorNotification(null), 6000);
     } finally {
       setIsSaving(false);
     }
@@ -366,9 +371,18 @@ export const OrganizationManagementView: React.FC = () => {
   };
 
   // Crear nueva empresa/organización con sede inicial automática
-  const handleCreateOrg = (e: React.FormEvent) => {
+  const handleCreateOrg = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newOrgName.trim()) return;
+    if (!newOrgName.trim()) {
+      setErrorNotification('El nombre comercial de la clínica es obligatorio.');
+      setTimeout(() => setErrorNotification(null), 5000);
+      return;
+    }
+    if (!newOrgTaxId.trim()) {
+      setErrorNotification('El RUC de la nueva organización es obligatorio.');
+      setTimeout(() => setErrorNotification(null), 5000);
+      return;
+    }
 
     const actor = session ? {
       userId: session.userId,
@@ -377,29 +391,38 @@ export const OrganizationManagementView: React.FC = () => {
       allowedBranchIds: session.allowedBranchIds,
     } : undefined;
 
-    const resolvedLegalName = newOrgLegalName.trim() || `${newOrgName.trim()} ${newOrgCompanyType}`;
-    const created = dbStore.addOrganization({
-      name: newOrgName.trim(),
-      tradeName: newOrgName.trim(),
-      legalName: resolvedLegalName,
-      taxId: newOrgTaxId.trim() || '80000000-1',
-      primaryColor,
-    }, actor);
+    try {
+      const resolvedLegalName = newOrgLegalName.trim() || `${newOrgName.trim()} ${newOrgCompanyType}`;
+      const created = dbStore.addOrganization({
+        name: newOrgName.trim(),
+        tradeName: newOrgName.trim(),
+        legalName: resolvedLegalName,
+        taxId: newOrgTaxId.trim(),
+        primaryColor,
+      }, actor);
 
-    switchOrganization(created.id);
-    updateBranding({
-      tradeName: created.name,
-      legalName: created.legalName,
-      taxId: created.taxId,
-      primaryColor: created.primaryColor,
-    });
+      if (dbStore.getBackendActorContext()) {
+        await dbStore.flushPendingSyncStrict();
+      }
 
-    setIsNewOrgModalOpen(false);
-    setNewOrgName('');
-    setNewOrgLegalName('');
-    setNewOrgTaxId('');
-    setNotification(`Nueva Organización "${created.name}" creada e inicializada con su propia sede central independiente.`);
-    setTimeout(() => setNotification(null), 5000);
+      switchOrganization(created.id);
+      await updateBranding({
+        tradeName: created.name,
+        legalName: created.legalName,
+        taxId: created.taxId,
+        primaryColor: created.primaryColor,
+      });
+
+      setIsNewOrgModalOpen(false);
+      setNewOrgName('');
+      setNewOrgLegalName('');
+      setNewOrgTaxId('');
+      setNotification(`Nueva Organización "${created.name}" creada e inicializada con su propia sede central independiente.`);
+      setTimeout(() => setNotification(null), 5000);
+    } catch (err: any) {
+      setErrorNotification(err?.message || 'No se pudo crear la organización.');
+      setTimeout(() => setErrorNotification(null), 6000);
+    }
   };
 
   // Conmutar entre organizaciones (Exclusivo Super Administrador)
@@ -431,7 +454,7 @@ export const OrganizationManagementView: React.FC = () => {
     setOrgPendingDelete({ id: orgId, name: orgName });
   };
 
-  const confirmDeleteOrg = () => {
+  const confirmDeleteOrg = async () => {
     if (!orgPendingDelete) return;
     const { id: orgId, name: orgName } = orgPendingDelete;
     setOrgPendingDelete(null);
@@ -445,6 +468,9 @@ export const OrganizationManagementView: React.FC = () => {
       } : undefined;
 
       dbStore.deleteOrganization(orgId, actor);
+      if (dbStore.getBackendActorContext()) {
+        await dbStore.flushPendingSyncStrict();
+      }
       setNotification(`Organización "${orgName}" dada de baja correctamente.`);
       setTimeout(() => setNotification(null), 4000);
     } catch (err: any) {

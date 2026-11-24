@@ -83,7 +83,7 @@ export const UserManagementView: React.FC = () => {
     setConfirmAction({ type: 'revoke', user });
   };
 
-  const executeConfirmAction = () => {
+  const executeConfirmAction = async () => {
     if (!confirmAction) return;
     const { type, user } = confirmAction;
     setConfirmAction(null);
@@ -102,6 +102,9 @@ export const UserManagementView: React.FC = () => {
 
     try {
       dbStore.deleteUser(user.id, actor);
+      if (dbStore.getBackendActorContext()) {
+        await dbStore.flushPendingSyncStrict();
+      }
       setNotification(`Usuario ${user.firstName} ${user.lastName} eliminado correctamente. Datos históricos conservados.`);
       setTimeout(() => setNotification(null), 5000);
     } catch (err: any) {
@@ -161,9 +164,12 @@ export const UserManagementView: React.FC = () => {
     setIsUserModalOpen(true);
   };
 
-  const handleToggleStatus = (userId: string) => {
+  const handleToggleStatus = async (userId: string) => {
     try {
       dbStore.toggleUserStatus(userId, actor);
+      if (dbStore.getBackendActorContext()) {
+        await dbStore.flushPendingSyncStrict();
+      }
       setNotification('Estado de acceso actualizado exitosamente.');
       setTimeout(() => setNotification(null), 4000);
     } catch (err: any) {
@@ -220,9 +226,9 @@ export const UserManagementView: React.FC = () => {
     const term = searchTerm.toLowerCase().trim();
     const matchesSearch =
       !term ||
-      u.firstName.toLowerCase().includes(term) ||
-      u.lastName.toLowerCase().includes(term) ||
-      u.email.toLowerCase().includes(term) ||
+      (u.firstName || '').toLowerCase().includes(term) ||
+      (u.lastName || '').toLowerCase().includes(term) ||
+      (u.email || '').toLowerCase().includes(term) ||
       (u.username && u.username.toLowerCase().includes(term)) ||
       (u.specialty && u.specialty.toLowerCase().includes(term)) ||
       (u.professionalLicense && u.professionalLicense.toLowerCase().includes(term));
@@ -549,7 +555,7 @@ export const UserManagementView: React.FC = () => {
                   const assignedBranches = branches.filter((b) =>
                     userBranchRecords.some((ub) => ub.branchId === b.id)
                   );
-                  const roleObj = BASE_ROLES.find((r) => r.id === u.roleId);
+                  const roleObj = allRoles.find((r) => r.id === u.roleId) || BASE_ROLES.find((r) => r.id === u.roleId);
                   const userOrg = organizations.find((o) => o.id === u.organizationId);
 
                   const isSelf = session?.userId === u.id;
@@ -728,7 +734,7 @@ export const UserManagementView: React.FC = () => {
             const defaultBranch = assignedBranches.find(
               (b) => userBranchRecords.find((ub) => ub.branchId === b.id)?.isDefault
             );
-            const roleObj = BASE_ROLES.find((r) => r.id === u.roleId);
+            const roleObj = allRoles.find((r) => r.id === u.roleId) || BASE_ROLES.find((r) => r.id === u.roleId);
             const userOrg = organizations.find((o) => o.id === u.organizationId);
 
             const isSelf = session?.userId === u.id;

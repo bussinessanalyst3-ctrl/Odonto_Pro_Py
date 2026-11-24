@@ -117,6 +117,8 @@ export function createEmployee(
       resolvedActorId
     );
   }
+  data.employees = [...(data.employees || [])];
+  data.employeeSalaries = [...(data.employeeSalaries || [])];
   ctx.notify();
   return created;
 }
@@ -129,6 +131,7 @@ export function updateEmployee(ctx: StoreContext, employeeId: string, updates: a
   }
   const resolvedActorId = actorUserId || actor?.userId || data.users[0]?.id || null;
   const updated = updateEmployeeRecord(data, employeeId, updates, resolvedActorId);
+  data.employees = [...(data.employees || [])];
   ctx.notify();
   return updated;
 }
@@ -146,6 +149,7 @@ export function toggleEmployeeStatus(
   }
   const resolvedActorId = actorUserId || actor?.userId || data.users[0]?.id || null;
   const updated = toggleEmployeeStatusRecord(data, employeeId, status, resolvedActorId);
+  data.employees = [...(data.employees || [])];
   ctx.notify();
   return updated;
 }
@@ -182,6 +186,7 @@ export function registerEmployeeSalary(
   }
   const resolvedActorId = payload.actorUserId || actor?.userId || data.users[0]?.id || null;
   const salary = upsertEmployeeSalaryRecord(data, payload, resolvedActorId);
+  data.employeeSalaries = [...(data.employeeSalaries || [])];
   ctx.notify();
   return salary;
 }
@@ -235,6 +240,7 @@ export function createCommissionRule(
     { ...payload, organizationId: data.organization.id },
     resolvedActorId
   );
+  data.commissionRules = [...(data.commissionRules || [])];
   ctx.notify();
   return rule;
 }
@@ -247,6 +253,7 @@ export function updateCommissionRule(ctx: StoreContext, ruleId: string, updates:
   }
   const resolvedActorId = actorUserId || actor?.userId || data.users[0]?.id || null;
   const updated = updateCommissionRuleRecord(data, ruleId, updates, resolvedActorId);
+  data.commissionRules = [...(data.commissionRules || [])];
   ctx.notify();
   return updated;
 }
@@ -303,6 +310,7 @@ export function createManualCommission(
   }
   const resolvedActorId = payload.actorUserId || actor?.userId || data.users[0]?.id || null;
   const rec = createManualCommissionAdjustment(data, payload, resolvedActorId);
+  data.generatedCommissions = [...(data.generatedCommissions || [])];
   ctx.notify();
   return rec;
 }
@@ -364,6 +372,9 @@ export function createPayrollSettlement(
   }
   const resolvedActorId = payload.actorUserId || actor?.userId || data.users[0]?.id || null;
   const res = createPayrollSettlementRecord(data, payload, resolvedActorId);
+  data.payrollSettlements = [...(data.payrollSettlements || [])];
+  data.payrollSettlementItems = [...(data.payrollSettlementItems || [])];
+  data.generatedCommissions = [...(data.generatedCommissions || [])];
   ctx.notify();
   return res;
 }
@@ -376,6 +387,7 @@ export function submitPayrollSettlement(ctx: StoreContext, settlementId: string,
   }
   const resolvedActorId = actorUserId || actor?.userId || data.users[0]?.id || null;
   const res = submitSettlementForApprovalRecord(data, settlementId, resolvedActorId);
+  data.payrollSettlements = [...(data.payrollSettlements || [])];
   ctx.notify();
   return res;
 }
@@ -388,6 +400,8 @@ export function approvePayrollSettlement(ctx: StoreContext, settlementId: string
   }
   const resolvedActorId = actorUserId || actor?.userId || data.users[0]?.id || null;
   const res = approvePayrollSettlementRecord(data, settlementId, resolvedActorId);
+  data.payrollSettlements = [...(data.payrollSettlements || [])];
+  data.generatedCommissions = [...(data.generatedCommissions || [])];
   ctx.notify();
   return res;
 }
@@ -405,6 +419,8 @@ export function annulPayrollSettlement(
   }
   const resolvedActorId = actorUserId || actor?.userId || data.users[0]?.id || null;
   const res = annulPayrollSettlementRecord(data, settlementId, reason, resolvedActorId);
+  data.payrollSettlements = [...(data.payrollSettlements || [])];
+  data.generatedCommissions = [...(data.generatedCommissions || [])];
   ctx.notify();
   return res;
 }
@@ -458,6 +474,9 @@ export function recordStaffPayment(
     },
     resolvedActorId
   );
+  data.staffPayments = [...(data.staffPayments || [])];
+  data.payrollSettlements = [...(data.payrollSettlements || [])];
+  data.generatedCommissions = [...(data.generatedCommissions || [])];
   ctx.notify();
   return res;
 }
@@ -475,6 +494,9 @@ export function annulStaffPayment(
   }
   const resolvedActorId = actorUserId || actor?.userId || data.users[0]?.id || null;
   const res = annulStaffPaymentRecord(data, paymentId, reason, resolvedActorId);
+  data.staffPayments = [...(data.staffPayments || [])];
+  data.payrollSettlements = [...(data.payrollSettlements || [])];
+  data.generatedCommissions = [...(data.generatedCommissions || [])];
   ctx.notify();
   return res;
 }

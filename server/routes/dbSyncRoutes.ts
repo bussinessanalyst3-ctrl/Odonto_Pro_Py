@@ -773,6 +773,23 @@ export function createDbSyncRouter(): express.Router {
             if (!Number.isFinite(amt) || amt <= 0) {
               return res.status(400).json({ error: 'El monto del movimiento de caja debe ser superior a ₲ 0.' });
             }
+          } else if (col === 'services') {
+            const price = Number(item.basePrice);
+            if (!Number.isFinite(price) || !Number.isInteger(price) || price <= 0) {
+              return res.status(400).json({
+                error: 'El precio base del servicio en Guaraníes (PYG) debe ser un número entero mayor a ₲ 0.',
+              });
+            }
+            if (!String(item.name || '').trim()) {
+              return res.status(400).json({ error: 'El nombre del servicio es obligatorio.' });
+            }
+          } else if (col === 'branchServices') {
+            const customPrice = Number(item.customPrice);
+            if (!Number.isFinite(customPrice) || !Number.isInteger(customPrice) || customPrice <= 0) {
+              return res.status(400).json({
+                error: 'El precio por sucursal en Guaraníes (PYG) debe ser un número entero mayor a ₲ 0.',
+              });
+            }
           }
           accepted.push(item);
         }

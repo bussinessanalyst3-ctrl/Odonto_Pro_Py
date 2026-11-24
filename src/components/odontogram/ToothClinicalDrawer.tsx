@@ -66,14 +66,37 @@ export const ToothClinicalDrawer: React.FC<ToothClinicalDrawerProps> = ({
   onCreateTreatment,
   onCreateBudget,
 }) => {
-  if (!isOpen || toothNumber === null) return null;
-
   const palatineOrLingual = isUpper ? 'PALATINA' : 'LINGUAL';
   const [selectedSurface, setSelectedSurface] = useState<string>('OCLUSAL');
   const [condition, setCondition] = useState<string>('CARIES');
   const [material, setMaterial] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'clinical' | 'history'>('clinical');
+
+  // Reset surface & tab cleanly when switching to another tooth or jaw
+  React.useEffect(() => {
+    if (isOpen && toothNumber !== null) {
+      setSelectedSurface('OCLUSAL');
+      setActiveTab('clinical');
+    }
+  }, [toothNumber, isUpper, isOpen]);
+
+  // Cargar estado inicial según la superficie
+  React.useEffect(() => {
+    if (!isOpen || toothNumber === null) return;
+    const item = toothData?.surfaces[selectedSurface as keyof typeof toothData.surfaces];
+    if (item) {
+      setCondition(item.condition || 'CARIES');
+      setMaterial(item.material || '');
+      setNotes(item.notes || '');
+    } else {
+      setCondition('CARIES');
+      setMaterial('');
+      setNotes('');
+    }
+  }, [selectedSurface, toothData, isOpen, toothNumber]);
+
+  if (!isOpen || toothNumber === null) return null;
 
   // Buscar tratamientos y presupuestos relacionados con esta pieza y paciente
   const allTreatments = dbStore.getSnapshot().treatments || [];
@@ -87,20 +110,6 @@ export const ToothClinicalDrawer: React.FC<ToothClinicalDrawerProps> = ({
   const relatedQuotes = allQuotes.filter(
     (q) => q.patientId === patientId && relatedQuoteItems.some((qi) => qi.quoteId === q.id)
   );
-
-  // Cargar estado inicial según la superficie
-  React.useEffect(() => {
-    const item = toothData?.surfaces[selectedSurface as keyof typeof toothData.surfaces];
-    if (item) {
-      setCondition(item.condition || 'CARIES');
-      setMaterial(item.material || '');
-      setNotes(item.notes || '');
-    } else {
-      setCondition('CARIES');
-      setMaterial('');
-      setNotes('');
-    }
-  }, [selectedSurface, toothData]);
 
   const handleApply = () => {
     const condObj = CONDITIONS_CATALOG.find((c) => c.id === condition);

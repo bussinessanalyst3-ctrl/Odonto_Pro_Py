@@ -74,8 +74,8 @@ export function addAuditLog(ctx: StoreContext, entry: AuditLogInput) {
     action: entry.action,
     entity: entry.entity,
     entityId: entry.entityId || null,
-    ipAddress: entry.ipAddress || '190.52.144.12',
-    userAgent: entry.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : 'OdontoPro Web Client'),
+    ipAddress: entry.ipAddress || null,
+    userAgent: entry.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : 'ODONTOPRO Web'),
     oldValues: entry.oldValues || null,
     newValues: entry.newValues || null,
     description: entry.description,
@@ -117,20 +117,37 @@ export function addOrganization(
 
   const data = ctx.getData();
   const orgsList = ctx.getOrganizationsList();
+  const cleanName = String(newOrg.name || newOrg.tradeName || '').trim();
+  const cleanTaxId = String(newOrg.taxId || '').trim();
+  if (!cleanName) {
+    throw new Error('El nombre comercial de la organización es obligatorio.');
+  }
+  if (!cleanTaxId) {
+    throw new Error('El RUC / identificador fiscal de la organización es obligatorio.');
+  }
+
+  const normalizedTaxId = cleanTaxId.replace(/\s+/g, '').toUpperCase();
+  const duplicateOrg = orgsList.find(
+    (o) => o.status !== 'INACTIVE' && String(o.taxId || '').replace(/\s+/g, '').toUpperCase() === normalizedTaxId
+  );
+  if (duplicateOrg) {
+    throw new Error(`Ya existe una organización activa registrada con el RUC "${cleanTaxId}" (${duplicateOrg.name}).`);
+  }
+
   const id = crypto.randomUUID();
   const createdOrg = {
     id,
-    code: `ORG-${newOrg.taxId ? newOrg.taxId.replace(/[^A-Za-z0-9]/g, '') : Date.now()}`,
-    name: newOrg.name || newOrg.tradeName || 'Nueva Organización',
-    legalName: newOrg.legalName || newOrg.name,
-    taxId: newOrg.taxId || '80000000-1',
+    code: `ORG-${cleanTaxId.replace(/[^A-Za-z0-9]/g, '') || Date.now()}`,
+    name: cleanName,
+    legalName: (newOrg.legalName || '').trim() || cleanName,
+    taxId: cleanTaxId,
     countryCode: newOrg.countryCode || 'PRY',
     defaultCurrency: newOrg.defaultCurrency || 'PYG',
     timezone: newOrg.timezone || 'America/Asuncion',
     status: 'ACTIVE',
-    phone: newOrg.phone || '+595 21 000 000',
-    email: newOrg.email || 'contacto@clinica.com.py',
-    address: newOrg.address || 'Asunción, Paraguay',
+    phone: (newOrg.phone || '').trim(),
+    email: (newOrg.email || '').trim(),
+    address: (newOrg.address || '').trim() || 'Asunción, Paraguay',
     primaryColor: newOrg.primaryColor || 'teal',
     logoUrl: newOrg.logoUrl,
     createdAt: new Date(),
@@ -151,7 +168,7 @@ export function addOrganization(
     address: createdOrg.address,
     phone: createdOrg.phone,
     whatsapp: createdOrg.phone,
-    email: createdOrg.email,
+    email: createdOrg.email || null,
     openingTime: '07:30',
     closingTime: '19:30',
     status: 'ACTIVE' as const,
@@ -160,23 +177,40 @@ export function addOrganization(
     createdAt: new Date(),
     updatedAt: new Date(),
   };
-  data.branches.push(defaultBranch);
+  data.branches = [...(data.branches || []), defaultBranch];
 
-  data.branchSettings.push({
-    id: crypto.randomUUID(),
-    branchId: defaultBranchId,
-    allowOnlineBooking: true,
-    requireDocumentId: true,
-    enableWaitlist: true,
-    maxOverbookingSlots: 0,
-    reminderChannels: ['WHATSAPP', 'EMAIL'],
-    defaultAppointmentDurationMinutes: 30,
-    cancellationNoticeHours: 24,
-    requireDepositForSpecialties: false,
-    depositAmountPyg: 0,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
+  data.branchSettings = [
+    ...(data.branchSettings || []),
+    {
+      id: crypto.randomUUID(),
+      branchId: defaultBranchId,
+      allowOnlineBooking: true,
+      requireDocumentId: true,
+      enableWaitlist: true,
+      maxOverbookingSlots: 0,
+      reminderChannels: ['WHATSAPP', 'EMAIL'],
+      defaultAppointmentDurationMinutes: 30,
+      cancellationNoticeHours: 24,
+      requireDepositForSpecialties: false,
+      depositAmountPyg: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  ];
+
+  // Crear sillón inicial operativo para que Agenda funcione de inmediato en la nueva organización
+  data.dentalChairs = [
+    ...(data.dentalChairs || []),
+    {
+      id: crypto.randomUUID(),
+      organizationId: id,
+      branchId: defaultBranchId,
+      name: 'Sillón 1 - Consultorio Principal',
+      code: 'SUC-01-S1',
+      status: 'ACTIVE' as const,
+      createdAt: new Date(),
+    },
+  ];
 
   const adminEmail =
     newOrg.initialAdmin?.email || (newOrg.email && !ctx.findUserByEmailOrUsername(newOrg.email) ? newOrg.email : null);
@@ -232,8 +266,7 @@ export function addOrganization(
     createdAt: new Date(),
     updatedAt: new Date(),
   }));
-  if (!data.services) data.services = [];
-  data.services.push(...initialServices);
+  data.services = [...(data.services || []), ...initialServices];
 
   data.auditLogs.unshift({
     id: crypto.randomUUID(),
@@ -243,8 +276,8 @@ export function addOrganization(
     action: 'CREATE',
     entity: 'ORGANIZATION',
     entityId: id,
-    ipAddress: '190.52.144.12',
-    userAgent: 'OdontoPro Multi-Tenant Admin',
+    ipAddress: null,
+    userAgent: 'ODONTOPRO Multi-Tenant Admin',
     oldValues: null,
     newValues: createdOrg,
     description: `Creación de nueva Organización / Cliente: ${createdOrg.name} (RUC: ${createdOrg.taxId})`,
@@ -312,8 +345,9 @@ export function deleteOrganization(ctx: StoreContext, orgId: string, actor?: Bac
     throw new Error('403 Prohibido: Solo el Super Administrador tiene autorización para dar de baja organizaciones.');
   }
 
-  if (orgsList.length <= 1) {
-    throw new Error('400 Error: No es posible dar de baja la única organización registrada en el sistema.');
+  const activeOrgsCount = orgsList.filter((o) => o.status !== 'INACTIVE').length;
+  if (orgsList.length <= 1 || activeOrgsCount <= 1) {
+    throw new Error('400 Error: No es posible dar de baja la única organización activa registrada en el sistema.');
   }
 
   const orgIndex = orgsList.findIndex((o) => o.id === orgId);
@@ -322,11 +356,20 @@ export function deleteOrganization(ctx: StoreContext, orgId: string, actor?: Bac
   }
 
   const targetOrg = orgsList[orgIndex];
-  targetOrg.status = 'INACTIVE';
-  targetOrg.deletedAt = new Date();
+  if (targetOrg.status === 'INACTIVE') {
+    throw new Error('Esta organización ya se encuentra dada de baja.');
+  }
+
+  const updatedOrg = {
+    ...targetOrg,
+    status: 'INACTIVE',
+    deletedAt: new Date(),
+    updatedAt: new Date(),
+  };
+  orgsList[orgIndex] = updatedOrg;
 
   if (data.organization.id === orgId) {
-    const nextActive = orgsList.find((o) => o.id !== orgId && o.status === 'ACTIVE') || orgsList[0];
+    const nextActive = orgsList.find((o) => o.id !== orgId && o.status !== 'INACTIVE') || orgsList[0];
     data.organization = nextActive;
   }
 
@@ -338,11 +381,11 @@ export function deleteOrganization(ctx: StoreContext, orgId: string, actor?: Bac
     action: 'DELETE',
     entity: 'ORGANIZATION',
     entityId: orgId,
-    ipAddress: '190.52.144.12',
-    userAgent: 'OdontoPro Web Admin',
+    ipAddress: null,
+    userAgent: 'ODONTOPRO Web Admin',
     oldValues: null,
-    newValues: { status: 'INACTIVE', deletedAt: targetOrg.deletedAt },
-    description: `Baja lógica / Inactivación de organización: ${targetOrg.name} (RUC: ${targetOrg.taxId})`,
+    newValues: { status: 'INACTIVE', deletedAt: updatedOrg.deletedAt },
+    description: `Baja lógica / Inactivación de organización: ${updatedOrg.name} (RUC: ${updatedOrg.taxId})`,
     createdAt: new Date(),
   });
 
@@ -371,6 +414,16 @@ export function updateOrganization(
         description: `Intento denegado de modificar organización ajena (${orgId}) por usuario con rol ${effectiveActor.role}.`,
       });
       throw new Error('403 Prohibido: No tiene permisos para modificar organizaciones distintas a la suya.');
+    }
+  }
+
+  if (updates.taxId !== undefined && String(updates.taxId).trim()) {
+    const normalizedTaxId = String(updates.taxId).trim().replace(/\s+/g, '').toUpperCase();
+    const dupOrg = orgsList.find(
+      (o) => o.id !== orgId && o.status !== 'INACTIVE' && String(o.taxId || '').replace(/\s+/g, '').toUpperCase() === normalizedTaxId
+    );
+    if (dupOrg) {
+      throw new Error(`Ya existe otra organización activa con el RUC "${String(updates.taxId).trim()}" (${dupOrg.name}).`);
     }
   }
 
@@ -414,8 +467,8 @@ export function updateOrganization(
     action: 'UPDATE',
     entity: 'ORGANIZATION',
     entityId: orgId,
-    ipAddress: '190.52.144.12',
-    userAgent: 'OdontoPro Web Admin',
+    ipAddress: null,
+    userAgent: 'ODONTOPRO Web Admin',
     oldValues: null,
     newValues: sanitizedAuditUpdates,
     description: `Actualización de parámetros institucionales de la clínica (${updatedOrg.name})`,
@@ -505,32 +558,53 @@ export function addBranch(
     throw new Error('401 No autorizado: Se requiere contexto de usuario para crear sucursales.');
   }
 
+  const orgId =
+    effectiveActor && effectiveActor.role !== 'SUPER_ADMIN'
+      ? effectiveActor.organizationId
+      : data.organization.id;
+  const normalizedCode = newBranch.code.trim().toUpperCase();
+  const normalizedName = newBranch.name.trim();
+  const openingTime = newBranch.openingTime || '07:30';
+  const closingTime = newBranch.closingTime || '19:30';
+
+  if (!normalizedCode || !normalizedName) {
+    throw new Error('El código y nombre de la sucursal son obligatorios.');
+  }
+  if (openingTime >= closingTime) {
+    throw new Error('El horario de cierre debe ser posterior al horario de apertura.');
+  }
+
+  const duplicateCode = (data.branches || []).some(
+    (b) => b.organizationId === orgId && String(b.code || '').trim().toUpperCase() === normalizedCode
+  );
+  if (duplicateCode) {
+    throw new Error(`Ya existe una sucursal con el código "${normalizedCode}" en esta clínica.`);
+  }
+
   const id = crypto.randomUUID();
+  const orgBranchCount = (data.branches || []).filter((b) => b.organizationId === orgId).length;
   const branchRecord = {
     id,
-    organizationId:
-      effectiveActor && effectiveActor.role !== 'SUPER_ADMIN'
-        ? effectiveActor.organizationId
-        : data.organization.id,
-    code: newBranch.code.toUpperCase(),
-    name: newBranch.name,
+    organizationId: orgId,
+    code: normalizedCode,
+    name: normalizedName,
     department: newBranch.department,
     city: newBranch.city,
-    neighborhood: newBranch.neighborhood || 'Centro',
-    address: newBranch.address,
-    phone: newBranch.phone,
-    whatsapp: newBranch.whatsapp || newBranch.phone,
-    email: newBranch.email || `sucursal.${newBranch.code.toLowerCase()}@odontopro.com.py`,
-    openingTime: newBranch.openingTime || '07:30',
-    closingTime: newBranch.closingTime || '19:30',
+    neighborhood: (newBranch.neighborhood || '').trim() || 'Centro',
+    address: newBranch.address.trim(),
+    phone: newBranch.phone.trim(),
+    whatsapp: (newBranch.whatsapp || '').trim() || newBranch.phone.trim(),
+    email: newBranch.email?.trim() || null,
+    openingTime,
+    closingTime,
     status: 'ACTIVE' as const,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
 
-  data.branches.push(branchRecord);
+  data.branches = [...(data.branches || []), branchRecord];
 
-  data.branchSettings.push({
+  const settingsRecord = {
     id: crypto.randomUUID(),
     branchId: id,
     appointmentDurationDefault: 30,
@@ -538,14 +612,27 @@ export function addBranch(
     allowDoubleBooking: false,
     requireDocumentOnBooking: true,
     maxAdvanceBookingDays: 60,
-    receiptSeries: `001-00${data.branches.length}`,
+    receiptSeries: `001-${String(orgBranchCount + 1).padStart(3, '0')}`,
     createdAt: new Date(),
     updatedAt: new Date(),
-  });
+  };
+  data.branchSettings = [...(data.branchSettings || []), settingsRecord];
+
+  // Crear al menos 1 sillón dental operativo para que Agenda pueda agendar de inmediato en esta sucursal
+  const defaultChair = {
+    id: crypto.randomUUID(),
+    organizationId: orgId,
+    branchId: id,
+    name: 'Sillón 1 - Consultorio Principal',
+    code: `${normalizedCode}-S1`,
+    status: 'ACTIVE' as const,
+    createdAt: new Date(),
+  };
+  data.dentalChairs = [...(data.dentalChairs || []), defaultChair];
 
   data.auditLogs.unshift({
     id: crypto.randomUUID(),
-    organizationId: data.organization.id,
+    organizationId: orgId,
     branchId: id,
     userId: effectiveActor?.userId || data.users[0]?.id || null,
     action: 'CREATE',
@@ -555,7 +642,7 @@ export function addBranch(
     userAgent: 'OdontoPro Web Admin',
     oldValues: null,
     newValues: branchRecord,
-    description: `Creación de nueva sucursal clínica: ${newBranch.name} (${newBranch.city}, ${newBranch.department})`,
+    description: `Creación de nueva sucursal clínica: ${normalizedName} (${newBranch.city}, ${newBranch.department})`,
     createdAt: new Date(),
   });
 
@@ -596,15 +683,37 @@ export function updateBranch(
   if (idx === -1) return null;
 
   const old = data.branches[idx];
-  data.branches[idx] = {
+  const nextCode = updates.code !== undefined ? String(updates.code).trim().toUpperCase() : old.code;
+  const nextOpening = updates.openingTime ?? old.openingTime;
+  const nextClosing = updates.closingTime ?? old.closingTime;
+
+  if (nextOpening && nextClosing && nextOpening >= nextClosing) {
+    throw new Error('El horario de cierre debe ser posterior al horario de apertura.');
+  }
+  if (nextCode) {
+    const dupCode = data.branches.some(
+      (b) =>
+        b.id !== branchId &&
+        b.organizationId === old.organizationId &&
+        String(b.code || '').trim().toUpperCase() === nextCode
+    );
+    if (dupCode) {
+      throw new Error(`Ya existe otra sucursal con el código "${nextCode}".`);
+    }
+  }
+
+  const updatedBranch = {
     ...old,
     ...updates,
+    code: nextCode,
+    email: updates.email !== undefined ? (String(updates.email || '').trim() || null) : old.email,
     updatedAt: new Date(),
   };
+  data.branches = data.branches.map((b, i) => (i === idx ? updatedBranch : b));
 
   data.auditLogs.unshift({
     id: crypto.randomUUID(),
-    organizationId: data.organization.id,
+    organizationId: old.organizationId || data.organization.id,
     branchId,
     userId: effectiveActor?.userId || data.users[0]?.id || null,
     action: 'UPDATE',
@@ -614,12 +723,12 @@ export function updateBranch(
     userAgent: 'OdontoPro Web Admin',
     oldValues: old,
     newValues: updates,
-    description: `Modificación de datos operativos en sucursal ${data.branches[idx].name}`,
+    description: `Modificación de datos operativos en sucursal ${updatedBranch.name}`,
     createdAt: new Date(),
   });
 
   ctx.notify();
-  return data.branches[idx];
+  return updatedBranch;
 }
 
 export function deleteBranch(ctx: StoreContext, branchId: string, actor?: BackendActorContext) {
@@ -646,7 +755,7 @@ export function deleteBranch(ctx: StoreContext, branchId: string, actor?: Backen
 
   data.auditLogs.unshift({
     id: crypto.randomUUID(),
-    organizationId: data.organization.id,
+    organizationId: branch.organizationId || data.organization.id,
     branchId,
     userId: effectiveActor?.userId || null,
     action: 'DELETE',
@@ -683,16 +792,31 @@ export function toggleBranchStatus(ctx: StoreContext, branchId: string, actor?: 
     }
   }
 
-  const branch = data.branches.find((b) => b.id === branchId);
-  if (!branch) return null;
+  const idx = data.branches.findIndex((b) => b.id === branchId);
+  if (idx === -1) return null;
 
+  const branch = data.branches[idx];
   const newStatus = branch.status === 'ACTIVE' ? ('INACTIVE' as const) : ('ACTIVE' as const);
-  branch.status = newStatus;
-  branch.updatedAt = new Date();
+
+  if (newStatus === 'INACTIVE') {
+    const otherActiveCount = data.branches.filter(
+      (b) => b.organizationId === branch.organizationId && b.id !== branchId && b.status === 'ACTIVE'
+    ).length;
+    if (otherActiveCount === 0) {
+      throw new Error('No puede desactivar la única sucursal operativa de la clínica.');
+    }
+  }
+
+  const updatedBranch = {
+    ...branch,
+    status: newStatus,
+    updatedAt: new Date(),
+  };
+  data.branches = data.branches.map((b, i) => (i === idx ? updatedBranch : b));
 
   data.auditLogs.unshift({
     id: crypto.randomUUID(),
-    organizationId: data.organization.id,
+    organizationId: branch.organizationId || data.organization.id,
     branchId,
     userId: effectiveActor?.userId || data.users[0]?.id || null,
     action: 'STATUS_CHANGE',
@@ -700,14 +824,14 @@ export function toggleBranchStatus(ctx: StoreContext, branchId: string, actor?: 
     entityId: branchId,
     ipAddress: '190.52.144.12',
     userAgent: 'OdontoPro Web Admin',
-    oldValues: null,
+    oldValues: { status: branch.status },
     newValues: { status: newStatus },
-    description: `Cambio de estado de sucursal ${branch.name} a ${newStatus}`,
+    description: `Cambio de estado de sucursal ${updatedBranch.name} a ${newStatus}`,
     createdAt: new Date(),
   });
 
   ctx.notify();
-  return branch;
+  return updatedBranch;
 }
 
 export function getBranchSettings(ctx: StoreContext, branchId: string) {
@@ -739,9 +863,10 @@ export function updateBranchSettings(
     }
   }
 
-  let setting = data.branchSettings.find((bs) => bs.branchId === branchId);
-  if (!setting) {
-    setting = {
+  const existingIdx = data.branchSettings.findIndex((bs) => bs.branchId === branchId);
+  let savedSetting: any;
+  if (existingIdx === -1) {
+    savedSetting = {
       id: crypto.randomUUID(),
       branchId,
       appointmentDurationDefault: 30,
@@ -750,13 +875,19 @@ export function updateBranchSettings(
       requireDocumentOnBooking: true,
       maxAdvanceBookingDays: 60,
       receiptSeries: '001-001',
+      ...updates,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    data.branchSettings.push(setting);
+    data.branchSettings = [...(data.branchSettings || []), savedSetting];
+  } else {
+    savedSetting = {
+      ...data.branchSettings[existingIdx],
+      ...updates,
+      updatedAt: new Date(),
+    };
+    data.branchSettings = data.branchSettings.map((bs, idx) => (idx === existingIdx ? savedSetting : bs));
   }
-
-  Object.assign(setting, updates, { updatedAt: new Date() });
 
   data.auditLogs.unshift({
     id: crypto.randomUUID(),
@@ -765,7 +896,7 @@ export function updateBranchSettings(
     userId: effectiveActor?.userId || data.users[0]?.id || null,
     action: 'UPDATE_SETTINGS',
     entity: 'BRANCH_SETTINGS',
-    entityId: setting.id,
+    entityId: savedSetting.id,
     ipAddress: '190.52.144.12',
     userAgent: 'OdontoPro Web Admin',
     oldValues: null,
@@ -775,5 +906,93 @@ export function updateBranchSettings(
   });
 
   ctx.notify();
-  return setting;
+  return savedSetting;
+}
+
+/**
+ * Persiste los sillones odontológicos reales de una sucursal en `dentalChairs`.
+ * Los sillones retirados que ya tienen citas históricas pasan a INACTIVE (baja lógica)
+ * para preservar integridad referencial con la Agenda histórica.
+ */
+export function saveBranchDentalChairs(
+  ctx: StoreContext,
+  branchId: string,
+  chairs: Array<{ id?: string; name: string; code?: string; status: 'ACTIVE' | 'MAINTENANCE' | 'INACTIVE' }>,
+  actor?: BackendActorContext
+) {
+  const data = ctx.getData();
+  const effectiveActor = ctx.getEffectiveActor(actor);
+
+  if (effectiveActor) {
+    if (
+      effectiveActor.role === 'ADMIN_SUCURSAL' &&
+      effectiveActor.allowedBranchIds &&
+      !effectiveActor.allowedBranchIds.includes(branchId)
+    ) {
+      throw new Error('403 Prohibido: Solo puede configurar sillones de las sucursales asignadas.');
+    }
+  }
+
+  const branch = (data.branches || []).find((b) => b.id === branchId);
+  if (!branch) throw new Error('Sucursal no encontrada.');
+
+  const orgId = branch.organizationId || data.organization.id;
+  const existingBranchChairs = (data.dentalChairs || []).filter((c: any) => c.branchId === branchId);
+  const otherBranchChairs = (data.dentalChairs || []).filter((c: any) => c.branchId !== branchId);
+  const existingById = new Map<string, any>(existingBranchChairs.map((c: any) => [c.id, c]));
+
+  const keptIds = new Set<string>();
+  const normalizedChairs: any[] = [];
+
+  chairs.forEach((input, idx) => {
+    const cleanName = String(input.name || '').trim();
+    if (!cleanName) return;
+    const prev = input.id ? existingById.get(input.id) : undefined;
+    const chairId = prev ? prev.id : (input.id && input.id.length >= 20 ? input.id : crypto.randomUUID());
+    keptIds.add(chairId);
+    normalizedChairs.push({
+      ...(prev || {}),
+      id: chairId,
+      organizationId: orgId,
+      branchId,
+      name: cleanName,
+      code: (input.code || prev?.code || `${branch.code || 'SUC'}-S${idx + 1}`).trim().toUpperCase(),
+      status: input.status || 'ACTIVE',
+      createdAt: prev?.createdAt || new Date(),
+    });
+  });
+
+  // Baja lógica de sillones eliminados de la lista si ya fueron usados en citas históricas
+  const appointments = data.appointments || [];
+  for (const prev of existingBranchChairs) {
+    if (keptIds.has(prev.id)) continue;
+    const hasHistory = appointments.some((a: any) => a.dentalChairId === prev.id);
+    if (hasHistory) {
+      normalizedChairs.push({
+        ...prev,
+        status: 'INACTIVE',
+      });
+    }
+  }
+
+  data.dentalChairs = [...otherBranchChairs, ...normalizedChairs];
+
+  data.auditLogs.unshift({
+    id: crypto.randomUUID(),
+    organizationId: orgId,
+    branchId,
+    userId: effectiveActor?.userId || data.users[0]?.id || null,
+    action: 'UPDATE_CHAIRS',
+    entity: 'BRANCH',
+    entityId: branchId,
+    ipAddress: '190.52.144.12',
+    userAgent: 'OdontoPro Web Admin',
+    oldValues: { count: existingBranchChairs.filter((c: any) => c.status !== 'INACTIVE').length },
+    newValues: { count: normalizedChairs.filter((c: any) => c.status !== 'INACTIVE').length },
+    description: `Actualización de sillones odontológicos en sucursal ${branch.name}`,
+    createdAt: new Date(),
+  });
+
+  ctx.notify();
+  return normalizedChairs.filter((c) => c.status !== 'INACTIVE');
 }

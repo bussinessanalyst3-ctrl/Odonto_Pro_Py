@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { X, Check, CreditCard, Receipt, AlertCircle, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Check, CreditCard, Receipt, AlertCircle, ShieldCheck, Calendar } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
-import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
+import { formatPYG, validatePygPrice } from '../../db/seeds/paraguay-catalogs.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 
 interface RecordTreatmentPaymentModalProps {
   treatment: any;
@@ -22,24 +23,47 @@ export const RecordTreatmentPaymentModal: React.FC<RecordTreatmentPaymentModalPr
   const patient = treatment ? snapshot.patients.find((p) => p.id === treatment.patientId) : null;
   const balance = treatment ? treatment.balanceDue : 0;
 
-  const [amount, setAmount] = useState<number>(balance > 0 ? balance : 100000);
+  const todayIso = getTodayAsuncionISO();
+  const [amountInput, setAmountInput] = useState<string>(balance > 0 ? String(Math.round(balance)) : '100000');
   const [paymentMethod, setPaymentMethod] = useState<string>('TRANSFERENCIA_SIPAP');
   const [receiptNumber, setReceiptNumber] = useState<string>(() => dbStore.getNextReceiptNumber());
+  const [paymentDate, setPaymentDate] = useState<string>(todayIso);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
+  useEffect(() => {
+    if (!isOpen || !treatment) return;
+    const currentBalance = Math.round(Number(treatment.balanceDue) || 0);
+    setAmountInput(currentBalance > 0 ? String(currentBalance) : '0');
+    setReceiptNumber(dbStore.getNextReceiptNumber());
+    setPaymentDate(getTodayAsuncionISO());
+    setError(null);
+    setIsSubmitting(false);
+  }, [isOpen, treatment?.id, treatment?.balanceDue]);
+
   if (!isOpen || !treatment) return null;
+
+  const isHistoricalPayment = Boolean(paymentDate && paymentDate < todayIso);
+
+  const parsedAmount = (() => {
+    const num = Number(amountInput.trim());
+    return Number.isFinite(num) && Number.isInteger(num) && num > 0 ? num : 0;
+  })();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
     setError(null);
 
-    if (amount <= 0) {
-      setError('El monto a abonar debe ser mayor a ₲ 0.');
+    let validatedAmount: number;
+    try {
+      validatedAmount = validatePygPrice(Number(amountInput.trim()), 'El monto a cobrar');
+    } catch (validationErr: any) {
+      setError(validationErr.message || 'El monto a abonar debe ser un entero mayor a ₲ 0.');
       return;
     }
-    if (amount > treatment.balanceDue && treatment.balanceDue > 0) {
+
+    if (validatedAmount > treatment.balanceDue && treatment.balanceDue > 0) {
       setError(`El monto no puede superar el saldo pendiente de ${formatPYG(treatment.balanceDue)}.`);
       return;
     }
@@ -48,10 +72,11 @@ export const RecordTreatmentPaymentModal: React.FC<RecordTreatmentPaymentModalPr
     try {
       if (hasBackendSession()) {
         const result = await postAuthoritativeAction(`/api/treatments/${treatment.id}/payments`, {
-          amount,
+          amount: validatedAmount,
           paymentMethod,
           receiptNumber,
-          autoProgressIfPaid: amount >= treatment.balanceDue && treatment.status === 'PLANIFICADO',
+          paymentDate,
+          autoProgressIfPaid: validatedAmount >= treatment.balanceDue && treatment.status === 'PLANIFICADO',
         });
         dbStore.applyAuthoritativeSync(
           {
@@ -66,13 +91,14 @@ export const RecordTreatmentPaymentModal: React.FC<RecordTreatmentPaymentModalPr
       } else {
         dbStore.recordTreatmentPayment(
           treatment.id,
-          amount,
+          validatedAmount,
           paymentMethod,
           receiptNumber,
-          session?.userId
+          session?.userId,
+          paymentDate
         );
 
-        if (amount >= treatment.balanceDue && treatment.status === 'PLANIFICADO') {
+        if (validatedAmount >= treatment.balanceDue && treatment.status === 'PLANIFICADO') {
           dbStore.updateTreatmentStatus(treatment.id, 'EN_PROGRESO', undefined, session?.userId);
         }
       }
@@ -80,6 +106,7 @@ export const RecordTreatmentPaymentModal: React.FC<RecordTreatmentPaymentModalPr
       onClose();
     } catch (err: any) {
       setError(err.message || 'Error al procesar el pago.');
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -166,15 +193,16 @@ export const RecordTreatmentPaymentModal: React.FC<RecordTreatmentPaymentModalPr
             </label>
             <input
               type="number"
-              step="1000"
-              min="1000"
-              value={amount}
-              onChange={(e) => setAmount(parseInt(e.target.value, 10) || 0)}
+              step="1"
+              min="1"
+              inputMode="numeric"
+              value={amountInput}
+              onChange={(e) => setAmountInput(e.target.value)}
               required
               className="w-full text-base font-extrabold text-slate-900 p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
             />
             <span className="text-xs text-teal-700 font-bold mt-1 block">
-              {formatPYG(amount)}
+              {formatPYG(parsedAmount)}
             </span>
           </div>
 
@@ -194,6 +222,29 @@ export const RecordTreatmentPaymentModal: React.FC<RecordTreatmentPaymentModalPr
               <option value="TARJETA_DEBITO">Tarjeta de Débito (POS)</option>
               <option value="TARJETA_CREDITO">Tarjeta de Crédito (POS)</option>
             </select>
+          </div>
+
+          {/* Payment Date (permite carga histórica) */}
+          <div>
+            <label className="text-xs font-semibold text-slate-700 mb-1 block">
+              Fecha de Cobro:
+            </label>
+            <div className="relative">
+              <input
+                type="date"
+                max={todayIso}
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                required
+                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+              />
+              <Calendar className="h-4 w-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+            </div>
+            {isHistoricalPayment && (
+              <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 mt-1.5">
+                Cobro con fecha histórica ({paymentDate}): actualizará el saldo del tratamiento sin alterar la caja abierta de hoy.
+              </p>
+            )}
           </div>
 
           {/* Receipt Number */}

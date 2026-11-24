@@ -361,9 +361,25 @@ export const STANDARD_SERVICES = [
 ];
 
 // Helper para formatear montos en Guaraníes (PYG) sin centavos con separador de miles
-export function formatPYG(amount: number | bigint): string {
-  const num = typeof amount === 'bigint' ? Number(amount) : amount;
-  return `₲ ${new Intl.NumberFormat('es-PY').format(num)}`;
+export function formatPYG(amount: number | bigint | null | undefined): string {
+  const raw = typeof amount === 'bigint' ? Number(amount) : Number(amount ?? 0);
+  const safe = Number.isFinite(raw) ? Math.round(raw) : 0;
+  return `₲ ${new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(safe)}`;
+}
+
+// Validador estricto de precios en Guaraníes (entero positivo, sin decimales)
+export function validatePygPrice(value: unknown, label = 'El precio'): number {
+  const num = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(num)) {
+    throw new Error(`${label} debe ser un número válido.`);
+  }
+  if (!Number.isInteger(num)) {
+    throw new Error(`${label} en Guaraníes (PYG) no admite decimales.`);
+  }
+  if (num <= 0) {
+    throw new Error(`${label} debe ser mayor a ₲ 0.`);
+  }
+  return num;
 }
 
 // Validador de RUC paraguayo (algoritmo Módulo 11 oficial de la SET / DNIT)

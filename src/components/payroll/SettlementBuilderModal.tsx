@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, Calculator, Plus, Trash2, AlertCircle } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { getEmployeeDisplayName } from '../../db/payrollEngine.ts';
+import { getTodayAsuncionISO } from '../../config/appBrand.ts';
+import { getAsuncionYearMonth } from '../../utils/reportPeriod.ts';
 
 interface SettlementBuilderModalProps {
   isOpen: boolean;
@@ -28,11 +30,11 @@ export const SettlementBuilderModal: React.FC<SettlementBuilderModalProps> = ({
   onCreated,
 }) => {
   const employees = dbStore.getEmployees({ status: 'ACTIVE' });
-  const now = new Date();
+  const todayYm = getAsuncionYearMonth(getTodayAsuncionISO());
 
   const [employeeId, setEmployeeId] = useState('');
-  const [periodYear, setPeriodYear] = useState(now.getUTCFullYear());
-  const [periodMonth, setPeriodMonth] = useState(now.getUTCMonth() + 1);
+  const [periodYear, setPeriodYear] = useState(todayYm.year);
+  const [periodMonth, setPeriodMonth] = useState(todayYm.month);
   const [includeBaseSalary, setIncludeBaseSalary] = useState(true);
   const [baseSalaryOverride, setBaseSalaryOverride] = useState('');
   const [selectedCommissionIds, setSelectedCommissionIds] = useState<string[]>([]);
@@ -47,10 +49,11 @@ export const SettlementBuilderModal: React.FC<SettlementBuilderModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     setFormError(null);
+    const currentYm = getAsuncionYearMonth(getTodayAsuncionISO());
     const initialEmp = defaultEmployeeId || employees[0]?.id || '';
     setEmployeeId(initialEmp);
-    setPeriodYear(now.getUTCFullYear());
-    setPeriodMonth(now.getUTCMonth() + 1);
+    setPeriodYear(currentYm.year);
+    setPeriodMonth(currentYm.month);
     setBonuses([]);
     setAdvances([]);
     setDeductions([]);
@@ -221,7 +224,7 @@ export const SettlementBuilderModal: React.FC<SettlementBuilderModalProps> = ({
               <label className="block text-xs font-semibold text-slate-700 mb-1">Año</label>
               <input
                 type="number"
-                min={2024}
+                min={2020}
                 max={2035}
                 value={periodYear}
                 onChange={(e) => setPeriodYear(Number(e.target.value))}

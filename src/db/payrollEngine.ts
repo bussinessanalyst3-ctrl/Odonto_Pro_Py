@@ -3,6 +3,8 @@
 // Compartido entre Frontend Store (inMemoryStore.ts) y Backend API (server.ts)
 // ============================================================================
 
+import { getTodayAsuncionISO } from '../config/appBrand.ts';
+
 export type StaffArea = 'OPERATIVA' | 'CLINICA' | 'COMERCIAL';
 export type RemunerationModality = 'SALARIO_FIJO' | 'COMISION' | 'MIXTO' | 'HONORARIOS';
 export type PaymentFrequency = 'SEMANAL' | 'QUINCENAL' | 'MENSUAL';
@@ -202,9 +204,26 @@ function makeUuid(): string {
 }
 
 function toIsoDateOnly(d: Date | string | null | undefined): string {
-  if (!d) return new Date().toISOString().split('T')[0];
+  if (!d) return getTodayAsuncionISO();
+  if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.trim())) {
+    return d.trim();
+  }
   const parsed = typeof d === 'string' ? new Date(d) : d;
-  if (Number.isNaN(parsed.getTime())) return new Date().toISOString().split('T')[0];
+  if (Number.isNaN(parsed.getTime())) return getTodayAsuncionISO();
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Asuncion',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(parsed);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    if (y && m && day) return `${y}-${m}-${day}`;
+  } catch {
+    // Fallback
+  }
   return parsed.toISOString().split('T')[0];
 }
 
@@ -454,6 +473,22 @@ export function updateEmployeeRecord(
       }
     }
     updates.userId = nextUserId;
+  }
+
+  if (updates.documentNumber !== undefined) {
+    const cleanDoc = String(updates.documentNumber || '').trim();
+    if (!cleanDoc) throw new Error('El documento de identidad del empleado es obligatorio.');
+    const normDoc = cleanDoc.replace(/\D/g, '') || cleanDoc.toLowerCase();
+    const dupDoc = (data.employees as EmployeeRecord[]).find(
+      (e) =>
+        e.id !== employeeId &&
+        e.organizationId === orgId &&
+        ((e.documentNumber || '').replace(/\D/g, '') || (e.documentNumber || '').trim().toLowerCase()) === normDoc
+    );
+    if (dupDoc) {
+      throw new Error(`Ya existe otro empleado registrado con el documento ${cleanDoc}.`);
+    }
+    updates.documentNumber = cleanDoc;
   }
 
   const updated: EmployeeRecord = {
@@ -765,10 +800,10 @@ export function evaluateCommissionsForEvent(
 ): GeneratedCommissionRecord[] {
   ensurePayrollIntegrity(data);
 
-  const eventDate = event.eventDate || toIsoDateOnly(new Date());
-  const eventDateObj = new Date(eventDate);
-  const periodYear = eventDateObj.getUTCFullYear();
-  const periodMonth = eventDateObj.getUTCMonth() + 1;
+  const eventDate = event.eventDate && /^\d{4}-\d{2}-\d{2}$/.test(event.eventDate.trim())
+    ? event.eventDate.trim()
+    : toIsoDateOnly(event.eventDate || null);
+  const [periodYear, periodMonth] = eventDate.split('-').map(Number);
 
   const patient = event.patientId
     ? (data.patients || []).find((p: any) => p.id === event.patientId && p.organizationId === event.organizationId)
@@ -959,7 +994,7 @@ export function evaluateCommissionsForEvent(
       status: 'PENDIENTE',
       concept: event.conceptDetail || `${rule.name} — ${patientLabel}`,
       notes: `Generado automáticamente por regla "${rule.name}" (${sourceType})`,
-      earnedAt: new Date(eventDate),
+      earnedAt: new Date(`${eventDate}T16:00:00.000Z`),
       createdBy: event.actorUserId || null,
       createdAt: new Date(),
     };
@@ -1013,6 +1048,7 @@ export function createManualCommissionAdjustment(
   }
 
   const now = new Date();
+  const [todayYear, todayMonth] = getTodayAsuncionISO().split('-').map(Number);
   const id = makeUuid();
   const record: GeneratedCommissionRecord = {
     id,
@@ -1037,8 +1073,8 @@ export function createManualCommissionAdjustment(
     appliedRate: null,
     commissionAmount: Math.round(payload.commissionAmount),
     currency: 'PYG',
-    periodYear: payload.periodYear || now.getUTCFullYear(),
-    periodMonth: payload.periodMonth || now.getUTCMonth() + 1,
+    periodYear: payload.periodYear || todayYear,
+    periodMonth: payload.periodMonth || todayMonth,
     status: 'PENDIENTE',
     concept: payload.concept.trim(),
     notes: payload.notes?.trim() || 'Ajuste o bono manual autorizado',
@@ -1133,20 +1169,29 @@ export function createPayrollSettlementRecord(
     ? Math.max(0, Math.round(payload.baseSalaryOverride ?? activeSalary?.baseSalary ?? 0))
     : 0;
 
-  // Comisiones elegibles del empleado
-  const requestedIds = Array.isArray(payload.commissionIds) ? payload.commissionIds : [];
+  // Comisiones elegibles del empleado:
+  // Si `commissionIds` viene explícito (incluso vacío []), respetarlo exactamente;
+  // solo auto-seleccionar las del período si `commissionIds === undefined`.
+  const hasExplicitCommissionSelection = Array.isArray(payload.commissionIds);
+  const requestedIds = hasExplicitCommissionSelection ? payload.commissionIds! : [];
   const attachedCommissions = (data.generatedCommissions as GeneratedCommissionRecord[]).filter((c) => {
     if (c.employeeId !== emp.id) return false;
     if (c.status !== 'PENDIENTE') return false;
-    if (requestedIds.length > 0) return requestedIds.includes(c.id);
+    if (hasExplicitCommissionSelection) return requestedIds.includes(c.id);
     return c.periodYear === payload.periodYear && c.periodMonth === payload.periodMonth;
   });
 
   const settlementId = makeUuid();
-  const orgSettlementsCount = (data.payrollSettlements as PayrollSettlementRecord[]).filter(
-    (s) => s.organizationId === emp.organizationId
-  ).length;
-  const settlementNumber = `LIQ-PER-${payload.periodYear}-${String(orgSettlementsCount + 1).padStart(4, '0')}`;
+  let maxSettlementSeq = 0;
+  for (const s of data.payrollSettlements as PayrollSettlementRecord[]) {
+    if (s.organizationId !== emp.organizationId) continue;
+    const match = String(s.settlementNumber || '').match(/LIQ-PER-\d{4}-(\d+)/);
+    if (match?.[1]) {
+      const n = parseInt(match[1], 10);
+      if (!Number.isNaN(n) && n > maxSettlementSeq) maxSettlementSeq = n;
+    }
+  }
+  const settlementNumber = `LIQ-PER-${payload.periodYear}-${String(maxSettlementSeq + 1).padStart(4, '0')}`;
 
   const items: PayrollSettlementItemRecord[] = [];
   if (baseSalarySnapshot > 0) {
@@ -1493,11 +1538,21 @@ export function recordStaffPaymentRecord(
     }
   }
 
-  const orgPaymentsCount = (data.staffPayments as StaffPaymentRecord[]).filter(
-    (p) => p.organizationId === settlement.organizationId
-  ).length;
-  const year = new Date().getUTCFullYear();
-  const operationNumber = `PAG-PER-${year}-${String(orgPaymentsCount + 1).padStart(4, '0')}`;
+  const effectivePaymentDate =
+    payload.paymentDate && /^\d{4}-\d{2}-\d{2}$/.test(payload.paymentDate.trim())
+      ? payload.paymentDate.trim()
+      : getTodayAsuncionISO();
+  const year = Number(effectivePaymentDate.slice(0, 4)) || Number(getTodayAsuncionISO().slice(0, 4));
+  let maxPaymentSeq = 0;
+  for (const p of data.staffPayments as StaffPaymentRecord[]) {
+    if (p.organizationId !== settlement.organizationId) continue;
+    const match = String(p.operationNumber || '').match(/PAG-PER-\d{4}-(\d+)/);
+    if (match?.[1]) {
+      const n = parseInt(match[1], 10);
+      if (!Number.isNaN(n) && n > maxPaymentSeq) maxPaymentSeq = n;
+    }
+  }
+  const operationNumber = `PAG-PER-${year}-${String(maxPaymentSeq + 1).padStart(4, '0')}`;
 
   const actorUser = actorUserId ? (data.users || []).find((u: any) => u.id === actorUserId) : null;
   const responsibleUserName = payload.responsibleUserName || getUserDisplayName(actorUser);
@@ -1509,7 +1564,7 @@ export function recordStaffPaymentRecord(
     settlementId: settlement.id,
     employeeId: settlement.employeeId,
     operationNumber,
-    paymentDate: payload.paymentDate || toIsoDateOnly(new Date()),
+    paymentDate: effectivePaymentDate,
     amount,
     currency: 'PYG',
     paymentMethod: payload.paymentMethod || 'TRANSFERENCIA_SIPAP',
