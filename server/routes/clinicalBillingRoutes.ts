@@ -14,7 +14,7 @@ import {
   TenantActorContext,
   withOrgTransactionLock,
 } from '../stateStore.ts';
-import { authenticateServerRequest } from '../security.ts';
+import { authenticateServerRequest, denyIfModuleNotAllowed } from '../security.ts';
 
 function normalizeTimeStr(val: string): string {
   const s = String(val || '').trim();
@@ -118,6 +118,7 @@ export function createClinicalBillingRouter(): express.Router {
       if (!auth.authenticated || !auth.actor || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado.' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'agenda', 'POST /api/appointments')) return;
 
       const initialData = getServerDbState().data || {};
       const roles = initialData.roles || [];
@@ -323,6 +324,7 @@ export function createClinicalBillingRouter(): express.Router {
       if (!auth.authenticated || !auth.actor || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado.' });
       }
+      if (denyIfModuleNotAllowed(auth, res, ['cash', 'treatments'], 'POST /api/treatments/:id/payments')) return;
 
       const initialData = getServerDbState().data || {};
       const roles = initialData.roles || [];
@@ -556,6 +558,7 @@ export function createClinicalBillingRouter(): express.Router {
       if (!auth.authenticated || !auth.actor || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado.' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'cash', 'POST /api/payments/:id/annul')) return;
 
       const initialData = getServerDbState().data || {};
       const roles = initialData.roles || [];
@@ -733,6 +736,7 @@ export function createClinicalBillingRouter(): express.Router {
       if (!auth.authenticated || !auth.actor || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado.' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'cash', 'POST /api/cash-registers/open')) return;
 
       const initialData = getServerDbState().data || {};
       const roles = initialData.roles || [];
@@ -864,6 +868,7 @@ export function createClinicalBillingRouter(): express.Router {
       if (!auth.authenticated || !auth.actor || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado.' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'cash', 'POST /api/cash-registers/:id/movements')) return;
 
       const initialData = getServerDbState().data || {};
       const roles = initialData.roles || [];
@@ -1097,6 +1102,7 @@ export function createClinicalBillingRouter(): express.Router {
       if (!auth.authenticated || !auth.actor || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado.' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'cash', 'POST /api/cash-registers/:id/close')) return;
 
       const initialData = getServerDbState().data || {};
       const roles = initialData.roles || [];
@@ -1233,6 +1239,7 @@ export function createClinicalBillingRouter(): express.Router {
       if (!auth.authenticated || !auth.actor || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado.' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'quotes', 'POST /api/quotes/:id/approve')) return;
 
       const initialData = getServerDbState().data || {};
       const roles = initialData.roles || [];
@@ -1440,6 +1447,7 @@ export function createClinicalBillingRouter(): express.Router {
       if (!auth.authenticated || !auth.actor || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado.' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'quotes', 'POST /api/quotes/:id/reject')) return;
 
       const initialData = getServerDbState().data || {};
       const roles = initialData.roles || [];
@@ -1550,6 +1558,7 @@ export function createClinicalBillingRouter(): express.Router {
       if (!auth.authenticated || !auth.actor || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado.' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'treatments', 'PATCH /api/treatments/:id/status')) return;
 
       const initialData = getServerDbState().data || {};
       const roles = initialData.roles || [];
@@ -1688,6 +1697,7 @@ export function createClinicalBillingRouter(): express.Router {
       if (!auth.authenticated || !auth.actor || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado.' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'agenda', 'PATCH /api/appointments/:id/status')) return;
 
       const initialData = getServerDbState().data || {};
       const roles = initialData.roles || [];
@@ -1814,6 +1824,7 @@ export function createClinicalBillingRouter(): express.Router {
       if (!auth.authenticated || !auth.actor || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado.' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'clinical', 'POST /api/clinical-records')) return;
 
       const initialData = getServerDbState().data || {};
       const roles = initialData.roles || [];

@@ -23,7 +23,7 @@ import {
   upsertEmployeeSalaryRecord,
 } from '../../src/db/payrollEngine.ts';
 import { getServerDbState, saveDatabaseState } from '../stateStore.ts';
-import { authenticateServerRequest } from '../security.ts';
+import { authenticateServerRequest, denyIfModuleNotAllowed } from '../security.ts';
 
 export function createPatientsPayrollRouter(): express.Router {
   const router = express.Router();
@@ -37,6 +37,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'patients', 'GET /api/patients')) return;
     const serverDbState = getServerDbState();
     ensurePayrollIntegrity(serverDbState.data);
     const orgId =
@@ -93,6 +94,7 @@ export function createPatientsPayrollRouter(): express.Router {
       if (!auth.authenticated || !auth.actor || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'patients', 'POST /api/patients')) return;
       if (!hasPermission(auth.actor, 'patients.manage')) {
         return res.status(403).json({ error: '403 Prohibido: No posee permiso para registrar pacientes.' });
       }
@@ -224,6 +226,7 @@ export function createPatientsPayrollRouter(): express.Router {
       if (!auth.authenticated || !auth.actor || !auth.user) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'patients', 'PUT /api/patients/:id')) return;
       const serverDbState = getServerDbState();
       ensurePayrollIntegrity(serverDbState.data);
 
@@ -325,6 +328,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, ['staff-payroll', 'patients', 'quotes'], 'GET /api/payroll/advisors')) return;
     const serverDbState = getServerDbState();
     const orgId =
       auth.actor.role === 'SUPER_ADMIN'
@@ -339,6 +343,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'GET /api/payroll/overview')) return;
     const serverDbState = getServerDbState();
     ensurePayrollIntegrity(serverDbState.data);
 
@@ -417,6 +422,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'POST /api/payroll/employees')) return;
     if (!hasPermission(auth.actor, 'staff.manage')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso staff.manage.' });
     }
@@ -471,6 +477,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'PUT /api/payroll/employees/:id')) return;
     if (!hasPermission(auth.actor, 'staff.manage')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso staff.manage.' });
     }
@@ -504,6 +511,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'PATCH /api/payroll/employees/:id/status')) return;
     if (!hasPermission(auth.actor, 'staff.manage')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso staff.manage.' });
     }
@@ -537,6 +545,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'POST /api/payroll/salaries')) return;
     if (!hasPermission(auth.actor, 'salaries.manage')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso salaries.manage.' });
     }
@@ -573,6 +582,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'POST /api/payroll/commission-rules')) return;
     if (!hasPermission(auth.actor, 'commissions.rules_manage')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso commissions.rules_manage.' });
     }
@@ -609,6 +619,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'PUT /api/payroll/commission-rules/:id')) return;
     if (!hasPermission(auth.actor, 'commissions.rules_manage')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso commissions.rules_manage.' });
     }
@@ -641,6 +652,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'PATCH /api/payroll/commission-rules/:id/status')) return;
     if (!hasPermission(auth.actor, 'commissions.rules_manage')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso commissions.rules_manage.' });
     }
@@ -678,6 +690,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'POST /api/payroll/commissions/evaluate')) return;
     if (!hasPermission(auth.actor, 'payroll.create') && !hasPermission(auth.actor, 'commissions.rules_manage')) {
       return res.status(403).json({ error: '403 Prohibido: Permiso insuficiente para evaluar comisiones.' });
     }
@@ -716,6 +729,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'POST /api/payroll/commissions/manual')) return;
     if (!hasPermission(auth.actor, 'payroll.create') && !hasPermission(auth.actor, 'commissions.rules_manage')) {
       return res.status(403).json({
         error: '403 Prohibido: Permiso insuficiente para bonos o comisiones manuales.',
@@ -750,6 +764,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'POST /api/payroll/settlements')) return;
     if (!hasPermission(auth.actor, 'payroll.create')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso payroll.create.' });
     }
@@ -787,6 +802,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'POST /api/payroll/settlements/:id/submit')) return;
     if (!hasPermission(auth.actor, 'payroll.create')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso payroll.create.' });
     }
@@ -819,6 +835,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'POST /api/payroll/settlements/:id/approve')) return;
     if (!hasPermission(auth.actor, 'payroll.approve')) {
       return res.status(403).json({
         error: '403 Prohibido: Solo usuarios con permiso payroll.approve pueden aprobar liquidaciones.',
@@ -857,6 +874,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'POST /api/payroll/settlements/:id/annul')) return;
     if (!hasPermission(auth.actor, 'payroll.approve') && !hasPermission(auth.actor, 'payroll.create')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso para anular liquidaciones.' });
     }
@@ -898,6 +916,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'POST /api/payroll/payments')) return;
     if (!hasPermission(auth.actor, 'payroll.pay')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso payroll.pay.' });
     }
@@ -951,6 +970,7 @@ export function createPatientsPayrollRouter(): express.Router {
     if (!auth.authenticated || !auth.actor || !auth.user) {
       return res.status(auth.statusCode || 401).json({ error: auth.error || 'No autorizado' });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'staff-payroll', 'POST /api/payroll/payments/:id/annul')) return;
     if (!hasPermission(auth.actor, 'payroll.pay') && !hasPermission(auth.actor, 'payroll.approve')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso para anular pagos al personal.' });
     }

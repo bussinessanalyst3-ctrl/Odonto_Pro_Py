@@ -22,6 +22,7 @@ import {
   activeServerSessions,
   authenticateServerRequest,
   deleteUserSessionsFromDb,
+  denyIfModuleNotAllowed,
   saveServerSessions,
   updateUserSessionsPermissionsVersion,
 } from '../security.ts';
@@ -239,6 +240,8 @@ export function createAdminRouter(): express.Router {
         error: auth.error || '401 No autorizado. Se requiere inicio de sesión.',
       });
     }
+    if (denyIfModuleNotAllowed(auth, res, 'users', 'GET /api/users')) return;
+
     const isSuperAdmin = isSuperAdminRole(auth.user.roleId);
     if (!isSuperAdmin && !hasPermission(auth.actor, 'users.view')) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso users.view.' });
@@ -455,6 +458,7 @@ export function createAdminRouter(): express.Router {
       if (!auth.authenticated || !auth.user || !auth.actor) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'users', 'POST /api/users/:id/reset-password')) return;
 
       const serverDbState = getServerDbState();
       const { id } = req.params;
@@ -545,6 +549,7 @@ export function createAdminRouter(): express.Router {
       if (!auth.authenticated || !auth.user || !auth.actor) {
         return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado' });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'users', 'POST /api/users/:id/revoke-sessions')) return;
 
       const serverDbState = getServerDbState();
       const { id } = req.params;
@@ -620,6 +625,7 @@ export function createAdminRouter(): express.Router {
           error: auth.error || '401 No autorizado: Se requiere sesión autenticada.',
         });
       }
+      if (denyIfModuleNotAllowed(auth, res, 'audit', 'GET /api/audit-logs')) return;
 
       const serverDbState = getServerDbState();
       const roles = serverDbState.data?.roles || [];

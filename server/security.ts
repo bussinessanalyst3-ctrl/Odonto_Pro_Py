@@ -7,7 +7,12 @@ import {
   SESSIONS_FILE,
   TenantActorContext,
 } from './stateStore.ts';
-import { getUserEffectivePermissions } from '../src/security/rbacHierarchy.ts';
+import { getUserEffectivePermissions, isSuperAdminRole } from '../src/security/rbacHierarchy.ts';
+import {
+  getModuleById,
+  hasModuleAccess,
+  SystemModuleId,
+} from '../src/security/moduleCatalog.ts';
 
 export const SESSION_COOKIE_NAME = 'odontopro_sid';
 
@@ -427,6 +432,156 @@ export function authenticateServerRequest(req: express.Request): {
       professionalLicense: user.professionalLicense || null,
     },
   };
+}
+
+export type ModuleEnforcementMode = 'off' | 'log' | 'enforce';
+
+export function getModuleEnforcementMode(): ModuleEnforcementMode {
+  const raw = String(process.env.PERMISSIONS_ENFORCE_MODULES || '').trim().toLowerCase();
+  if (raw === 'true' || raw === '1' || raw === 'enforce' || raw === 'strict') {
+    return 'enforce';
+  }
+  if (raw === 'log' || raw === 'audit' || raw === 'shadow' || raw === 'warn') {
+    return 'log';
+  }
+  return 'off';
+}
+
+export interface ModuleAccessCheckResult {
+  allowed: boolean;
+  mode: ModuleEnforcementMode;
+  wouldDeny: boolean;
+  requiredModules: SystemModuleId[];
+  statusCode?: number;
+  code?: 'MODULE_ACCESS_DENIED';
+  error?: string;
+}
+
+export function evaluateModuleAccess(
+  auth: { user?: any; actor?: TenantActorContext },
+  requiredModules: SystemModuleId | SystemModuleId[],
+  contextLabel?: string
+): ModuleAccessCheckResult {
+  const modulesList: SystemModuleId[] = Array.isArray(requiredModules)
+    ? requiredModules
+    : [requiredModules];
+  const mode = getModuleEnforcementMode();
+
+  if (modulesList.length === 0) {
+    return { allowed: true, mode, wouldDeny: false, requiredModules: [] };
+  }
+
+  const roleId = String(auth.user?.roleId || auth.actor?.role || '');
+  if (isSuperAdminRole(roleId)) {
+    return { allowed: true, mode, wouldDeny: false, requiredModules: modulesList };
+  }
+
+  const serverDbState = getServerDbState();
+  const roles = serverDbState.data?.roles || [];
+  const roleObj = roles.find((r: any) => r.id === roleId);
+  const sessionLike = {
+    role: roleId,
+    allowedNavTabs: Array.isArray(auth.user?.allowedNavTabs)
+      ? auth.user.allowedNavTabs
+      : undefined,
+  };
+
+  const hasAnyRequiredModule = modulesList.some((modId) =>
+    hasModuleAccess(sessionLike, modId, roleObj)
+  );
+
+  if (hasAnyRequiredModule) {
+    return { allowed: true, mode, wouldDeny: false, requiredModules: modulesList };
+  }
+
+  const moduleLabels = modulesList
+    .map((id) => getModuleById(id)?.label || id)
+    .join(' o ');
+
+  if (mode === 'off') {
+    return { allowed: true, mode, wouldDeny: true, requiredModules: modulesList };
+  }
+
+  if (mode === 'log') {
+    console.warn(
+      `[ModuleGuard][OBSERVACION] Acceso fuera de módulo detectado en ${contextLabel || 'API'} (rol=${roleId}, requiere=${modulesList.join('|')}). No bloqueado porque PERMISSIONS_ENFORCE_MODULES=log.`
+    );
+    return { allowed: true, mode, wouldDeny: true, requiredModules: modulesList };
+  }
+
+  console.warn(
+    `[ModuleGuard][BLOQUEADO] Acceso denegado en ${contextLabel || 'API'} (rol=${roleId}, requiere=${modulesList.join('|')}).`
+  );
+
+  return {
+    allowed: false,
+    mode,
+    wouldDeny: true,
+    requiredModules: modulesList,
+    statusCode: 403,
+    code: 'MODULE_ACCESS_DENIED',
+    error: `403 Prohibido: No tenés acceso habilitado al módulo "${moduleLabels}" para realizar esta operación.`,
+  };
+}
+
+export function denyIfModuleNotAllowed(
+  auth: { user?: any; actor?: TenantActorContext },
+  res: express.Response,
+  requiredModules: SystemModuleId | SystemModuleId[],
+  contextLabel?: string
+): boolean {
+  const result = evaluateModuleAccess(auth, requiredModules, contextLabel);
+  if (!result.allowed) {
+    res.status(result.statusCode || 403).json({
+      error: result.error,
+      code: result.code || 'MODULE_ACCESS_DENIED',
+      requiredModules: result.requiredModules,
+    });
+    return true;
+  }
+  return false;
+}
+
+const DELTA_COLLECTION_MODULES: Record<string, SystemModuleId[] | null> = {
+  auditLogs: null,
+  organizationsList: ['organization'],
+  roles: ['users'],
+  branches: ['branches'],
+  dentalChairs: ['branches'],
+  branchSettings: ['branches'],
+  users: ['users'],
+  userBranches: ['users'],
+  services: ['treatments', 'branches', 'quotes'],
+  branchServices: ['treatments', 'branches', 'quotes'],
+  insurancePlans: ['quotes', 'treatments', 'patients'],
+  planServicePrices: ['quotes', 'treatments', 'patients'],
+  patients: ['patients'],
+  patientBranches: ['patients', 'agenda', 'clinical', 'odontogram'],
+  appointments: ['agenda'],
+  clinicalRecords: ['clinical'],
+  odontograms: ['odontogram'],
+  odontogramItems: ['odontogram'],
+  quotes: ['quotes'],
+  quoteItems: ['quotes'],
+  treatments: ['treatments', 'quotes', 'cash'],
+  insuranceClaims: ['treatments', 'quotes', 'cash'],
+  cashRegisters: ['cash'],
+  cashMovements: ['cash'],
+  payments: ['cash', 'treatments'],
+  employees: ['staff-payroll'],
+  employeeSalaries: ['staff-payroll'],
+  commissionRules: ['staff-payroll'],
+  generatedCommissions: ['staff-payroll', 'cash', 'treatments', 'patients'],
+  payrollSettlements: ['staff-payroll'],
+  payrollSettlementItems: ['staff-payroll'],
+  staffPayments: ['staff-payroll'],
+};
+
+export function getRequiredModulesForDeltaCollection(col: string): SystemModuleId[] | null {
+  if (Object.prototype.hasOwnProperty.call(DELTA_COLLECTION_MODULES, col)) {
+    return DELTA_COLLECTION_MODULES[col];
+  }
+  return null;
 }
 
 export function isOriginAllowed(origin: string, req: express.Request): boolean {

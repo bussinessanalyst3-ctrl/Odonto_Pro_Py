@@ -31,6 +31,8 @@ import {
   activeServerSessions,
   authenticateServerRequest,
   deleteSessionFromDb,
+  denyIfModuleNotAllowed,
+  getRequiredModulesForDeltaCollection,
   saveServerSessions,
 } from '../security.ts';
 
@@ -594,9 +596,13 @@ export function createDbSyncRouter(): express.Router {
           return res.status(403).json({ error: '403 Prohibido: Acción reservada para el Super Administrador.' });
         }
 
-        // Validación RBAC estricta por colección en upserts y deletes
+        // Validación RBAC estricta y control de módulos por colección en upserts y deletes
         for (const [col, items] of Object.entries(upserts)) {
           if (!allowedCollections.has(col) || !Array.isArray(items) || items.length === 0) continue;
+          const requiredMods = getRequiredModulesForDeltaCollection(col);
+          if (requiredMods && denyIfModuleNotAllowed(auth, res, requiredMods, `POST /api/db/delta upsert:${col}`)) {
+            return;
+          }
           const errMsg = validateCollectionPermissionForActor(col, 'upsert', actor, roles, canWriteClinical);
           if (errMsg) {
             return res.status(403).json({ error: errMsg });
@@ -604,6 +610,10 @@ export function createDbSyncRouter(): express.Router {
         }
         for (const [col, keys] of Object.entries(deletes)) {
           if (!allowedCollections.has(col) || !Array.isArray(keys) || keys.length === 0) continue;
+          const requiredMods = getRequiredModulesForDeltaCollection(col);
+          if (requiredMods && denyIfModuleNotAllowed(auth, res, requiredMods, `POST /api/db/delta delete:${col}`)) {
+            return;
+          }
           const errMsg = validateCollectionPermissionForActor(col, 'delete', actor, roles, canWriteClinical);
           if (errMsg) {
             return res.status(403).json({ error: errMsg });
