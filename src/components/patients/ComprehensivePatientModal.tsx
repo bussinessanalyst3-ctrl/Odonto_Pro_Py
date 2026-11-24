@@ -28,6 +28,8 @@ import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import { ToothSVG, ToothData } from '../odontogram/ToothSVG.tsx';
 import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
+import { useAuth } from '../../auth/authContext.tsx';
+import { hasModuleAccess } from '../../security/moduleCatalog.ts';
 
 interface ComprehensivePatientModalProps {
   patientId: string | null;
@@ -44,12 +46,32 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
   onEdit,
   onNavigateToTab,
 }) => {
+  const { session } = useAuth();
   const [activeTab, setActiveTab] = useState<'summary' | 'odontogram' | 'treatments' | 'quotes' | 'appointments' | 'financial'>('summary');
   const [, setTick] = useState(0);
+
+  const roleObj = dbStore.getRoles().find((r) => r.id === session?.role);
+  const canOdontogram = hasModuleAccess(session, 'odontogram', roleObj);
+  const canTreatments = hasModuleAccess(session, 'treatments', roleObj);
+  const canQuotes = hasModuleAccess(session, 'quotes', roleObj);
+  const canAgenda = hasModuleAccess(session, 'agenda', roleObj);
+  const canCash = hasModuleAccess(session, 'cash', roleObj);
 
   useEffect(() => {
     setActiveTab('summary');
   }, [patientId, isOpen]);
+
+  useEffect(() => {
+    if (
+      (activeTab === 'odontogram' && !canOdontogram) ||
+      (activeTab === 'treatments' && !canTreatments) ||
+      (activeTab === 'quotes' && !canQuotes) ||
+      (activeTab === 'appointments' && !canAgenda) ||
+      (activeTab === 'financial' && !canCash)
+    ) {
+      setActiveTab('summary');
+    }
+  }, [activeTab, canOdontogram, canTreatments, canQuotes, canAgenda, canCash]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -240,67 +262,77 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
           </div>
         )}
 
-        {/* Barra de Pestañas Unificadas */}
+        {/* Barra de Pestañas Unificadas (filtrada por módulos habilitados) */}
         <div className="flex border-b border-slate-200 px-6 gap-2 sm:gap-6 bg-white overflow-x-auto text-xs font-bold text-slate-600 scrollbar-none">
           {[
-            { id: 'summary', label: 'Resumen Clínico', icon: HeartPulse },
-            { id: 'odontogram', label: `Odontograma FDI (${odontogramItems.length})`, icon: Stethoscope },
-            { id: 'treatments', label: `Tratamientos (${patientTreatments.length})`, icon: Building2 },
-            { id: 'quotes', label: `Presupuestos (${patientQuotes.length})`, icon: Calculator },
-            { id: 'appointments', label: `Citas & Turnos (${patientAppointments.length})`, icon: Calendar },
-            { id: 'financial', label: 'Caja & Pagos', icon: DollarSign },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`py-3.5 border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
-                  isActive
-                    ? 'border-teal-600 text-teal-700 font-extrabold'
-                    : 'border-transparent text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+            { id: 'summary', label: 'Resumen Clínico', icon: HeartPulse, allowed: true },
+            { id: 'odontogram', label: `Odontograma FDI (${odontogramItems.length})`, icon: Stethoscope, allowed: canOdontogram },
+            { id: 'treatments', label: `Tratamientos (${patientTreatments.length})`, icon: Building2, allowed: canTreatments },
+            { id: 'quotes', label: `Presupuestos (${patientQuotes.length})`, icon: Calculator, allowed: canQuotes },
+            { id: 'appointments', label: `Citas & Turnos (${patientAppointments.length})`, icon: Calendar, allowed: canAgenda },
+            { id: 'financial', label: 'Caja & Pagos', icon: DollarSign, allowed: canCash },
+          ]
+            .filter((tab) => tab.allowed)
+            .map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`py-3.5 border-b-2 transition-all flex items-center gap-2 whitespace-nowrap ${
+                    isActive
+                      ? 'border-teal-600 text-teal-700 font-extrabold'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
         </div>
 
         {/* Contenido Dinámico de la Pestaña */}
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
           {activeTab === 'summary' && (
             <div className="space-y-6">
-              {/* Resumen Financiero Rápido */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Presupuestado</span>
-                  <div className="text-xl font-black text-slate-900 mt-1">
-                    {formatPYG(totalBilledPyg)}
-                  </div>
-                  <span className="text-xs text-slate-500">{patientQuotes.length} presupuestos emitidos</span>
-                </div>
+              {/* Resumen Financiero Rápido (visible solo si tiene Presupuestos o Caja) */}
+              {(canQuotes || canCash) && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {canQuotes && (
+                    <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase">Presupuestado</span>
+                      <div className="text-xl font-black text-slate-900 mt-1">
+                        {formatPYG(totalBilledPyg)}
+                      </div>
+                      <span className="text-xs text-slate-500">{patientQuotes.length} presupuestos emitidos</span>
+                    </div>
+                  )}
 
-                <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Abonado / Cobrado</span>
-                  <div className="text-xl font-black text-emerald-700 mt-1">
-                    {formatPYG(totalPaidPyg)}
-                  </div>
-                  <span className="text-xs text-emerald-600 font-semibold">{patientPayments.length} pagos registrados</span>
-                </div>
+                  {canCash && (
+                    <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase">Abonado / Cobrado</span>
+                      <div className="text-xl font-black text-emerald-700 mt-1">
+                        {formatPYG(totalPaidPyg)}
+                      </div>
+                      <span className="text-xs text-emerald-600 font-semibold">{patientPayments.length} pagos registrados</span>
+                    </div>
+                  )}
 
-                <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Saldo Pendiente</span>
-                  <div className={`text-xl font-black mt-1 ${pendingBalancePyg > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
-                    {formatPYG(pendingBalancePyg)}
-                  </div>
-                  <span className="text-xs text-slate-500">
-                    {pendingBalancePyg > 0 ? 'Cobro pendiente en caja' : 'Al día / Sin saldo deudor'}
-                  </span>
+                  {canCash && (
+                    <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase">Saldo Pendiente</span>
+                      <div className={`text-xl font-black mt-1 ${pendingBalancePyg > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
+                        {formatPYG(pendingBalancePyg)}
+                      </div>
+                      <span className="text-xs text-slate-500">
+                        {pendingBalancePyg > 0 ? 'Cobro pendiente en caja' : 'Al día / Sin saldo deudor'}
+                      </span>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
 
               {/* Modalidad Comercial y Cobertura */}
               <div className={`p-5 rounded-2xl border ${
@@ -382,21 +414,23 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                     Próxima Cita y Contacto Familiar
                   </h3>
                   <div className="space-y-2 text-xs">
-                    <div className="p-3 bg-teal-50/70 border border-teal-200/60 rounded-xl">
-                      <span className="text-teal-900 font-bold block">Próximo Turno:</span>
-                      {nextAppointment ? (
-                        <div className="mt-1">
-                          <span className="font-extrabold text-teal-950">
-                            {nextAppointment.appointmentDate || 'Sin fecha'} a las {String(nextAppointment.startTime || '').slice(0, 5)} hs
-                          </span>
-                          <p className="text-[11px] text-teal-800 mt-0.5">
-                            Motivo: {nextAppointment.reason || 'Consulta odontológica'} ({nextAppointment.status})
-                          </p>
-                        </div>
-                      ) : (
-                        <span className="text-teal-700">Sin turnos pendientes agendados</span>
-                      )}
-                    </div>
+                    {canAgenda && (
+                      <div className="p-3 bg-teal-50/70 border border-teal-200/60 rounded-xl">
+                        <span className="text-teal-900 font-bold block">Próximo Turno:</span>
+                        {nextAppointment ? (
+                          <div className="mt-1">
+                            <span className="font-extrabold text-teal-950">
+                              {nextAppointment.appointmentDate || 'Sin fecha'} a las {String(nextAppointment.startTime || '').slice(0, 5)} hs
+                            </span>
+                            <p className="text-[11px] text-teal-800 mt-0.5">
+                              Motivo: {nextAppointment.reason || 'Consulta odontológica'} ({nextAppointment.status})
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-teal-700">Sin turnos pendientes agendados</span>
+                        )}
+                      </div>
+                    )}
                     <div className="p-3 bg-slate-50 rounded-xl">
                       <span className="text-slate-500 font-semibold block">Contacto de Emergencia:</span>
                       <span className="font-bold text-slate-800">
@@ -409,7 +443,7 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
             </div>
           )}
 
-          {activeTab === 'odontogram' && (
+          {activeTab === 'odontogram' && canOdontogram && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -420,7 +454,7 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
                     {odontogramItems.length} hallazgos registrados según la nomenclatura internacional FDI.
                   </p>
                 </div>
-                {onNavigateToTab && (
+                {onNavigateToTab && canOdontogram && (
                   <button
                     onClick={() => {
                       onClose();
@@ -472,13 +506,13 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
             </div>
           )}
 
-          {activeTab === 'treatments' && (
+          {activeTab === 'treatments' && canTreatments && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900">
                   Planes de Tratamiento Activos
                 </h3>
-                {onNavigateToTab && (
+                {onNavigateToTab && canTreatments && (
                   <button
                     onClick={() => {
                       onClose();
@@ -545,7 +579,7 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
             </div>
           )}
 
-          {activeTab === 'quotes' && (
+          {activeTab === 'quotes' && canQuotes && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900">
@@ -589,7 +623,7 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
             </div>
           )}
 
-          {activeTab === 'appointments' && (
+          {activeTab === 'appointments' && canAgenda && (
             <div className="space-y-3">
               <h3 className="text-sm font-bold text-slate-900">Historial de Turnos</h3>
               {patientAppointments.length === 0 ? (
@@ -619,7 +653,7 @@ export const ComprehensivePatientModal: React.FC<ComprehensivePatientModalProps>
             </div>
           )}
 
-          {activeTab === 'financial' && (
+          {activeTab === 'financial' && canCash && (
             <div className="space-y-4">
               <div className="p-4 bg-teal-50/80 border border-teal-200 rounded-2xl flex items-center justify-between">
                 <div>

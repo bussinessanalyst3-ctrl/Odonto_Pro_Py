@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import pg from 'pg';
 import { generateInitialSeedData } from '../src/db/seeds/initial-seed.ts';
 import { hasPermission, isSuperAdminRole } from '../src/security/rbacHierarchy.ts';
+import { hasModuleAccess, SystemModuleId } from '../src/security/moduleCatalog.ts';
 import { ensurePayrollIntegrity } from '../src/db/payrollEngine.ts';
 import {
   applyDeltaToRelationalDb,
@@ -402,6 +403,36 @@ export function filterStateForTenant(
   const roleId = actor.role;
 
   const roles = d.roles || [];
+  const roleObj = roles.find((r: any) => r.id === roleId);
+  const rawModuleMode = String(process.env.PERMISSIONS_ENFORCE_MODULES || '').trim().toLowerCase();
+  const enforceModules =
+    !isSuperAdminRole(roleId) &&
+    (rawModuleMode === 'true' || rawModuleMode === '1' || rawModuleMode === 'enforce' || rawModuleMode === 'strict');
+  const moduleSessionLike = {
+    role: roleId,
+    allowedNavTabs: Array.isArray(actor.allowedNavTabs) ? actor.allowedNavTabs : undefined,
+  };
+  const hasMod = (modId: SystemModuleId): boolean =>
+    !enforceModules || hasModuleAccess(moduleSessionLike, modId, roleObj);
+
+  const allowAgenda = hasMod('agenda');
+  const allowQuotes = hasMod('quotes');
+  const allowCash = hasMod('cash');
+  const allowTreatments = hasMod('treatments');
+  const allowClinicalMod = hasMod('clinical');
+  const allowOdontogramMod = hasMod('odontogram');
+  const allowAuditMod = hasMod('audit');
+  const allowPayrollMod = hasMod('staff-payroll');
+  const allowPatientsData =
+    hasMod('patients') ||
+    allowAgenda ||
+    allowClinicalMod ||
+    allowOdontogramMod ||
+    allowQuotes ||
+    allowTreatments ||
+    allowCash;
+  const allowTreatmentsData = allowTreatments || allowQuotes || allowCash;
+  const allowPaymentsData = allowCash || allowTreatments;
 
   const org =
     (state.organizationsList || []).find((o: any) => o.id === orgId) ||
@@ -433,37 +464,44 @@ export function filterStateForTenant(
         actorHasDynamicPermission(actor, 'clinical.view', roles) ||
         actorHasDynamicPermission(actor, 'odontogram.manage', roles)));
 
-  const patients = (d.patients || [])
-    .filter((p: any) => p.organizationId === orgId)
-    .map((p: any) => {
-      if (canSeeClinical) return p;
-      return {
-        ...p,
-        bloodType: null,
-        allergies: 'Confidencial (Solo personal clínico)',
-        medicalConditions: 'Confidencial',
-        medications: 'Confidencial',
-      };
-    });
+  const patients = allowPatientsData
+    ? (d.patients || [])
+        .filter((p: any) => p.organizationId === orgId)
+        .map((p: any) => {
+          if (canSeeClinical && (allowClinicalMod || allowOdontogramMod || !enforceModules)) return p;
+          return {
+            ...p,
+            bloodType: null,
+            allergies: 'Confidencial (Solo personal clínico)',
+            medicalConditions: 'Confidencial',
+            medications: 'Confidencial',
+          };
+        })
+    : [];
   const patientIds = new Set(patients.map((p: any) => p.id));
 
   const insurancePlans = (d.insurancePlans || []).filter((p: any) => p.organizationId === orgId);
   const planIds = new Set(insurancePlans.map((p: any) => p.id));
 
-  const quotes = (d.quotes || []).filter((q: any) => q.organizationId === orgId);
+  const quotes = allowQuotes
+    ? (d.quotes || []).filter((q: any) => q.organizationId === orgId)
+    : [];
   const quoteIds = new Set(quotes.map((q: any) => q.id));
 
-  const odontograms = canSeeClinical
-    ? (d.odontograms || []).filter((o: any) => o.organizationId === orgId)
-    : [];
+  const odontograms =
+    canSeeClinical && allowOdontogramMod
+      ? (d.odontograms || []).filter((o: any) => o.organizationId === orgId)
+      : [];
   const odontogramIds = new Set(odontograms.map((o: any) => o.id));
 
-  const cashRegisters = (d.cashRegisters || []).filter((c: any) => c.organizationId === orgId);
+  const cashRegisters = allowCash
+    ? (d.cashRegisters || []).filter((c: any) => c.organizationId === orgId)
+    : [];
   const cashRegisterIds = new Set(cashRegisters.map((c: any) => c.id));
 
-  // Auditoría: restringida estrictamente por permiso audit.view / audit.view_own_branch
-  const canViewAllAudit = actorHasDynamicPermission(actor, 'audit.view', roles);
-  const canViewBranchAudit = actorHasDynamicPermission(actor, 'audit.view_own_branch', roles);
+  // Auditoría: restringida estrictamente por permiso audit.view / audit.view_own_branch y módulo audit
+  const canViewAllAudit = allowAuditMod && actorHasDynamicPermission(actor, 'audit.view', roles);
+  const canViewBranchAudit = allowAuditMod && actorHasDynamicPermission(actor, 'audit.view_own_branch', roles);
   const auditLogs = (d.auditLogs || []).filter((al: any) => {
     if (al.organizationId !== orgId) return false;
     if (canViewAllAudit) return true;
@@ -473,20 +511,21 @@ export function filterStateForTenant(
     return false;
   });
 
-  // Personal, Salarios, Comisiones y Liquidaciones: aislamiento por permiso RBAC
+  // Personal, Salarios, Comisiones y Liquidaciones: aislamiento por permiso RBAC y módulo staff-payroll
   const orgEmployees = (d.employees || []).filter((e: any) => e.organizationId === orgId);
   const ownEmp = actor.userId ? orgEmployees.find((e: any) => e.userId === actor.userId) : undefined;
 
   const canViewAllStaff =
-    actorHasDynamicPermission(actor, 'staff.view', roles) ||
-    actorHasDynamicPermission(actor, 'commissions.view_all', roles) ||
-    actorHasDynamicPermission(actor, 'payroll.create', roles) ||
-    actorHasDynamicPermission(actor, 'payroll.approve', roles) ||
-    actorHasDynamicPermission(actor, 'payroll.pay', roles);
+    allowPayrollMod &&
+    (actorHasDynamicPermission(actor, 'staff.view', roles) ||
+      actorHasDynamicPermission(actor, 'commissions.view_all', roles) ||
+      actorHasDynamicPermission(actor, 'payroll.create', roles) ||
+      actorHasDynamicPermission(actor, 'payroll.approve', roles) ||
+      actorHasDynamicPermission(actor, 'payroll.pay', roles));
 
-  const canViewOwnPayroll = actorHasDynamicPermission(actor, 'commissions.view_own', roles);
-  const canViewAllSalaries = actorHasDynamicPermission(actor, 'salaries.view', roles);
-  const canManageCommRules = actorHasDynamicPermission(actor, 'commissions.rules_manage', roles);
+  const canViewOwnPayroll = allowPayrollMod && actorHasDynamicPermission(actor, 'commissions.view_own', roles);
+  const canViewAllSalaries = allowPayrollMod && actorHasDynamicPermission(actor, 'salaries.view', roles);
+  const canManageCommRules = allowPayrollMod && actorHasDynamicPermission(actor, 'commissions.rules_manage', roles);
 
   const employees = canViewAllStaff
     ? orgEmployees
@@ -569,23 +608,33 @@ export function filterStateForTenant(
       planServicePrices: (d.planServicePrices || []).filter((psp: any) =>
         planIds.has(psp.planId || psp.insurancePlanId)
       ),
-      insuranceClaims: (d.insuranceClaims || []).filter((ic: any) => ic.organizationId === orgId),
+      insuranceClaims: allowTreatmentsData
+        ? (d.insuranceClaims || []).filter((ic: any) => ic.organizationId === orgId)
+        : [],
       patients,
       patientBranches: (d.patientBranches || []).filter((pb: any) => patientIds.has(pb.patientId)),
-      appointments: (d.appointments || []).filter((a: any) => a.organizationId === orgId),
-      clinicalRecords: canSeeClinical
-        ? (d.clinicalRecords || []).filter((cr: any) => cr.organizationId === orgId)
+      appointments: allowAgenda
+        ? (d.appointments || []).filter((a: any) => a.organizationId === orgId)
         : [],
+      clinicalRecords:
+        canSeeClinical && allowClinicalMod
+          ? (d.clinicalRecords || []).filter((cr: any) => cr.organizationId === orgId)
+          : [],
       odontograms,
-      odontogramItems: canSeeClinical
-        ? (d.odontogramItems || []).filter((oi: any) => odontogramIds.has(oi.odontogramId))
-        : [],
+      odontogramItems:
+        canSeeClinical && allowOdontogramMod
+          ? (d.odontogramItems || []).filter((oi: any) => odontogramIds.has(oi.odontogramId))
+          : [],
       quotes,
       quoteItems: (d.quoteItems || []).filter((qi: any) => quoteIds.has(qi.quoteId)),
-      treatments: (d.treatments || []).filter((t: any) => t.organizationId === orgId),
+      treatments: allowTreatmentsData
+        ? (d.treatments || []).filter((t: any) => t.organizationId === orgId)
+        : [],
       cashRegisters,
       cashMovements: (d.cashMovements || []).filter((cm: any) => cashRegisterIds.has(cm.cashRegisterId)),
-      payments: (d.payments || []).filter((p: any) => p.organizationId === orgId),
+      payments: allowPaymentsData
+        ? (d.payments || []).filter((p: any) => p.organizationId === orgId)
+        : [],
       auditLogs,
       employees,
       employeeSalaries,

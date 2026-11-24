@@ -3,6 +3,8 @@
 // Arquitectura de Seguridad y Mínimo Privilegio para OdontoPro Multiempresa
 // ============================================================================
 
+import { getRoleDefaultModules, normalizeModuleList } from './moduleCatalog.ts';
+
 export type SystemRoleType =
   | 'SUPER_ADMIN'
   | 'ADMIN_ORGANIZACION'
@@ -1279,11 +1281,10 @@ export function getUserEffectivePermissions(user: any, allRoles: any[] = []): Us
 
   const effectivePermissions = Array.from(basePlusCustom);
 
-  // Módulos visibles
-  const defaultNavTabs = roleObj?.allowedNavTabs || ROLE_HIERARCHY[roleId]?.allowedNavTabs || ['dashboard'];
-  const allowedNavTabs = (user.allowedNavTabs && Array.isArray(user.allowedNavTabs) && user.allowedNavTabs.length > 0)
-    ? user.allowedNavTabs
-    : defaultNavTabs;
+  // Módulos visibles (usa el catálogo único y respeta overrides individuales normalizados)
+  const defaultNavTabs = getRoleDefaultModules(roleObj, roleId);
+  const normalizedUserTabs = normalizeModuleList(user.allowedNavTabs);
+  const allowedNavTabs = normalizedUserTabs.length > 0 ? normalizedUserTabs : defaultNavTabs;
 
   return {
     roleId,

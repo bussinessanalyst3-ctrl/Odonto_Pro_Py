@@ -6,6 +6,7 @@ import {
   isSuperAdminRole,
   validateBackendAuthorization,
 } from '../../src/security/rbacHierarchy.ts';
+import { normalizeModuleList } from '../../src/security/moduleCatalog.ts';
 import { ensurePayrollIntegrity, UNKNOWN_CREATOR_LABEL } from '../../src/db/payrollEngine.ts';
 import {
   COLLECTION_PARENT_TO_CHILD_ORDER,
@@ -34,6 +35,7 @@ import {
   denyIfModuleNotAllowed,
   getRequiredModulesForDeltaCollection,
   saveServerSessions,
+  updateUserSessionsPermissionsVersion,
 } from '../security.ts';
 
 function validateCollectionPermissionForActor(
@@ -680,7 +682,14 @@ export function createDbSyncRouter(): express.Router {
           }
 
           let item = { ...rawItem };
-          if (col === 'users') {
+          if (col === 'roles' && isSuperAdmin) {
+            if (Array.isArray(item.allowedNavTabs) && item.allowedNavTabs.length > 0) {
+              const canonicalRoleTabs = normalizeModuleList(item.allowedNavTabs);
+              if (canonicalRoleTabs.length > 0) {
+                item.allowedNavTabs = canonicalRoleTabs;
+              }
+            }
+          } else if (col === 'users') {
             const existingTarget = existingUserMap.get(item.id);
             if (!isSuperAdmin && (isSuperAdminRole(item.roleId) || (existingTarget && isSuperAdminRole(existingTarget.roleId)))) {
               return res.status(403).json({ error: '403 Prohibido: No puede crear o modificar cuentas de Super Administrador.' });
@@ -953,6 +962,37 @@ export function createDbSyncRouter(): express.Router {
           }
         }
 
+        // Si se actualizaron roles desde SUPER_ADMIN, incrementar permissionsVersion en usuarios de esos roles para replicación en vivo
+        const roleAffectedUsers: any[] = [];
+        const updatedRoleIds = new Set<string>(
+          isSuperAdmin && Array.isArray(sanitizedUpserts.roles)
+            ? sanitizedUpserts.roles.map((r: any) => String(r?.id || '')).filter(Boolean)
+            : []
+        );
+        if (updatedRoleIds.size > 0) {
+          if (!prevCollectionsSnapshot.has('users')) {
+            prevCollectionsSnapshot.set('users', [...(serverDbState.data.users || [])]);
+          }
+          const nowIso = new Date().toISOString();
+          const upsertedUsersMap = new Map<string, any>(
+            (sanitizedUpserts.users || []).map((u: any) => [u.id, u])
+          );
+          serverDbState.data.users = (serverDbState.data.users || []).map((u: any) => {
+            if (!updatedRoleIds.has(String(u.roleId || ''))) return u;
+            const bumped = {
+              ...u,
+              permissionsVersion: (Number(u.permissionsVersion) || 1) + 1,
+              updatedAt: nowIso,
+            };
+            roleAffectedUsers.push(bumped);
+            upsertedUsersMap.set(bumped.id, bumped);
+            return bumped;
+          });
+          if (roleAffectedUsers.length > 0) {
+            sanitizedUpserts.users = Array.from(upsertedUsersMap.values());
+          }
+        }
+
         ensurePayrollIntegrity(serverDbState.data);
 
         const appliedDelta: DbDeltaPayload = {
@@ -963,6 +1003,14 @@ export function createDbSyncRouter(): express.Router {
         };
 
         const committedVersion = await saveDatabaseStateStrict(appliedDelta);
+
+        for (const affected of roleAffectedUsers) {
+          await updateUserSessionsPermissionsVersion(
+            affected.id,
+            affected.permissionsVersion,
+            affected.roleId
+          );
+        }
 
         return res.json({
           success: true,

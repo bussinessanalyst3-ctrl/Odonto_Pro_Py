@@ -13,7 +13,13 @@ import {
 } from 'lucide-react';
 import { dbStore, BackendActorContext } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
-import { canManageRole, isSuperAdminRole } from '../../security/rbacHierarchy.ts';
+import { canManageRole } from '../../security/rbacHierarchy.ts';
+import {
+  MODULE_GROUPS,
+  SYSTEM_MODULES,
+  getRoleDefaultModules,
+  normalizeModuleList,
+} from '../../security/moduleCatalog.ts';
 
 interface ManageRolesModalProps {
   isOpen: boolean;
@@ -21,19 +27,12 @@ interface ManageRolesModalProps {
   actor?: BackendActorContext;
 }
 
-const AVAILABLE_MODULES = [
-  { id: 'dashboard', name: 'Dashboard & Métricas', category: 'General' },
-  { id: 'appointments', name: 'Agenda de Citas & Turnos', category: 'Operación' },
-  { id: 'patients', name: 'Fichas de Pacientes & Anamnesis', category: 'Operación' },
-  { id: 'odontogram', name: 'Odontograma FDI & Patologías', category: 'Clínica' },
-  { id: 'treatments', name: 'Planes & Evolución Clínica', category: 'Clínica' },
-  { id: 'clinical', name: 'Historias Clínicas & Ley 1682/01', category: 'Clínica' },
-  { id: 'quotes', name: 'Presupuestos & Ventas de Servicios', category: 'Administración' },
-  { id: 'cash', name: 'Caja, Facturación & Cobros (PYG)', category: 'Administración' },
-  { id: 'branches', name: 'Sucursales & Sillones Dentales', category: 'Sistema' },
-  { id: 'users', name: 'Equipo Médico & Gestión de Roles', category: 'Sistema' },
-  { id: 'audit', name: 'Auditoría Forense & Logs', category: 'Sistema' },
-];
+const GROUP_LABEL_MAP = new Map(MODULE_GROUPS.map((g) => [g.id, g.label]));
+const AVAILABLE_MODULES = SYSTEM_MODULES.map((mod) => ({
+  id: mod.id,
+  name: mod.label,
+  category: GROUP_LABEL_MAP.get(mod.groupId) || 'Sistema',
+}));
 
 export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onClose, actor }) => {
   const { session } = useAuth();
@@ -95,7 +94,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
     setRoleCode(role.id);
     setRoleName(role.name);
     setRoleDescription(role.description || '');
-    setSelectedModules(role.allowedNavTabs || []);
+    setSelectedModules(getRoleDefaultModules(role, role.id));
     setError(null);
     setIsCreating(true);
   };
@@ -111,16 +110,22 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
       if (selectedModules.length === 1) return; // al menos 1
       setSelectedModules(selectedModules.filter((m) => m !== modId));
     } else {
-      setSelectedModules([...selectedModules, modId]);
+      setSelectedModules(normalizeModuleList([...selectedModules, modId]));
     }
   };
 
-  const handleSaveRole = (e: React.FormEvent) => {
+  const handleSaveRole = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (!roleName.trim()) {
       setError('El nombre del rol es obligatorio.');
+      return;
+    }
+
+    const canonicalModules = normalizeModuleList(selectedModules);
+    if (canonicalModules.length === 0) {
+      setError('El rol debe tener al menos un módulo habilitado.');
       return;
     }
 
@@ -130,13 +135,16 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
           setError(`403 Prohibido: No tiene jerarquía para modificar el rol ${editingRoleId}. Solo puede gestionar roles subordinados.`);
           return;
         }
-        // Actualizar rol
+        // Actualizar rol y esperar confirmación estricta del servidor
         dbStore.updateRole(editingRoleId, {
           name: roleName,
           description: roleDescription,
-          allowedNavTabs: selectedModules,
+          allowedNavTabs: canonicalModules,
         }, effectiveActor);
-        setSuccessMsg(`Rol "${roleName}" actualizado con éxito`);
+        if (dbStore.getBackendActorContext()) {
+          await dbStore.flushPendingSyncStrict();
+        }
+        setSuccessMsg(`Rol "${roleName}" actualizado y sincronizado con éxito`);
       } else {
         // Crear nuevo rol
         if (!roleCode.trim()) {
@@ -151,8 +159,11 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
           id: roleCode,
           name: roleName,
           description: roleDescription,
-          allowedNavTabs: selectedModules,
+          allowedNavTabs: canonicalModules,
         }, effectiveActor);
+        if (dbStore.getBackendActorContext()) {
+          await dbStore.flushPendingSyncStrict();
+        }
         setSuccessMsg(`Rol "${roleName}" creado y habilitado en el sistema`);
       }
 
@@ -160,7 +171,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
       setIsCreating(false);
       setEditingRoleId(null);
     } catch (err: any) {
-      setError(err?.message || 'Error al guardar el rol');
+      setError(err?.message || 'Error al guardar el rol en el servidor');
     }
   };
 
@@ -173,7 +184,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
     setPendingDeleteRoleId(roleId);
   };
 
-  const handleConfirmDeleteRole = (roleId: string, roleTitle: string) => {
+  const handleConfirmDeleteRole = async (roleId: string, roleTitle: string) => {
     if (!isRoleManageable(roleId)) {
       setError(`403 Prohibido: No tiene jerarquía para eliminar el rol "${roleTitle}".`);
       setPendingDeleteRoleId(null);
@@ -181,6 +192,9 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
     }
     try {
       dbStore.deleteRole(roleId, effectiveActor);
+      if (dbStore.getBackendActorContext()) {
+        await dbStore.flushPendingSyncStrict();
+      }
       setPendingDeleteRoleId(null);
       setSuccessMsg(`Rol "${roleTitle}" eliminado del sistema`);
       setTimeout(() => setSuccessMsg(null), 3000);
@@ -430,7 +444,7 @@ export const ManageRolesModal: React.FC<ManageRolesModalProps> = ({ isOpen, onCl
 
                     <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
                       <div className="text-[11px] text-slate-500 font-medium truncate">
-                        {r.allowedNavTabs?.length || 0} módulos permitidos
+                        {getRoleDefaultModules(r, r.id).length} módulos permitidos
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">

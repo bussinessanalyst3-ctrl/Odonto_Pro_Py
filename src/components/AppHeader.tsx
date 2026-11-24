@@ -15,6 +15,7 @@ import { TabType } from './Header.tsx';
 import { formatPYG } from '../db/seeds/paraguay-catalogs.ts';
 import { UserSessionMenu } from './auth/UserSessionMenu.tsx';
 import { APP_NAME, resolveOrganizationLegalName } from '../config/appBrand.ts';
+import { hasModuleAccess } from '../security/moduleCatalog.ts';
 
 interface AppHeaderProps {
   selectedBranchId: string;
@@ -39,6 +40,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onNavigateTab,
   onOpenMobileSidebar,
 }) => {
+  const { session } = useAuth();
   const { branding } = useBranding();
   const branches = dbStore.getBranches();
   const org = dbStore.getActiveOrganization();
@@ -72,9 +74,20 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Motor de Búsqueda Global en tiempo real (Pacientes, Cédula, Presupuestos, Citas)
+  // Motor de Búsqueda Global en tiempo real (estrictamente filtrado por módulos habilitados)
   useEffect(() => {
     if (!searchTerm.trim() || searchTerm.length < 2) {
+      setResults([]);
+      setIsSearchOpen(false);
+      return;
+    }
+
+    const roleObj = dbStore.getRoles().find((r) => r.id === session?.role);
+    const canSearchPatients = hasModuleAccess(session, 'patients', roleObj);
+    const canSearchQuotes = hasModuleAccess(session, 'quotes', roleObj);
+    const canSearchAgenda = hasModuleAccess(session, 'agenda', roleObj);
+
+    if (!canSearchPatients && !canSearchQuotes && !canSearchAgenda) {
       setResults([]);
       setIsSearchOpen(false);
       return;
@@ -84,69 +97,75 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     const cleanDoc = term.replace(/[.\-]/g, '');
 
     const patients = dbStore.getPatients();
-    const quotes = dbStore.getQuotes();
-    const appointments = dbStore.getAppointments();
+    const quotes = canSearchQuotes ? dbStore.getQuotes() : [];
+    const appointments = canSearchAgenda ? dbStore.getAppointments() : [];
 
     const matchedResults: SearchResult[] = [];
 
     // 1. Pacientes (por Nombre, Apellido o Cédula paraguaya)
-    patients.forEach((p) => {
-      const fullName = `${p.firstName} ${p.lastName}`.toLowerCase();
-      const patientDoc = (p.documentNumber || '').replace(/[.\-]/g, '');
-      const phone = (p.phone || '').replace(/[\s+]/g, '');
+    if (canSearchPatients) {
+      patients.forEach((p) => {
+        const fullName = `${p.firstName} ${p.lastName}`.toLowerCase();
+        const patientDoc = (p.documentNumber || '').replace(/[.\-]/g, '');
+        const phone = (p.phone || '').replace(/[\s+]/g, '');
 
-      if (fullName.includes(term) || patientDoc.includes(cleanDoc) || phone.includes(term)) {
-        matchedResults.push({
-          type: 'patient',
-          id: p.id,
-          title: `${p.firstName} ${p.lastName}`,
-          subtitle: `C.I. ${p.documentNumber} • Tel: ${p.phone}`,
-          extra: p.allergies?.length ? `⚠️ Alergia: ${p.allergies[0]}` : undefined,
-          tab: 'patients',
-          payload: { patientId: p.id },
-        });
-      }
-    });
+        if (fullName.includes(term) || patientDoc.includes(cleanDoc) || phone.includes(term)) {
+          matchedResults.push({
+            type: 'patient',
+            id: p.id,
+            title: `${p.firstName} ${p.lastName}`,
+            subtitle: `C.I. ${p.documentNumber} • Tel: ${p.phone}`,
+            extra: p.allergies?.length ? `⚠️ Alergia: ${p.allergies[0]}` : undefined,
+            tab: 'patients',
+            payload: { patientId: p.id },
+          });
+        }
+      });
+    }
 
     // 2. Presupuestos (por código PRES-XXXX o paciente)
-    quotes.forEach((q) => {
-      const code = (q.quoteNumber || '').toLowerCase();
-      const p = patients.find((pat) => pat.id === q.patientId);
-      const patName = p ? `${p.firstName} ${p.lastName}`.toLowerCase() : '';
+    if (canSearchQuotes) {
+      quotes.forEach((q) => {
+        const code = (q.quoteNumber || '').toLowerCase();
+        const p = patients.find((pat) => pat.id === q.patientId);
+        const patName = p ? `${p.firstName} ${p.lastName}`.toLowerCase() : '';
 
-      if (code.includes(term) || patName.includes(term)) {
-        matchedResults.push({
-          type: 'quote',
-          id: q.id,
-          title: `Presupuesto ${q.quoteNumber}`,
-          subtitle: `${p ? `${p.firstName} ${p.lastName}` : 'Paciente'} • ${q.status}`,
-          extra: `Total: ${formatPYG(q.totalAmountPyg)}`,
-          tab: 'quotes',
-          payload: { quoteId: q.id },
-        });
-      }
-    });
+        if (code.includes(term) || patName.includes(term)) {
+          matchedResults.push({
+            type: 'quote',
+            id: q.id,
+            title: `Presupuesto ${q.quoteNumber}`,
+            subtitle: `${p ? `${p.firstName} ${p.lastName}` : 'Paciente'} • ${q.status}`,
+            extra: `Total: ${formatPYG(q.totalAmountPyg)}`,
+            tab: 'quotes',
+            payload: { quoteId: q.id },
+          });
+        }
+      });
+    }
 
     // 3. Citas / Turnos
-    appointments.forEach((a) => {
-      const p = patients.find((pat) => pat.id === a.patientId);
-      const patName = p ? `${p.firstName} ${p.lastName}`.toLowerCase() : '';
-      if (patName.includes(term) || (a.reason || '').toLowerCase().includes(term)) {
-        matchedResults.push({
-          type: 'appointment',
-          id: a.id,
-          title: `Cita: ${p ? `${p.firstName} ${p.lastName}` : 'Paciente'}`,
-          subtitle: `${a.date} a las ${a.time} • ${a.reason || 'Consulta'}`,
-          extra: a.status,
-          tab: 'agenda',
-          payload: { appointmentId: a.id },
-        });
-      }
-    });
+    if (canSearchAgenda) {
+      appointments.forEach((a) => {
+        const p = patients.find((pat) => pat.id === a.patientId);
+        const patName = p ? `${p.firstName} ${p.lastName}`.toLowerCase() : '';
+        if (patName.includes(term) || (a.reason || '').toLowerCase().includes(term)) {
+          matchedResults.push({
+            type: 'appointment',
+            id: a.id,
+            title: `Cita: ${p ? `${p.firstName} ${p.lastName}` : 'Paciente'}`,
+            subtitle: `${a.date} a las ${a.time} • ${a.reason || 'Consulta'}`,
+            extra: a.status,
+            tab: 'agenda',
+            payload: { appointmentId: a.id },
+          });
+        }
+      });
+    }
 
     setResults(matchedResults.slice(0, 8)); // Top 8 resultados más relevantes
     setIsSearchOpen(true);
-  }, [searchTerm]);
+  }, [searchTerm, session?.role, session?.allowedNavTabs, session?.permissionsVersion]);
 
   const handleSelectResult = (result: SearchResult) => {
     setIsSearchOpen(false);

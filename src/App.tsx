@@ -93,6 +93,11 @@ function MainApplication() {
   const [isVerifiedOwner, setIsVerifiedOwner] = useState<boolean>(false);
   const [permissionRedirectNotice, setPermissionRedirectNotice] = useState<string | null>(null);
   const activePermUserRef = useRef<{ userId: string; initialized: boolean } | null>(null);
+  const [storeTick, setStoreTick] = useState<number>(0);
+
+  useEffect(() => {
+    return dbStore.subscribe(() => setStoreTick((t) => t + 1));
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -180,7 +185,7 @@ function MainApplication() {
         setActiveTab(nextTab);
       }
     }
-  }, [session?.userId, session?.role, session?.permissionsVersion, session?.allowedNavTabs, activeTab]);
+  }, [session?.userId, session?.role, session?.permissionsVersion, session?.allowedNavTabs, activeTab, storeTick]);
 
   if (!isAuthenticated) {
     return <LoginScreen />;
@@ -215,21 +220,24 @@ function MainApplication() {
     );
   }
 
+  // Verificar si la pestaña actual está autorizada para este usuario
+  const roleObj = dbStore.getRoles().find((r) => r.id === session?.role);
+  const isAuthorized = Boolean(getModuleById(activeTab)) && hasModuleAccess(session, activeTab, roleObj);
+
   const handleNavigateToTreatments = (patientId: string, toothNumber?: number) => {
+    if (!hasModuleAccess(session, 'treatments', roleObj)) return;
     setTreatmentNavTarget({ patientId, toothNumber });
     setActiveTab('treatments');
   };
 
   const handleGlobalNavigate = (tab: any, extraPayload?: any) => {
-    if (tab === 'treatments' && extraPayload?.patientId) {
+    const targetMod = getModuleById(String(tab || ''));
+    if (!targetMod || !hasModuleAccess(session, targetMod.id, roleObj)) return;
+    if (targetMod.id === 'treatments' && extraPayload?.patientId) {
       setTreatmentNavTarget({ patientId: extraPayload.patientId, toothNumber: extraPayload.toothNumber });
     }
-    setActiveTab(tab as TabType);
+    setActiveTab(targetMod.id as TabType);
   };
-
-  // Verificar si la pestaña actual está autorizada para este usuario
-  const roleObj = dbStore.getRoles().find((r) => r.id === session?.role);
-  const isAuthorized = Boolean(getModuleById(activeTab)) && hasModuleAccess(session, activeTab, roleObj);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex">
@@ -342,49 +350,56 @@ function MainApplication() {
         </main>
       </div>
 
-      {/* Barra de Navegación Inferior Nativa para Móviles (Thumb Navigation con Safe Area) */}
+      {/* Barra de Navegación Inferior Nativa para Móviles (filtrada por módulos efectivos del usuario) */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-xl px-2 pt-1 pb-[calc(0.35rem+env(safe-area-inset-bottom,0px))] flex items-center justify-around select-none">
-        <button
-          type="button"
-          onClick={() => setActiveTab('dashboard')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[52px] cursor-pointer touch-manipulation ${
-            activeTab === 'dashboard'
-              ? 'text-teal-700 font-bold bg-teal-50/80'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <LayoutDashboard className={`h-5 w-5 mb-0.5 ${activeTab === 'dashboard' ? 'text-teal-600' : 'text-slate-400'}`} />
-          <span>Inicio</span>
-        </button>
+        {hasModuleAccess(session, 'dashboard', roleObj) && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[52px] cursor-pointer touch-manipulation ${
+              activeTab === 'dashboard'
+                ? 'text-teal-700 font-bold bg-teal-50/80'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <LayoutDashboard className={`h-5 w-5 mb-0.5 ${activeTab === 'dashboard' ? 'text-teal-600' : 'text-slate-400'}`} />
+            <span>Inicio</span>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('agenda')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[52px] cursor-pointer touch-manipulation ${
-            activeTab === 'agenda'
-              ? 'text-teal-700 font-bold bg-teal-50/80'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Calendar className={`h-5 w-5 mb-0.5 ${activeTab === 'agenda' ? 'text-teal-600' : 'text-slate-400'}`} />
-          <span>Agenda</span>
-        </button>
+        {hasModuleAccess(session, 'agenda', roleObj) && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('agenda')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[52px] cursor-pointer touch-manipulation ${
+              activeTab === 'agenda'
+                ? 'text-teal-700 font-bold bg-teal-50/80'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Calendar className={`h-5 w-5 mb-0.5 ${activeTab === 'agenda' ? 'text-teal-600' : 'text-slate-400'}`} />
+            <span>Agenda</span>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('patients')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[52px] cursor-pointer touch-manipulation ${
-            activeTab === 'patients'
-              ? 'text-teal-700 font-bold bg-teal-50/80'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Users className={`h-5 w-5 mb-0.5 ${activeTab === 'patients' ? 'text-teal-600' : 'text-slate-400'}`} />
-          <span>Pacientes</span>
-        </button>
+        {hasModuleAccess(session, 'patients', roleObj) && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('patients')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[52px] cursor-pointer touch-manipulation ${
+              activeTab === 'patients'
+                ? 'text-teal-700 font-bold bg-teal-50/80'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Users className={`h-5 w-5 mb-0.5 ${activeTab === 'patients' ? 'text-teal-600' : 'text-slate-400'}`} />
+            <span>Pacientes</span>
+          </button>
+        )}
 
-        {/* Módulo dinámico según rol: Usuarios para Administradores, Tratamientos para Odontólogos, Caja para otros */}
-        {session?.role === 'SUPER_ADMIN' || session?.role === 'ADMIN_ORGANIZACION' || session?.role === 'ADMIN_SUCURSAL' ? (
+        {/* 4to acceso rápido móvil: estrictamente sujeto a hasModuleAccess */}
+        {(session?.role === 'SUPER_ADMIN' || session?.role === 'ADMIN_ORGANIZACION' || session?.role === 'ADMIN_SUCURSAL') &&
+        hasModuleAccess(session, 'users', roleObj) ? (
           <button
             type="button"
             onClick={() => setActiveTab('users')}
@@ -397,7 +412,8 @@ function MainApplication() {
             <UserCheck className={`h-5 w-5 mb-0.5 ${activeTab === 'users' ? 'text-teal-600' : 'text-slate-400'}`} />
             <span>Usuarios</span>
           </button>
-        ) : session?.role === 'ODONTOLOGO' || session?.role === 'ASISTENTE' ? (
+        ) : (session?.role === 'ODONTOLOGO' || session?.role === 'ASISTENTE') &&
+          hasModuleAccess(session, 'treatments', roleObj) ? (
           <button
             type="button"
             onClick={() => setActiveTab('treatments')}
@@ -410,7 +426,7 @@ function MainApplication() {
             <Stethoscope className={`h-5 w-5 mb-0.5 ${activeTab === 'treatments' ? 'text-teal-600' : 'text-slate-400'}`} />
             <span>Clínica</span>
           </button>
-        ) : (
+        ) : hasModuleAccess(session, 'cash', roleObj) ? (
           <button
             type="button"
             onClick={() => setActiveTab('cash')}
@@ -423,7 +439,7 @@ function MainApplication() {
             <WalletCards className={`h-5 w-5 mb-0.5 ${activeTab === 'cash' ? 'text-teal-600' : 'text-slate-400'}`} />
             <span>Caja</span>
           </button>
-        )}
+        ) : null}
 
         <button
           type="button"

@@ -21,6 +21,7 @@ import { AdminFinancialReport } from './AdminFinancialReport.tsx';
 import { DoctorCommissionsReport } from './DoctorCommissionsReport.tsx';
 import { ReceptionOperationsReport } from './ReceptionOperationsReport.tsx';
 import { ExecutiveDashboard } from './ExecutiveDashboard.tsx';
+import { hasModuleAccess } from '../../security/moduleCatalog.ts';
 
 type DashboardPerspective = 'EXECUTIVE' | 'ADMIN' | 'DOCTOR' | 'RECEPTION';
 
@@ -68,6 +69,29 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
   const [timePeriod, setTimePeriod] = useState<ReportPeriodPreset>('MONTH');
   const [customYear, setCustomYear] = useState<number>(todayYm.year);
   const [customMonth, setCustomMonth] = useState<number>(todayYm.month);
+
+  const roleObj = dbStore.getRoles().find((r) => r.id === userRole);
+  const canViewAdminPerspective =
+    hasModuleAccess(session, 'cash', roleObj) ||
+    hasModuleAccess(session, 'quotes', roleObj) ||
+    hasModuleAccess(session, 'staff-payroll', roleObj);
+  const canViewDoctorPerspective =
+    hasModuleAccess(session, 'treatments', roleObj) ||
+    hasModuleAccess(session, 'clinical', roleObj) ||
+    hasModuleAccess(session, 'odontogram', roleObj) ||
+    hasModuleAccess(session, 'staff-payroll', roleObj);
+  const canViewReceptionPerspective =
+    hasModuleAccess(session, 'agenda', roleObj) || hasModuleAccess(session, 'patients', roleObj);
+
+  useEffect(() => {
+    if (
+      (activePerspective === 'ADMIN' && !canViewAdminPerspective) ||
+      (activePerspective === 'DOCTOR' && !canViewDoctorPerspective) ||
+      (activePerspective === 'RECEPTION' && !canViewReceptionPerspective)
+    ) {
+      setActivePerspective('EXECUTIVE');
+    }
+  }, [activePerspective, canViewAdminPerspective, canViewDoctorPerspective, canViewReceptionPerspective]);
 
   useEffect(() => {
     if (externalBranchId !== undefined) {
@@ -125,41 +149,47 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
               <span>Resumen & KPIs</span>
             </button>
 
-            <button
-              onClick={() => setActivePerspective('ADMIN')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
-                activePerspective === 'ADMIN'
-                  ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <DollarSign className="h-3.5 w-3.5 text-teal-600" />
-              <span>Directiva & Finanzas</span>
-            </button>
+            {canViewAdminPerspective && (
+              <button
+                onClick={() => setActivePerspective('ADMIN')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
+                  activePerspective === 'ADMIN'
+                    ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <DollarSign className="h-3.5 w-3.5 text-teal-600" />
+                <span>Directiva & Finanzas</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => setActivePerspective('DOCTOR')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
-                activePerspective === 'DOCTOR'
-                  ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Stethoscope className="h-3.5 w-3.5 text-teal-600" />
-              <span>Odontólogos & Comisiones</span>
-            </button>
+            {canViewDoctorPerspective && (
+              <button
+                onClick={() => setActivePerspective('DOCTOR')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
+                  activePerspective === 'DOCTOR'
+                    ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Stethoscope className="h-3.5 w-3.5 text-teal-600" />
+                <span>Odontólogos & Comisiones</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => setActivePerspective('RECEPTION')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
-                activePerspective === 'RECEPTION'
-                  ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Users className="h-3.5 w-3.5 text-teal-600" />
-              <span>Recepción & Turnos</span>
-            </button>
+            {canViewReceptionPerspective && (
+              <button
+                onClick={() => setActivePerspective('RECEPTION')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
+                  activePerspective === 'RECEPTION'
+                    ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Users className="h-3.5 w-3.5 text-teal-600" />
+                <span>Recepción & Turnos</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -250,7 +280,7 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
         />
       )}
 
-      {activePerspective === 'ADMIN' && (
+      {activePerspective === 'ADMIN' && canViewAdminPerspective && (
         <AdminFinancialReport
           selectedBranchId={selectedBranchId}
           periodFilter={periodFilter}
@@ -258,7 +288,7 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
         />
       )}
 
-      {activePerspective === 'DOCTOR' && (
+      {activePerspective === 'DOCTOR' && canViewDoctorPerspective && (
         <DoctorCommissionsReport
           selectedBranchId={selectedBranchId}
           periodFilter={periodFilter}
@@ -267,7 +297,7 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
         />
       )}
 
-      {activePerspective === 'RECEPTION' && (
+      {activePerspective === 'RECEPTION' && canViewReceptionPerspective && (
         <ReceptionOperationsReport
           selectedBranchId={selectedBranchId}
           periodFilter={periodFilter}

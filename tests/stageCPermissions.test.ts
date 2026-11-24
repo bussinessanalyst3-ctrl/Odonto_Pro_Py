@@ -530,3 +530,245 @@ test('Etapa C — Validación de módulos en rutas del backend con bandera contr
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
+
+test('Regresión — RECEPCION con módulos quitados: /api/db/state, sesión, re-login, rol vacío [] y delta de roles', async () => {
+  const prevFlag = process.env.PERMISSIONS_ENFORCE_MODULES;
+  process.env.PERMISSIONS_ENFORCE_MODULES = 'true';
+
+  const { createConfiguredApp } = await import('../server.ts');
+  const { getServerDbState } = await import('../server/stateStore.ts');
+  const { createPbkdf2Hash } = await import('../server/crypto.ts');
+  const { getUserEffectivePermissions } = await import('../src/security/rbacHierarchy.ts');
+  const { hasModuleAccess } = await import('../src/security/moduleCatalog.ts');
+
+  const app = await createConfiguredApp({ skipFrontend: true });
+  const server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const addr = server.address() as { port: number };
+  const baseUrl = `http://127.0.0.1:${addr.port}`;
+
+  try {
+    const state = getServerDbState();
+    const orgId = state.data.organization.id;
+    const branchId = state.data.branches[0].id;
+
+    // 1. Verificar que roleObj.allowedNavTabs = [] (default PostgreSQL) NO pisa los defaults del rol
+    const emptyRolePerms = getUserEffectivePermissions(
+      { id: 'u-empty', roleId: 'RECEPCION', allowedNavTabs: [] },
+      [{ id: 'RECEPCION', allowedNavTabs: [] }]
+    );
+    assert.ok(emptyRolePerms.allowedNavTabs.includes('dashboard'));
+    assert.ok(emptyRolePerms.allowedNavTabs.includes('patients'));
+
+    // 2. Verificar que hasModuleAccess respeta los módulos reducidos del usuario RECEPCION
+    const restrictedSession = {
+      role: 'RECEPCION',
+      allowedNavTabs: ['dashboard', 'patients'],
+    };
+    const recepRoleObj = {
+      id: 'RECEPCION',
+      allowedNavTabs: ['dashboard', 'agenda', 'patients', 'quotes', 'cash'],
+    };
+    assert.equal(hasModuleAccess(restrictedSession, 'dashboard', recepRoleObj), true);
+    assert.equal(hasModuleAccess(restrictedSession, 'patients', recepRoleObj), true);
+    assert.equal(hasModuleAccess(restrictedSession, 'agenda', recepRoleObj), false);
+    assert.equal(hasModuleAccess(restrictedSession, 'quotes', recepRoleObj), false);
+    assert.equal(hasModuleAccess(restrictedSession, 'cash', recepRoleObj), false);
+    assert.equal(hasModuleAccess(restrictedSession, 'treatments', recepRoleObj), false);
+
+    // 3. Preparar usuarios y datos reales de agenda, presupuestos, caja y pacientes en el tenant
+    const superPass = 'SuperPassReg#2026';
+    const superHash = createPbkdf2Hash(superPass);
+    const superAdmin = state.data.users.find((u: any) => u.roleId === 'SUPER_ADMIN');
+    assert.ok(superAdmin);
+    superAdmin.passwordHash = superHash.hash;
+    superAdmin.passwordSalt = superHash.salt;
+    superAdmin.passwordIterations = superHash.iterations;
+
+    const recepPass = 'RecepPassReg#2026';
+    const recepHash = createPbkdf2Hash(recepPass);
+    const recepId = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+    const doctorId = state.data.users.find((u: any) => u.roleId === 'ODONTOLOGO')?.id || superAdmin.id;
+    const patientId = 'bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb';
+
+    state.data.users.push({
+      id: recepId,
+      organizationId: orgId,
+      roleId: 'RECEPCION',
+      username: 'recep.regresion',
+      firstName: 'Ana',
+      lastName: 'Recepcionista',
+      email: 'recep.regresion@odontopro.test',
+      passwordHash: recepHash.hash,
+      passwordSalt: recepHash.salt,
+      passwordIterations: recepHash.iterations,
+      status: 'ACTIVE',
+      permissionsVersion: 1,
+      customPermissions: [],
+      revokedPermissions: [],
+      assignedRestrictions: [],
+      allowedNavTabs: [],
+    });
+    state.data.userBranches.push({ userId: recepId, branchId, isDefault: true });
+    state.data.patients.push({
+      id: patientId,
+      organizationId: orgId,
+      primaryBranchId: branchId,
+      documentType: 'CI',
+      documentNumber: '9988776',
+      firstName: 'Carlos',
+      lastName: 'Regresion',
+      phone: '+595981999888',
+      status: 'ACTIVE',
+    });
+    state.data.appointments.push({
+      id: 'cccccccc-1111-4111-8111-cccccccccccc',
+      organizationId: orgId,
+      branchId,
+      patientId,
+      odontologistId: doctorId,
+      appointmentDate: '2026-12-15',
+      startTime: '09:00:00',
+      endTime: '09:30:00',
+      status: 'CONFIRMADA',
+    });
+    state.data.quotes.push({
+      id: 'dddddddd-1111-4111-8111-dddddddddddd',
+      organizationId: orgId,
+      branchId,
+      patientId,
+      quoteNumber: 'P-REG-001',
+      status: 'PENDIENTE',
+      finalAmount: 250000,
+    });
+    state.data.cashRegisters.push({
+      id: 'eeeeeeee-1111-4111-8111-eeeeeeeeeeee',
+      organizationId: orgId,
+      branchId,
+      status: 'OPEN',
+      openingAmount: 100000,
+    });
+    state.data.payments.push({
+      id: 'ffffffff-1111-4111-8111-ffffffffffff',
+      organizationId: orgId,
+      branchId,
+      patientId,
+      amount: 250000,
+      status: 'COMPLETADO',
+      paymentMethod: 'EFECTIVO',
+    });
+
+    // 4. Iniciar sesión como SUPER_ADMIN y como RECEPCION
+    const loginSuper = await apiRequest(baseUrl, '/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ identifier: superAdmin.email, password: superPass }),
+    });
+    assert.equal(loginSuper.status, 200);
+
+    const loginRecepInitial = await apiRequest(baseUrl, '/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ identifier: 'recep.regresion@odontopro.test', password: recepPass }),
+    });
+    assert.equal(loginRecepInitial.status, 200);
+
+    // 5. Quitar agenda, quotes y cash a la usuaria RECEPCION (dejar solo dashboard y patients)
+    const updatePerms = await apiRequest(baseUrl, `/api/users/${recepId}/permissions`, {
+      method: 'PUT',
+      cookie: loginSuper.sidCookie,
+      body: JSON.stringify({
+        overrides: {
+          allowedNavTabs: ['dashboard', 'patients'],
+        },
+      }),
+    });
+    assert.equal(updatePerms.status, 200);
+    assert.deepEqual(updatePerms.json.user.allowedNavTabs, ['dashboard', 'patients']);
+
+    // 6. Sesión ya abierta recibe allowedNavTabs actualizados inmediatamente
+    const liveSession = await apiRequest(baseUrl, '/api/auth/session', {
+      cookie: loginRecepInitial.sidCookie,
+    });
+    assert.equal(liveSession.status, 200);
+    assert.deepEqual(liveSession.json.session.allowedNavTabs, ['dashboard', 'patients']);
+
+    // 7. Nuevo login con su usuario también recibe exactamente ['dashboard', 'patients']
+    const freshLogin = await apiRequest(baseUrl, '/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ identifier: 'recep.regresion@odontopro.test', password: recepPass }),
+    });
+    assert.equal(freshLogin.status, 200);
+    assert.deepEqual(freshLogin.json.session.allowedNavTabs, ['dashboard', 'patients']);
+
+    // 8. GET /api/db/state con PERMISSIONS_ENFORCE_MODULES=true oculta colecciones de módulos quitados
+    const filteredStateRes = await apiRequest(baseUrl, '/api/db/state', {
+      cookie: freshLogin.sidCookie,
+    });
+    assert.equal(filteredStateRes.status, 200);
+    const filteredData = filteredStateRes.json.data;
+    assert.equal(filteredData.appointments.length, 0, 'appointments debe venir vacío si se quitó agenda');
+    assert.equal(filteredData.quotes.length, 0, 'quotes debe venir vacío si se quitó quotes');
+    assert.equal(filteredData.quoteItems.length, 0, 'quoteItems debe venir vacío si se quitó quotes');
+    assert.equal(filteredData.cashRegisters.length, 0, 'cashRegisters debe venir vacío si se quitó cash');
+    assert.equal(filteredData.cashMovements.length, 0, 'cashMovements debe venir vacío si se quitó cash');
+    assert.equal(filteredData.payments.length, 0, 'payments debe venir vacío si se quitó cash');
+    assert.ok(
+      filteredData.patients.some((p: any) => p.id === patientId),
+      'patients debe permanecer visible porque el módulo patients sigue habilitado'
+    );
+
+    // 9. Con PERMISSIONS_ENFORCE_MODULES=false se mantiene compatibilidad retroactiva
+    process.env.PERMISSIONS_ENFORCE_MODULES = 'false';
+    const legacyStateRes = await apiRequest(baseUrl, '/api/db/state', {
+      cookie: freshLogin.sidCookie,
+    });
+    assert.equal(legacyStateRes.status, 200);
+    assert.ok(legacyStateRes.json.data.appointments.length >= 1, 'Con bandera apagada mantiene compatibilidad');
+    assert.ok(legacyStateRes.json.data.quotes.length >= 1, 'Con bandera apagada mantiene compatibilidad');
+    assert.ok(legacyStateRes.json.data.payments.length >= 1, 'Con bandera apagada mantiene compatibilidad');
+
+    // 10. Actualizar el rol RECEPCION vía POST /api/db/delta normaliza aliases ('appointments' -> 'agenda')
+    //     y sube permissionsVersion en usuarias del rol
+    process.env.PERMISSIONS_ENFORCE_MODULES = 'true';
+    const recepBefore = state.data.users.find((u: any) => u.id === recepId);
+    const prevVersion = Number(recepBefore?.permissionsVersion || 1);
+    const recepRole = state.data.roles.find((r: any) => r.id === 'RECEPCION');
+    assert.ok(recepRole, 'Debe existir el rol RECEPCION');
+
+    const roleDeltaRes = await apiRequest(baseUrl, '/api/db/delta', {
+      method: 'POST',
+      cookie: loginSuper.sidCookie,
+      body: JSON.stringify({
+        upserts: {
+          roles: [
+            {
+              ...recepRole,
+              allowedNavTabs: ['dashboard', 'appointments', 'patients'],
+            },
+          ],
+        },
+      }),
+    });
+    assert.equal(roleDeltaRes.status, 200);
+
+    const updatedRole = getServerDbState().data.roles.find((r: any) => r.id === 'RECEPCION');
+    assert.deepEqual(
+      updatedRole.allowedNavTabs,
+      ['dashboard', 'agenda', 'patients'],
+      'Alias legacy appointments debe normalizarse a agenda al guardar el rol'
+    );
+
+    const recepAfter = getServerDbState().data.users.find((u: any) => u.id === recepId);
+    assert.ok(
+      Number(recepAfter.permissionsVersion) > prevVersion,
+      'Actualizar un rol debe incrementar permissionsVersion de las usuarias de ese rol'
+    );
+  } finally {
+    if (prevFlag === undefined) {
+      delete process.env.PERMISSIONS_ENFORCE_MODULES;
+    } else {
+      process.env.PERMISSIONS_ENFORCE_MODULES = prevFlag;
+    }
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+

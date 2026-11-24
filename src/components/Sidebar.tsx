@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Calendar,
   HeartPulse,
@@ -77,6 +77,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { session, logout } = useAuth();
   const { branding } = useBranding();
+  const [, setStoreTick] = useState(0);
+  useEffect(() => {
+    return dbStore.subscribe(() => setStoreTick((t) => t + 1));
+  }, []);
   const org = dbStore.getActiveOrganization();
   const userRole: UserRole = session?.role || '';
 
