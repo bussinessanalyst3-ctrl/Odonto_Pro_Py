@@ -324,12 +324,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const switchBranch = (branchId: string) => {
     if (!session) return;
-    try {
-      const updated = authService.switchBranch(session, branchId);
-      setSession(updated);
-    } catch (err: any) {
-      console.error(err.message || 'Error al cambiar de sucursal');
-    }
+    const currentSession = session;
+    void (async () => {
+      try {
+        const updated = await authService.switchBranch(currentSession, branchId);
+        setSession((prev) => (prev && prev.userId === updated.userId ? updated : prev));
+      } catch (err: any) {
+        console.error(err?.message || 'Error al cambiar de sucursal');
+      }
+    })();
   };
 
   const switchOrganization = (orgId: string) => {

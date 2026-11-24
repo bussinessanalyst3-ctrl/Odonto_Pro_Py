@@ -28,6 +28,7 @@ import { UNKNOWN_CREATOR_LABEL } from '../../db/payrollEngine.ts';
 import { useBranding } from '../../branding/BrandingContext.tsx';
 import { PatientModal } from './PatientModal.tsx';
 import { ComprehensivePatientModal } from './ComprehensivePatientModal.tsx';
+import { HistoricalImportModal } from '../shared/HistoricalImportModal.tsx';
 import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
 import { hasBackendSession, putAuthoritativeAction } from '../../services/authoritativeApi.ts';
 
@@ -51,6 +52,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   const pageSize = 10;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isHistoricalImportOpen, setIsHistoricalImportOpen] = useState(false);
   const [patientToEdit, setPatientToEdit] = useState<any | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -207,7 +209,15 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setIsHistoricalImportOpen(true)}
+              className="px-3.5 py-2 text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors flex items-center gap-1.5"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              <span>Importar Histórico (CSV)</span>
+            </button>
             <button
               onClick={handleOpenAdd}
               className="px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
@@ -817,6 +827,12 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
           handleOpenEdit(p);
         }}
         onNavigateToTab={onNavigateToTab}
+      />
+
+      <HistoricalImportModal
+        isOpen={isHistoricalImportOpen}
+        onClose={() => setIsHistoricalImportOpen(false)}
+        defaultEntity="patients"
       />
     </div>
   );

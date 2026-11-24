@@ -341,29 +341,42 @@ class AuthService {
   }
 
   /**
-   * Cambio de sucursal activa con validación anti-IDOR
+   * Cambio de sucursal activa con validación anti-IDOR y persistencia en servidor (POST /api/auth/switch-branch)
    */
-  public switchBranch(session: UserSession, newBranchId: string): UserSession {
+  public async switchBranch(session: UserSession, newBranchId: string): Promise<UserSession> {
     if (session.role !== 'SUPER_ADMIN' && !session.allowedBranchIds.includes(newBranchId)) {
       throw new Error('Violación de Seguridad: El usuario no tiene asignada esta sucursal.');
     }
 
-    const updatedSession: UserSession = {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session.sessionToken && !session.sessionToken.startsWith('httpOnly_')) {
+        headers.Authorization = `Bearer ${session.sessionToken}`;
+      }
+      const response = await fetch(`${baseUrl}/api/auth/switch-branch`, {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify({ branchId: newBranchId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data?.success && data.session) {
+        return data.session as UserSession;
+      }
+      if (!response.ok && data?.error) {
+        throw new Error(data.error);
+      }
+    } catch (err: any) {
+      if (err?.message && (err.message.includes('403') || err.message.includes('Prohibido') || err.message.includes('asignada'))) {
+        throw err;
+      }
+    }
+
+    return {
       ...session,
       currentBranchId: newBranchId,
     };
-
-    const snapshot = dbStore.getSnapshot();
-    const branch = snapshot.branches.find((b) => b.id === newBranchId);
-
-    this.logAudit(
-      'BRANCH_SWITCH',
-      session.organizationId,
-      session.userId,
-      `Cambio de contexto a sucursal: ${branch?.name || newBranchId}`
-    );
-
-    return updatedSession;
   }
 
   private recordFailedAttempt(email: string) {
@@ -398,8 +411,8 @@ class AuthService {
       action,
       entity: 'USER_AUTH',
       entityId: userId || null,
-      ipAddress: '190.52.144.12',
-      userAgent: 'OdontoPro Web Secure Client',
+      ipAddress: null,
+      userAgent: 'ODONTOPRO Web Client',
       oldValues: null,
       newValues: { action, timestamp: new Date().toISOString() },
       description,

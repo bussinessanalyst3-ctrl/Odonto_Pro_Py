@@ -3,8 +3,9 @@ import crypto from 'crypto';
 import {
   canManageRole,
   getUserEffectivePermissions,
-  hasPermission,
   isSuperAdminRole,
+  ROLE_HIERARCHY,
+  SYSTEM_PERMISSION_MODULES,
 } from '../../src/security/rbacHierarchy.ts';
 import {
   ALL_SYSTEM_MODULE_IDS,
@@ -243,18 +244,151 @@ export function createAdminRouter(): express.Router {
     }
     if (denyIfModuleNotAllowed(auth, res, 'users', 'GET /api/users')) return;
 
+    const serverDbState = getServerDbState();
+    const roles = serverDbState.data?.roles || [];
     const isSuperAdmin = isSuperAdminRole(auth.user.roleId);
-    if (!isSuperAdmin && !hasPermission(auth.actor, 'users.view')) {
+    if (!isSuperAdmin && !actorHasDynamicPermission(auth.actor, 'users.view', roles)) {
       return res.status(403).json({ error: '403 Prohibido: No posee permiso users.view.' });
     }
 
-    const serverDbState = getServerDbState();
     let list = serverDbState.data.users || [];
     if (!isSuperAdmin) {
       list = list.filter((u: any) => u.organizationId === auth.actor!.organizationId && !isSuperAdminRole(u.roleId));
     }
 
     return res.json(sanitizeUsersForClient(list));
+  });
+
+  // PUT /api/roles/:roleId/permissions - Actualización autoritativa de permisos de rol + propagación en vivo
+  router.put('/roles/:roleId/permissions', async (req, res, next) => {
+    try {
+      const auth = authenticateServerRequest(req);
+      if (!auth.authenticated || !auth.user || !auth.actor) {
+        return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado' });
+      }
+      if (!isSuperAdminRole(auth.user.roleId)) {
+        return res.status(403).json({
+          error: '403 Prohibido: Solo el Super Administrador puede modificar la matriz global de roles del sistema.',
+        });
+      }
+
+      const roleId = String(req.params.roleId || '').trim();
+      if (!roleId) {
+        return res.status(400).json({ error: 'Debe indicar el rol a actualizar.' });
+      }
+      if (isSuperAdminRole(roleId)) {
+        return res.status(403).json({
+          error: '403 Prohibido: El rol SUPER_ADMIN es inmutable y no puede ser modificado.',
+        });
+      }
+
+      const serverDbState = getServerDbState();
+      const roleObj = (serverDbState.data?.roles || []).find((r: any) => r.id === roleId);
+      if (!roleObj) {
+        return res.status(404).json({ error: `Rol "${roleId}" no encontrado.` });
+      }
+
+      const validPermissionCodes = new Set<string>([
+        ...SYSTEM_PERMISSION_MODULES.flatMap((m) => m.permissions.map((p) => p.code)),
+        ...Object.values(ROLE_HIERARCHY).flatMap((r) => r.permissions),
+      ]);
+
+      const resetToDefaults = Boolean(req.body?.resetToDefaults);
+      let nextPermissions: string[];
+      if (resetToDefaults) {
+        nextPermissions = [...(ROLE_HIERARCHY[roleId]?.permissions || [])];
+      } else {
+        if (!Array.isArray(req.body?.permissions)) {
+          return res.status(400).json({ error: 'Debe enviar un arreglo "permissions" válido.' });
+        }
+        nextPermissions = Array.from(
+          new Set(
+            req.body.permissions
+              .map((p: unknown) => String(p || '').trim())
+              .filter((p: string) => Boolean(p) && p !== 'system.all' && validPermissionCodes.has(p))
+          )
+        );
+      }
+
+      const prevRolePermissions = Array.isArray(roleObj.permissions) ? [...roleObj.permissions] : [];
+      const prevRoleUpdatedAt = roleObj.updatedAt;
+      const nowIso = new Date().toISOString();
+
+      roleObj.permissions = nextPermissions;
+      roleObj.updatedAt = nowIso;
+
+      // Incrementar permissionsVersion en todos los usuarios con este rol para replicar sin cerrar sesión
+      const affectedUsers = (serverDbState.data.users || []).filter((u: any) => u.roleId === roleId);
+      const prevUserSnapshots = affectedUsers.map((u: any) => ({
+        user: u,
+        permissionsVersion: u.permissionsVersion,
+        updatedAt: u.updatedAt,
+      }));
+      for (const u of affectedUsers) {
+        u.permissionsVersion = (Number(u.permissionsVersion) || 1) + 1;
+        u.updatedAt = nowIso;
+      }
+
+      const roleAuditLog = {
+        id: crypto.randomUUID(),
+        organizationId: auth.user.organizationId || serverDbState.data.organization?.id,
+        branchId: null,
+        userId: auth.user.id,
+        action: resetToDefaults ? 'ROLE_PERMISSIONS_RESET' : 'ROLE_PERMISSIONS_UPDATE',
+        entity: 'ROLE_SECURITY',
+        entityId: roleId,
+        ipAddress: req.ip || '127.0.0.1',
+        userAgent: req.headers['user-agent'] || 'Backend API',
+        oldValues: { permissions: prevRolePermissions },
+        newValues: { permissions: nextPermissions, affectedUsersCount: affectedUsers.length },
+        description: `${resetToDefaults ? 'Restablecimiento' : 'Actualización'} de matriz de permisos del rol ${roleObj.name || roleId} (${nextPermissions.length} permisos activos, ${affectedUsers.length} usuario(s) notificado(s))`,
+        createdAt: nowIso,
+      };
+      if (!Array.isArray(serverDbState.data.auditLogs)) {
+        serverDbState.data.auditLogs = [];
+      }
+      serverDbState.data.auditLogs.unshift(roleAuditLog);
+
+      const upsertsPayload: Record<string, any[]> = {
+        roles: [roleObj],
+        auditLogs: [roleAuditLog],
+      };
+      if (affectedUsers.length > 0) {
+        upsertsPayload.users = affectedUsers;
+      }
+
+      let stateVersion: number;
+      try {
+        stateVersion = await saveDatabaseStateStrict({ upserts: upsertsPayload });
+      } catch (persistErr) {
+        roleObj.permissions = prevRolePermissions;
+        roleObj.updatedAt = prevRoleUpdatedAt;
+        for (const snap of prevUserSnapshots) {
+          snap.user.permissionsVersion = snap.permissionsVersion;
+          snap.user.updatedAt = snap.updatedAt;
+        }
+        serverDbState.data.auditLogs = serverDbState.data.auditLogs.filter((al: any) => al.id !== roleAuditLog.id);
+        throw persistErr;
+      }
+
+      for (const u of affectedUsers) {
+        await updateUserSessionsPermissionsVersion(u.id, u.permissionsVersion, u.roleId);
+      }
+
+      return res.json({
+        success: true,
+        role: roleObj,
+        affectedUsersCount: affectedUsers.length,
+        stateVersion,
+        upserts: {
+          roles: [roleObj],
+          users: sanitizeUsersForClient(affectedUsers),
+          auditLogs: [roleAuditLog],
+        },
+      });
+    } catch (err) {
+      return next(err);
+    }
   });
 
   // PUT /api/users/:id/permissions
@@ -473,15 +607,16 @@ export function createAdminRouter(): express.Router {
         return res.status(404).json({ error: 'Usuario no encontrado.' });
       }
 
+      const roles = serverDbState.data?.roles || [];
       const isSuperAdmin = isSuperAdminRole(auth.user.roleId);
       if (!isSuperAdmin) {
         if (user.organizationId !== auth.actor.organizationId) {
           return res.status(403).json({ error: '403 Prohibido: Violación de aislamiento multiempresa.' });
         }
         if (
-          !hasPermission(auth.actor, 'users.reset_password') &&
-          !hasPermission(auth.actor, 'users.update') &&
-          !hasPermission(auth.actor, 'roles.manage')
+          !actorHasDynamicPermission(auth.actor, 'users.reset_password', roles) &&
+          !actorHasDynamicPermission(auth.actor, 'users.update', roles) &&
+          !actorHasDynamicPermission(auth.actor, 'roles.manage', roles)
         ) {
           return res.status(403).json({ error: '403 Prohibido: No posee permiso users.reset_password.' });
         }
@@ -495,7 +630,29 @@ export function createAdminRouter(): express.Router {
             error: `403 Prohibido: Jerarquía insuficiente para restablecer la contraseña de un ${user.roleId}.`,
           });
         }
+        if (auth.actor.role === 'ADMIN_SUCURSAL' && (auth.actor.allowedBranchIds || []).length > 0) {
+          const targetBranchIds = (serverDbState.data.userBranches || [])
+            .filter((ub: any) => ub.userId === user.id)
+            .map((ub: any) => ub.branchId);
+          const sharesBranch =
+            targetBranchIds.length === 0 ||
+            targetBranchIds.some((bid: string) => auth.actor!.allowedBranchIds.includes(bid));
+          if (!sharesBranch) {
+            return res.status(403).json({
+              error: '403 Prohibido: Solo puede restablecer contraseñas de usuarios de sus sucursales asignadas.',
+            });
+          }
+        }
       }
+
+      const prevUserState = {
+        passwordHash: user.passwordHash,
+        passwordSalt: user.passwordSalt,
+        passwordIterations: user.passwordIterations,
+        sessionRevokedAt: user.sessionRevokedAt,
+        permissionsVersion: user.permissionsVersion,
+        updatedAt: user.updatedAt,
+      };
 
       const hashRecord = createPbkdf2Hash(newPassword, 100000);
       const now = new Date().toISOString();
@@ -505,14 +662,6 @@ export function createAdminRouter(): express.Router {
       user.sessionRevokedAt = now;
       user.permissionsVersion = (user.permissionsVersion || 0) + 1;
       user.updatedAt = now;
-
-      for (const [token, sess] of activeServerSessions.entries()) {
-        if (sess.userId === id) {
-          activeServerSessions.delete(token);
-        }
-      }
-      deleteUserSessionsFromDb(id);
-      saveServerSessions();
 
       const resetAuditLog = {
         id: crypto.randomUUID(),
@@ -531,7 +680,26 @@ export function createAdminRouter(): express.Router {
       };
       serverDbState.data.auditLogs.unshift(resetAuditLog);
 
-      await saveDatabaseState({ upserts: { users: [user], auditLogs: [resetAuditLog] } });
+      try {
+        await saveDatabaseStateStrict({ upserts: { users: [user], auditLogs: [resetAuditLog] } });
+      } catch (persistErr) {
+        user.passwordHash = prevUserState.passwordHash;
+        user.passwordSalt = prevUserState.passwordSalt;
+        user.passwordIterations = prevUserState.passwordIterations;
+        user.sessionRevokedAt = prevUserState.sessionRevokedAt;
+        user.permissionsVersion = prevUserState.permissionsVersion;
+        user.updatedAt = prevUserState.updatedAt;
+        serverDbState.data.auditLogs = serverDbState.data.auditLogs.filter((al: any) => al.id !== resetAuditLog.id);
+        throw persistErr;
+      }
+
+      for (const [token, sess] of activeServerSessions.entries()) {
+        if (sess.userId === id) {
+          activeServerSessions.delete(token);
+        }
+      }
+      deleteUserSessionsFromDb(id);
+      saveServerSessions();
 
       return res.json({
         success: true,
@@ -553,6 +721,7 @@ export function createAdminRouter(): express.Router {
       if (denyIfModuleNotAllowed(auth, res, 'users', 'POST /api/users/:id/revoke-sessions')) return;
 
       const serverDbState = getServerDbState();
+      const roles = serverDbState.data?.roles || [];
       const { id } = req.params;
       const user = serverDbState.data.users?.find((u: any) => u.id === id);
       if (!user) {
@@ -565,9 +734,9 @@ export function createAdminRouter(): express.Router {
           return res.status(403).json({ error: '403 Prohibido: Violación de aislamiento multiempresa.' });
         }
         if (
-          !hasPermission(auth.actor, 'users.revoke_sessions') &&
-          !hasPermission(auth.actor, 'users.update') &&
-          !hasPermission(auth.actor, 'roles.manage')
+          !actorHasDynamicPermission(auth.actor, 'users.revoke_sessions', roles) &&
+          !actorHasDynamicPermission(auth.actor, 'users.update', roles) &&
+          !actorHasDynamicPermission(auth.actor, 'roles.manage', roles)
         ) {
           return res.status(403).json({ error: '403 Prohibido: Permiso insuficiente para revocar sesiones.' });
         }
@@ -579,19 +748,26 @@ export function createAdminRouter(): express.Router {
             error: `403 Prohibido: Jerarquía insuficiente para revocar sesiones de ${user.roleId}.`,
           });
         }
+        if (auth.actor.role === 'ADMIN_SUCURSAL' && (auth.actor.allowedBranchIds || []).length > 0) {
+          const targetBranchIds = (serverDbState.data.userBranches || [])
+            .filter((ub: any) => ub.userId === user.id)
+            .map((ub: any) => ub.branchId);
+          const sharesBranch =
+            targetBranchIds.length === 0 ||
+            targetBranchIds.some((bid: string) => auth.actor!.allowedBranchIds.includes(bid));
+          if (!sharesBranch) {
+            return res.status(403).json({
+              error: '403 Prohibido: Solo puede revocar sesiones de usuarios de sus sucursales asignadas.',
+            });
+          }
+        }
       }
 
+      const prevRevokedAt = user.sessionRevokedAt;
+      const prevPermVer = user.permissionsVersion;
       const now = new Date().toISOString();
       user.sessionRevokedAt = now;
       user.permissionsVersion = (user.permissionsVersion || 0) + 1;
-
-      for (const [token, sess] of activeServerSessions.entries()) {
-        if (sess.userId === id) {
-          activeServerSessions.delete(token);
-        }
-      }
-      deleteUserSessionsFromDb(id);
-      saveServerSessions();
 
       const revokeAuditLog = {
         id: crypto.randomUUID(),
@@ -610,7 +786,23 @@ export function createAdminRouter(): express.Router {
       };
       serverDbState.data.auditLogs.unshift(revokeAuditLog);
 
-      await saveDatabaseState({ upserts: { users: [user], auditLogs: [revokeAuditLog] } });
+      try {
+        await saveDatabaseStateStrict({ upserts: { users: [user], auditLogs: [revokeAuditLog] } });
+      } catch (persistErr) {
+        user.sessionRevokedAt = prevRevokedAt;
+        user.permissionsVersion = prevPermVer;
+        serverDbState.data.auditLogs = serverDbState.data.auditLogs.filter((al: any) => al.id !== revokeAuditLog.id);
+        throw persistErr;
+      }
+
+      for (const [token, sess] of activeServerSessions.entries()) {
+        if (sess.userId === id) {
+          activeServerSessions.delete(token);
+        }
+      }
+      deleteUserSessionsFromDb(id);
+      saveServerSessions();
+
       return res.json({ success: true, revokedAt: now });
     } catch (err) {
       return next(err);

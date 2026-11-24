@@ -418,10 +418,20 @@ export function filterStateForTenant(
   );
   const userIds = new Set(users.map((u: any) => u.id));
 
+  const clinicalExplicitlyRevoked =
+    Array.isArray(actor.revokedPermissions) && actor.revokedPermissions.includes('clinical.view');
+  const clinicalRestricted =
+    Array.isArray(actor.assignedRestrictions) &&
+    (actor.assignedRestrictions.includes('rest.mspbs.restrict_clinical_records_access') ||
+      actor.assignedRestrictions.includes('restrict_clinical_records_access'));
+
   const canSeeClinical =
-    CLINICAL_ACCESS_ROLES.has(roleId) ||
-    actorHasDynamicPermission(actor, 'clinical.view', roles) ||
-    actorHasDynamicPermission(actor, 'odontogram.manage', roles);
+    isSuperAdminRole(roleId) ||
+    (!clinicalExplicitlyRevoked &&
+      !clinicalRestricted &&
+      (CLINICAL_ACCESS_ROLES.has(roleId) ||
+        actorHasDynamicPermission(actor, 'clinical.view', roles) ||
+        actorHasDynamicPermission(actor, 'odontogram.manage', roles)));
 
   const patients = (d.patients || [])
     .filter((p: any) => p.organizationId === orgId)

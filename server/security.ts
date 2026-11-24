@@ -90,7 +90,7 @@ export function setSessionCookie(
 ): void {
   const isHttps = isSecureRequest(req);
   const sameSite = isHttps ? 'None' : 'Lax';
-  const secureFlag = isHttps ? '; Secure' : '';
+  const secureFlag = isHttps ? '; Secure; Partitioned' : '';
   res.setHeader(
     'Set-Cookie',
     `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=${maxAgeSeconds}${secureFlag}`
@@ -100,7 +100,7 @@ export function setSessionCookie(
 export function clearSessionCookie(req: express.Request, res: express.Response): void {
   const isHttps = isSecureRequest(req);
   const sameSite = isHttps ? 'None' : 'Lax';
-  const secureFlag = isHttps ? '; Secure' : '';
+  const secureFlag = isHttps ? '; Secure; Partitioned' : '';
   res.setHeader(
     'Set-Cookie',
     `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=0${secureFlag}`
@@ -648,13 +648,47 @@ export function corsAndCsrfMiddleware(
 
   if (
     req.path.startsWith('/api/') &&
-    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) &&
-    origin &&
-    !isOriginAllowed(origin, req)
+    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)
   ) {
-    return res.status(403).json({ error: '403 Prohibido: Validación anti-CSRF fallida.' });
+    if (origin && !isOriginAllowed(origin, req)) {
+      return res.status(403).json({ error: '403 Prohibido: Validación anti-CSRF fallida.' });
+    }
+    if (!origin && req.headers.referer && req.headers.cookie?.includes(`${SESSION_COOKIE_NAME}=`)) {
+      try {
+        const refOrigin = new URL(String(req.headers.referer)).origin;
+        if (!isOriginAllowed(refOrigin, req)) {
+          return res.status(403).json({ error: '403 Prohibido: Origen de referencia no autorizado.' });
+        }
+      } catch {
+        return res.status(403).json({ error: '403 Prohibido: Cabecera de referencia inválida.' });
+      }
+    }
   }
   next();
+}
+
+export function pruneExpiredSecurityMaps(now = Date.now()): void {
+  if (apiRateLimitMap.size > 500) {
+    for (const [key, bucket] of apiRateLimitMap.entries()) {
+      if (bucket.resetAt <= now) {
+        apiRateLimitMap.delete(key);
+      }
+    }
+  }
+  if (failedAttemptsMap.size > 500) {
+    for (const [key, rec] of failedAttemptsMap.entries()) {
+      if (rec.lockedUntil && rec.lockedUntil <= now) {
+        failedAttemptsMap.delete(key);
+      }
+    }
+  }
+  if (passwordRecoveryTokens.size > 500) {
+    for (const [tok, rec] of passwordRecoveryTokens.entries()) {
+      if (rec.used || rec.expiresAt <= now) {
+        passwordRecoveryTokens.delete(tok);
+      }
+    }
+  }
 }
 
 export function apiRateLimitMiddleware(
@@ -664,6 +698,7 @@ export function apiRateLimitMiddleware(
 ) {
   const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
   const now = Date.now();
+  pruneExpiredSecurityMaps(now);
   const bucket = apiRateLimitMap.get(clientIp);
   if (!bucket || bucket.resetAt <= now) {
     apiRateLimitMap.set(clientIp, { count: 1, resetAt: now + 60_000 });

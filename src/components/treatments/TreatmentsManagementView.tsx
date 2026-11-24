@@ -15,13 +15,15 @@ import {
   DollarSign,
   TrendingUp,
   Tag,
+  ChevronLeft,
   ChevronRight,
   ShieldAlert,
   ArrowUpRight,
   Edit2,
   Shield,
   ShieldCheck,
-  Landmark
+  Landmark,
+  FileSpreadsheet
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG, validatePygPrice } from '../../db/seeds/paraguay-catalogs.ts';
@@ -30,6 +32,7 @@ import { RecordTreatmentPaymentModal } from './RecordTreatmentPaymentModal.tsx';
 import { CreateServiceModal } from './CreateServiceModal.tsx';
 import { InsurancePlansTab } from './InsurancePlansTab.tsx';
 import { InsuranceClaimsTab } from './InsuranceClaimsTab.tsx';
+import { HistoricalImportModal } from '../shared/HistoricalImportModal.tsx';
 import { useAuth } from '../../auth/authContext.tsx';
 import { hasBackendSession, patchAuthoritativeAction } from '../../services/authoritativeApi.ts';
 
@@ -64,8 +67,11 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
   const [catalogSearch, setCatalogSearch] = useState<string>('');
   const [branchPricingSearch, setBranchPricingSearch] = useState<string>('');
 
-  // Modals
+  // Modals & pagination
   const [isCreateTreatmentOpen, setIsCreateTreatmentOpen] = useState(!!initialPatientId);
+  const [isHistoricalImportOpen, setIsHistoricalImportOpen] = useState(false);
+  const [treatmentsPage, setTreatmentsPage] = useState(1);
+  const TREATMENTS_PAGE_SIZE = 20;
   const [selectedTreatmentForPayment, setSelectedTreatmentForPayment] = useState<any>(null);
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
   const [serviceToEdit, setServiceToEdit] = useState<any>(null);
@@ -107,6 +113,16 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
       return true;
     });
   }, [storeTick, snapshot.treatments, snapshot.patients, treatmentStatusFilter, treatmentModalityFilter, selectedBranchFilter, searchQuery]);
+
+  const treatmentsTotalPages = Math.max(1, Math.ceil(filteredTreatments.length / TREATMENTS_PAGE_SIZE));
+  const paginatedTreatments = useMemo(() => {
+    const start = (treatmentsPage - 1) * TREATMENTS_PAGE_SIZE;
+    return filteredTreatments.slice(start, start + TREATMENTS_PAGE_SIZE);
+  }, [filteredTreatments, treatmentsPage]);
+
+  useEffect(() => {
+    setTreatmentsPage(1);
+  }, [treatmentStatusFilter, treatmentModalityFilter, selectedBranchFilter, searchQuery]);
 
   // Treatments Financial Metrics (excluye tratamientos cancelados)
   const metrics = useMemo(() => {
@@ -237,15 +253,25 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {activeTab === 'treatments' && (
-              <button
-                onClick={() => setIsCreateTreatmentOpen(true)}
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Nuevo Plan de Tratamiento</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsHistoricalImportOpen(true)}
+                  className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>Importar Histórico (CSV)</span>
+                </button>
+                <button
+                  onClick={() => setIsCreateTreatmentOpen(true)}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Nuevo Plan de Tratamiento</span>
+                </button>
+              </>
             )}
 
             {activeTab === 'catalog' && (
@@ -495,7 +521,7 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
                 <p className="text-sm font-semibold">No se encontraron tratamientos con los filtros seleccionados.</p>
               </div>
             ) : (
-              filteredTreatments.map((t) => {
+              paginatedTreatments.map((t) => {
                 const pat = snapshot.patients.find((p) => p.id === t.patientId);
                 const branch = snapshot.branches.find((b) => b.id === t.branchId);
                 const doc = snapshot.users.find((u) => u.id === t.odontologistId);
@@ -630,6 +656,39 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
                   </div>
                 );
               })
+            )}
+
+            {treatmentsTotalPages > 1 && (
+              <div className="bg-white rounded-2xl px-4 py-3 border border-slate-200 flex items-center justify-between text-xs text-slate-600">
+                <span>
+                  Mostrando {(treatmentsPage - 1) * TREATMENTS_PAGE_SIZE + 1}–
+                  {Math.min(treatmentsPage * TREATMENTS_PAGE_SIZE, filteredTreatments.length)} de{' '}
+                  <strong>{filteredTreatments.length}</strong> tratamientos
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={treatmentsPage <= 1}
+                    onClick={() => setTreatmentsPage((p) => Math.max(1, p - 1))}
+                    className="px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-40 inline-flex items-center gap-1 font-semibold"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <span>Anterior</span>
+                  </button>
+                  <span className="font-bold text-slate-800">
+                    {treatmentsPage} / {treatmentsTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={treatmentsPage >= treatmentsTotalPages}
+                    onClick={() => setTreatmentsPage((p) => Math.min(treatmentsTotalPages, p + 1))}
+                    className="px-2.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-40 inline-flex items-center gap-1 font-semibold"
+                  >
+                    <span>Siguiente</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </>
@@ -905,6 +964,16 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
         }}
         serviceToEdit={serviceToEdit}
         onSaved={(msg) => {
+          setActionError(null);
+          setSuccessMessage(msg);
+        }}
+      />
+
+      <HistoricalImportModal
+        isOpen={isHistoricalImportOpen}
+        onClose={() => setIsHistoricalImportOpen(false)}
+        defaultEntity="treatments"
+        onImportCompleted={(msg) => {
           setActionError(null);
           setSuccessMessage(msg);
         }}

@@ -56,6 +56,7 @@ export function getSyncRecordKey(collection: string, item: any): string {
 
 export class StoreSyncEngine {
   public serverStateVersion: number = 1;
+  public serverPermissionsVersion: number | null = null;
   public hasSyncedFromServer: boolean = false;
   public lastSyncedSnapshots: Map<string, Map<string, string>> = new Map();
   public lastSyncedActiveOrgId: string | null = null;
@@ -72,12 +73,14 @@ export class StoreSyncEngine {
 
   public resetTracking(): void {
     this.hasSyncedFromServer = false;
+    this.serverPermissionsVersion = null;
     this.lastSyncedSnapshots.clear();
     this.lastSyncedActiveOrgId = null;
   }
 
   public resetHasSynced(): void {
     this.hasSyncedFromServer = false;
+    this.serverPermissionsVersion = null;
   }
 
   public bumpMutationEpoch(): void {
@@ -394,7 +397,14 @@ export class StoreSyncEngine {
       if (token && !token.startsWith('httpOnly_')) {
         headers.Authorization = `Bearer ${token}`;
       }
-      const res = await fetch(`${baseUrl}/api/db/state`, {
+      const query = new URLSearchParams({ auditLimit: '100' });
+      if (this.hasSyncedFromServer && Number.isFinite(this.serverStateVersion)) {
+        query.set('sinceVersion', String(this.serverStateVersion));
+        if (this.serverPermissionsVersion !== null) {
+          query.set('sincePermVersion', String(this.serverPermissionsVersion));
+        }
+      }
+      const res = await fetch(`${baseUrl}/api/db/state?${query.toString()}`, {
         method: 'GET',
         credentials: 'include',
         headers,
@@ -404,9 +414,21 @@ export class StoreSyncEngine {
         if (this.mutationEpoch !== epochBeforeGet) {
           return false;
         }
+        if (payload?.unchanged === true) {
+          if (typeof payload.stateVersion === 'number' && Number.isFinite(payload.stateVersion)) {
+            this.serverStateVersion = payload.stateVersion;
+          }
+          if (typeof payload.permissionsVersion === 'number' && Number.isFinite(payload.permissionsVersion)) {
+            this.serverPermissionsVersion = payload.permissionsVersion;
+          }
+          return true;
+        }
         if (payload && payload.data && payload.organizationsList && Array.isArray(payload.organizationsList)) {
           this.ctx.setData(payload.data);
           this.ctx.setOrganizationsList(payload.organizationsList);
+          if (typeof payload.permissionsVersion === 'number' && Number.isFinite(payload.permissionsVersion)) {
+            this.serverPermissionsVersion = payload.permissionsVersion;
+          }
           const data = this.ctx.getData();
           const orgsList = this.ctx.getOrganizationsList();
 

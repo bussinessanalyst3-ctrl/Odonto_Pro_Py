@@ -15,6 +15,7 @@ import { createAdminRouter } from './server/routes/adminRoutes.ts';
 import { createPatientsPayrollRouter } from './server/routes/patientsPayrollRoutes.ts';
 import { createClinicalBillingRouter } from './server/routes/clinicalBillingRoutes.ts';
 import { createOwnerRouter } from './server/routes/ownerRoutes.ts';
+import { createHistoricalImportRouter } from './server/routes/historicalImportRoutes.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,6 +41,7 @@ export async function createConfiguredApp(options?: { skipFrontend?: boolean }):
   app.use('/api', createAdminRouter());
   app.use('/api', createPatientsPayrollRouter());
   app.use('/api', createClinicalBillingRouter());
+  app.use('/api', createHistoricalImportRouter());
 
   // Manejador centralizado de errores para /api/* (incluye JSON malformado y errores no controlados)
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

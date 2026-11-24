@@ -18,6 +18,8 @@ import {
 import { dbStore, BackendActorContext } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { SYSTEM_PERMISSION_MODULES, PermissionModuleGroup, canManageRole, isSuperAdminRole } from '../../security/rbacHierarchy.ts';
+import { getApiBaseUrl } from '../../config/apiConfig.ts';
+import { hasBackendSession } from '../../services/authoritativeApi.ts';
 
 interface RolePermissionsModalProps {
   isOpen: boolean;
@@ -43,7 +45,9 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
 
   // Mapa local de permisos por rol: { [roleId]: string[] }
   const [rolePermissionsMap, setRolePermissionsMap] = useState<Record<string, string[]>>({});
+  const [initialPermissionsMap, setInitialPermissionsMap] = useState<Record<string, string[]>>({});
   const [hasChanges, setHasChanges] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -55,10 +59,12 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
 
     const initialMap: Record<string, string[]> = {};
     currentRoles.forEach((r: any) => {
-      initialMap[r.id] = dbStore.getRolePermissions(r.id);
+      initialMap[r.id] = [...dbStore.getRolePermissions(r.id)];
     });
     setRolePermissionsMap(initialMap);
+    setInitialPermissionsMap(initialMap);
     setHasChanges(false);
+    setIsSaving(false);
     setNotification(null);
     setErrorMsg(null);
 
@@ -80,12 +86,10 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
   const isSuperAdminSelected = selectedRoleId === 'SUPER_ADMIN';
   const isSuperAdminActor = effectiveActor?.role === 'SUPER_ADMIN';
 
-  // Un rol es configurable si y solo si el actor tiene jerarquía estricta sobre él
+  // Los roles globales del sistema solo son editables por SUPER_ADMIN (coherente con el backend)
   const isRoleConfigurable = (roleId: string): boolean => {
     if (roleId === 'SUPER_ADMIN') return false; // Inmutable
-    if (isSuperAdminActor) return true;
-    if (!effectiveActor) return false;
-    return canManageRole(effectiveActor.role, roleId);
+    return isSuperAdminActor;
   };
 
   const isSelectedRoleConfigurable = isRoleConfigurable(selectedRoleId);
@@ -180,41 +184,130 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
     setHasChanges(true);
   };
 
-  // Guardar matriz de permisos en dbStore
-  const handleSaveChanges = () => {
+  // Guardar matriz de permisos de forma autoritativa en servidor y PostgreSQL
+  const handleSaveChanges = async () => {
+    if (!isSuperAdminActor) {
+      setErrorMsg('Solo el Super Administrador puede modificar la matriz global de roles.');
+      return;
+    }
     setErrorMsg(null);
+    setIsSaving(true);
     try {
-      // Guardar únicamente los roles modificados sobre los que el usuario tiene jerarquía
-      const allowedRolesToSave = Object.keys(rolePermissionsMap).filter(isRoleConfigurable);
-      allowedRolesToSave.forEach((roleId) => {
-        dbStore.updateRolePermissions(roleId, rolePermissionsMap[roleId], effectiveActor);
+      const allowedRolesToSave = Object.keys(rolePermissionsMap).filter((roleId) => {
+        if (!isRoleConfigurable(roleId)) return false;
+        const prev = [...(initialPermissionsMap[roleId] || [])].sort();
+        const curr = [...(rolePermissionsMap[roleId] || [])].sort();
+        return prev.length !== curr.length || prev.some((v, idx) => v !== curr[idx]);
       });
 
-      setHasChanges(false);
-      setNotification('¡Matriz de permisos y autoridad operacional guardada y sincronizada exitosamente!');
-      setTimeout(() => setNotification(null), 4000);
+      if (allowedRolesToSave.length === 0) {
+        setHasChanges(false);
+        return;
+      }
+
+      if (hasBackendSession()) {
+        const baseUrl = getApiBaseUrl();
+        const token = dbStore.getSessionToken();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token && !token.startsWith('httpOnly_')) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+
+        let totalAffectedUsers = 0;
+        for (const roleId of allowedRolesToSave) {
+          const res = await fetch(`${baseUrl}/api/roles/${encodeURIComponent(roleId)}/permissions`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers,
+            body: JSON.stringify({ permissions: rolePermissionsMap[roleId] }),
+          });
+          const payload = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            throw new Error(payload?.error || `No se pudo guardar los permisos del rol ${roleId}.`);
+          }
+          totalAffectedUsers += Number(payload?.affectedUsersCount || 0);
+          if (payload?.upserts) {
+            dbStore.applyAuthoritativeSync(payload.upserts, payload.stateVersion);
+          }
+        }
+
+        const refreshedMap: Record<string, string[]> = {};
+        dbStore.getRoles().forEach((r: any) => {
+          refreshedMap[r.id] = [...dbStore.getRolePermissions(r.id)];
+        });
+        setRolePermissionsMap(refreshedMap);
+        setInitialPermissionsMap(refreshedMap);
+        setHasChanges(false);
+        setNotification(
+          totalAffectedUsers > 0
+            ? `Matriz guardada en el servidor. ${totalAffectedUsers} usuario(s) recibirán los cambios automáticamente sin cerrar sesión.`
+            : 'Matriz de permisos guardada correctamente en la base de datos.'
+        );
+      } else {
+        allowedRolesToSave.forEach((roleId) => {
+          dbStore.updateRolePermissions(roleId, rolePermissionsMap[roleId], effectiveActor);
+        });
+        setInitialPermissionsMap({ ...rolePermissionsMap });
+        setHasChanges(false);
+        setNotification('Matriz de permisos guardada exitosamente.');
+      }
+      setTimeout(() => setNotification(null), 5000);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error al persistir la matriz de permisos.');
+      setErrorMsg(err?.message || 'Error al guardar la matriz de permisos.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   // Restablecer valores recomendados MSPBS para el rol activo
-  const handleResetRoleDefaults = () => {
+  const handleResetRoleDefaults = async () => {
     if (!isSelectedRoleConfigurable) {
-      setErrorMsg('No tiene jerarquía suficiente para restablecer este rol.');
+      setErrorMsg('Solo el Super Administrador puede restablecer permisos de roles del sistema.');
       return;
     }
+    setErrorMsg(null);
+    setIsSaving(true);
     try {
-      const restored = dbStore.resetRolePermissionsToDefault(selectedRoleId, effectiveActor);
+      let restored: string[] = [];
+      if (hasBackendSession()) {
+        const baseUrl = getApiBaseUrl();
+        const token = dbStore.getSessionToken();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token && !token.startsWith('httpOnly_')) {
+          headers.Authorization = `Bearer ${token}`;
+        }
+        const res = await fetch(`${baseUrl}/api/roles/${encodeURIComponent(selectedRoleId)}/permissions`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers,
+          body: JSON.stringify({ resetToDefaults: true }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(payload?.error || 'No se pudo restablecer el rol en el servidor.');
+        }
+        restored = Array.isArray(payload?.role?.permissions) ? payload.role.permissions : [];
+        if (payload?.upserts) {
+          dbStore.applyAuthoritativeSync(payload.upserts, payload.stateVersion);
+        }
+      } else {
+        restored = dbStore.resetRolePermissionsToDefault(selectedRoleId, effectiveActor);
+      }
       setRolePermissionsMap((prev) => ({
         ...prev,
         [selectedRoleId]: restored,
       }));
+      setInitialPermissionsMap((prev) => ({
+        ...prev,
+        [selectedRoleId]: restored,
+      }));
       setHasChanges(false);
-      setNotification(`Permisos del rol "${currentRoleObj?.name}" restablecidos a las normativas del MSPBS.`);
+      setNotification(`Permisos del rol "${currentRoleObj?.name}" restablecidos correctamente.`);
       setTimeout(() => setNotification(null), 4000);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error al restablecer permisos.');
+      setErrorMsg(err?.message || 'Error al restablecer permisos.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -810,11 +903,11 @@ export const RolePermissionsModal: React.FC<RolePermissionsModalProps> = ({ isOp
             <button
               type="button"
               onClick={handleSaveChanges}
-              disabled={!hasChanges}
+              disabled={!hasChanges || isSaving || !isSuperAdminActor}
               className="px-5 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50 rounded-xl transition-all shadow-md shadow-teal-700/20 flex items-center gap-1.5 cursor-pointer"
             >
               <Save className="h-3.5 w-3.5" />
-              <span>Guardar Matriz de Permisos</span>
+              <span>{isSaving ? 'Guardando...' : 'Guardar Matriz de Permisos'}</span>
             </button>
           </div>
         </div>

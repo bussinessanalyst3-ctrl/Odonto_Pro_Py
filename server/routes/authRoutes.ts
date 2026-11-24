@@ -1,7 +1,8 @@
 import express from 'express';
 import crypto from 'crypto';
 import { createPbkdf2Hash, verifyPbkdf2Hash } from '../crypto.ts';
-import { getServerDbState, saveDatabaseState } from '../stateStore.ts';
+import { getServerDbState, saveDatabaseState, saveDatabaseStateStrict } from '../stateStore.ts';
+import { isSuperAdminRole } from '../../src/security/rbacHierarchy.ts';
 import {
   activeServerSessions,
   authenticateServerRequest,
@@ -18,6 +19,7 @@ import {
   saveServerSessions,
   ServerSessionRecord,
   setSessionCookie,
+  updateUserSessionsPermissionsVersion,
 } from '../security.ts';
 
 export function createAuthRouter(): express.Router {
@@ -169,7 +171,26 @@ export function createAuthRouter(): express.Router {
       saveServerSessions();
 
       user.lastLoginAt = issuedAt;
-      await saveDatabaseState({ upserts: { users: [user] } });
+      const loginAuditLog = {
+        id: crypto.randomUUID(),
+        organizationId: user.organizationId,
+        branchId: defaultBranch || null,
+        userId: user.id,
+        action: 'LOGIN_SUCCESS',
+        entity: 'USER_AUTH',
+        entityId: user.id,
+        ipAddress: clientIp,
+        userAgent: req.headers['user-agent'] || 'API Client',
+        oldValues: null,
+        newValues: { role: user.roleId, branchId: defaultBranch, rememberMe: Boolean(rememberMe) },
+        description: `Inicio de sesión exitoso de ${user.firstName} ${user.lastName} (${user.roleId})`,
+        createdAt: issuedAt,
+      };
+      if (!Array.isArray(serverDbState.data.auditLogs)) {
+        serverDbState.data.auditLogs = [];
+      }
+      serverDbState.data.auditLogs.unshift(loginAuditLog);
+      await saveDatabaseState({ upserts: { users: [user], auditLogs: [loginAuditLog] } });
 
       setSessionCookie(req, res, sessionToken, maxAgeSeconds);
       const safeSession = buildSafeSessionPayload(
@@ -252,6 +273,82 @@ export function createAuthRouter(): express.Router {
     });
   });
 
+  // POST /api/auth/switch-branch - Persiste la sucursal activa de la sesión en servidor y PostgreSQL
+  router.post('/switch-branch', async (req, res, next) => {
+    try {
+      const auth = authenticateServerRequest(req);
+      if (!auth.authenticated || !auth.user || !auth.sessionData || !auth.token || !auth.actor) {
+        return res.status(auth.statusCode || 401).json({ error: auth.error || '401 No autorizado' });
+      }
+
+      const branchId = String(req.body?.branchId || '').trim();
+      if (!branchId) {
+        return res.status(400).json({ error: 'Debe indicar la sucursal a seleccionar.' });
+      }
+
+      const serverDbState = getServerDbState();
+      const isSuperAdmin = isSuperAdminRole(auth.user.roleId);
+      const targetBranch = (serverDbState.data.branches || []).find((b: any) => b.id === branchId);
+      if (!targetBranch) {
+        return res.status(404).json({ error: 'La sucursal seleccionada no existe.' });
+      }
+
+      if (!isSuperAdmin) {
+        if (targetBranch.organizationId !== auth.actor.organizationId) {
+          return res.status(403).json({ error: '403 Prohibido: No puede acceder a una sucursal de otra clínica.' });
+        }
+        const allowed = auth.actor.allowedBranchIds || [];
+        if (allowed.length > 0 && !allowed.includes(branchId)) {
+          return res.status(403).json({
+            error: '403 Prohibido: Su cuenta no tiene asignada la sucursal seleccionada.',
+          });
+        }
+      }
+
+      const previousBranchId = auth.sessionData.branchId;
+      auth.sessionData.branchId = branchId;
+      persistSessionToDb(auth.token, auth.sessionData);
+      saveServerSessions();
+
+      const nowIso = new Date().toISOString();
+      const switchAuditLog = {
+        id: crypto.randomUUID(),
+        organizationId: targetBranch.organizationId || auth.user.organizationId,
+        branchId,
+        userId: auth.user.id,
+        action: 'BRANCH_SWITCH',
+        entity: 'USER_AUTH',
+        entityId: auth.user.id,
+        ipAddress: req.ip || '127.0.0.1',
+        userAgent: req.headers['user-agent'] || 'Backend API',
+        oldValues: { branchId: previousBranchId },
+        newValues: { branchId, branchName: targetBranch.name },
+        description: `Cambio de sucursal activa a ${targetBranch.name}`,
+        createdAt: nowIso,
+      };
+      if (!Array.isArray(serverDbState.data.auditLogs)) {
+        serverDbState.data.auditLogs = [];
+      }
+      serverDbState.data.auditLogs.unshift(switchAuditLog);
+      await saveDatabaseState({ upserts: { auditLogs: [switchAuditLog] } });
+
+      const safeSession = buildSafeSessionPayload(
+        auth.user,
+        auth.token,
+        auth.sessionData.issuedAt,
+        auth.sessionData.expiresAt,
+        branchId
+      );
+
+      return res.json({
+        success: true,
+        session: safeSession,
+      });
+    } catch (err) {
+      return next(err);
+    }
+  });
+
   // GET /api/auth/permissions-version - Chequeo liviano de versión de permisos
   router.get('/permissions-version', (req, res) => {
     const auth = authenticateServerRequest(req);
@@ -282,6 +379,9 @@ export function createAuthRouter(): express.Router {
       if (newPassword.length < 8) {
         return res.status(400).json({ error: 'La nueva contraseña debe tener como mínimo 8 caracteres.' });
       }
+      if (currentPassword && currentPassword === newPassword) {
+        return res.status(400).json({ error: 'La nueva contraseña debe ser diferente de la contraseña actual.' });
+      }
 
       const user = auth.user;
       if (user.passwordHash && user.passwordSalt) {
@@ -295,6 +395,14 @@ export function createAuthRouter(): express.Router {
           return res.status(400).json({ error: 'La contraseña actual ingresada es incorrecta.' });
         }
       }
+
+      const prevPasswordState = {
+        passwordHash: user.passwordHash,
+        passwordSalt: user.passwordSalt,
+        passwordIterations: user.passwordIterations,
+        permissionsVersion: user.permissionsVersion,
+        updatedAt: user.updatedAt,
+      };
 
       const newHashRecord = createPbkdf2Hash(newPassword, 100000);
       user.passwordHash = newHashRecord.hash;
@@ -321,16 +429,32 @@ export function createAuthRouter(): express.Router {
       };
       serverDbState.data.auditLogs?.unshift(pwdAuditLog);
 
+      try {
+        await saveDatabaseStateStrict({ upserts: { users: [user], auditLogs: [pwdAuditLog] } });
+      } catch (persistErr) {
+        user.passwordHash = prevPasswordState.passwordHash;
+        user.passwordSalt = prevPasswordState.passwordSalt;
+        user.passwordIterations = prevPasswordState.passwordIterations;
+        user.permissionsVersion = prevPasswordState.permissionsVersion;
+        user.updatedAt = prevPasswordState.updatedAt;
+        serverDbState.data.auditLogs = (serverDbState.data.auditLogs || []).filter((al: any) => al.id !== pwdAuditLog.id);
+        throw persistErr;
+      }
+
       for (const [tok, sess] of activeServerSessions.entries()) {
         if (sess.userId === user.id && tok !== auth.token) {
           activeServerSessions.delete(tok);
           deleteSessionFromDb(tok);
         }
       }
+      await updateUserSessionsPermissionsVersion(user.id, user.permissionsVersion, user.roleId);
       saveServerSessions();
-      await saveDatabaseState({ upserts: { users: [user], auditLogs: [pwdAuditLog] } });
 
-      return res.json({ success: true, message: 'Su contraseña ha sido actualizada con éxito.' });
+      return res.json({
+        success: true,
+        permissionsVersion: user.permissionsVersion,
+        message: 'Su contraseña ha sido actualizada con éxito.',
+      });
     } catch (err) {
       return next(err);
     }
@@ -394,19 +518,34 @@ export function createAuthRouter(): express.Router {
   router.post('/reset-password', async (req, res, next) => {
     try {
       const serverDbState = getServerDbState();
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      const resetLockKey = `reset_ip_${clientIp}`;
+      const now = Date.now();
+      const lockRec = failedAttemptsMap.get(resetLockKey);
+      if (lockRec?.lockedUntil && lockRec.lockedUntil > now) {
+        const remainingMinutes = Math.max(1, Math.ceil((lockRec.lockedUntil - now) / 60000));
+        return res.status(429).json({
+          error: `Demasiados intentos inválidos de restablecimiento. Intente nuevamente en ${remainingMinutes} minuto(s).`,
+        });
+      }
+
       const { resetToken, newPassword } = req.body || {};
       if (!resetToken || !newPassword) {
         return res.status(400).json({ error: 'Datos insuficientes para el restablecimiento.' });
       }
 
-      const tokenRecord = passwordRecoveryTokens.get(resetToken);
-      if (!tokenRecord || tokenRecord.used || tokenRecord.expiresAt < Date.now()) {
+      const tokenRecord = passwordRecoveryTokens.get(String(resetToken));
+      if (!tokenRecord || tokenRecord.used || tokenRecord.expiresAt < now) {
+        const expired = Boolean(lockRec?.lockedUntil && lockRec.lockedUntil <= now);
+        const nextCount = expired ? 1 : (lockRec?.count || 0) + 1;
+        const lockedUntil = nextCount >= MAX_FAILED_ATTEMPTS ? now + LOCKOUT_DURATION_MS : null;
+        failedAttemptsMap.set(resetLockKey, { count: nextCount, lockedUntil });
         return res.status(400).json({
           error: 'El enlace de recuperación es inválido o ha expirado. Por favor solicite uno nuevo.',
         });
       }
 
-      if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      if (typeof newPassword !== 'string' || newPassword.trim().length < 8) {
         return res.status(400).json({
           error: 'La nueva contraseña debe tener como mínimo 8 caracteres.',
         });
@@ -417,15 +556,57 @@ export function createAuthRouter(): express.Router {
         return res.status(404).json({ error: 'Usuario no encontrado.' });
       }
 
-      const newHashRecord = createPbkdf2Hash(newPassword, 100000);
+      const prevState = {
+        passwordHash: user.passwordHash,
+        passwordSalt: user.passwordSalt,
+        passwordIterations: user.passwordIterations,
+        permissionsVersion: user.permissionsVersion,
+        updatedAt: user.updatedAt,
+      };
+
+      const newHashRecord = createPbkdf2Hash(newPassword.trim(), 100000);
+      const nowIso = new Date().toISOString();
       user.passwordHash = newHashRecord.hash;
       user.passwordSalt = newHashRecord.salt;
       user.passwordIterations = newHashRecord.iterations;
       user.permissionsVersion = (user.permissionsVersion || 1) + 1;
-      user.updatedAt = new Date().toISOString();
+      user.updatedAt = nowIso;
 
+      const resetCompletedLog = {
+        id: crypto.randomUUID(),
+        organizationId: user.organizationId,
+        branchId: null,
+        userId: user.id,
+        action: 'PASSWORD_RESET_COMPLETED',
+        entity: 'USER_AUTH',
+        entityId: user.id,
+        ipAddress: clientIp,
+        userAgent: req.headers['user-agent'] || 'Backend API',
+        oldValues: null,
+        newValues: { resetAt: nowIso },
+        description: `Restablecimiento de contraseña completado con token temporal para ${user.firstName} ${user.lastName}`,
+        createdAt: nowIso,
+      };
+      if (!Array.isArray(serverDbState.data.auditLogs)) {
+        serverDbState.data.auditLogs = [];
+      }
+      serverDbState.data.auditLogs.unshift(resetCompletedLog);
+
+      try {
+        await saveDatabaseStateStrict({ upserts: { users: [user], auditLogs: [resetCompletedLog] } });
+      } catch (persistErr) {
+        user.passwordHash = prevState.passwordHash;
+        user.passwordSalt = prevState.passwordSalt;
+        user.passwordIterations = prevState.passwordIterations;
+        user.permissionsVersion = prevState.permissionsVersion;
+        user.updatedAt = prevState.updatedAt;
+        serverDbState.data.auditLogs = serverDbState.data.auditLogs.filter((al: any) => al.id !== resetCompletedLog.id);
+        throw persistErr;
+      }
+
+      failedAttemptsMap.delete(resetLockKey);
       tokenRecord.used = true;
-      passwordRecoveryTokens.delete(resetToken);
+      passwordRecoveryTokens.delete(String(resetToken));
 
       for (const [token, session] of activeServerSessions.entries()) {
         if (session.userId === user.id) {
@@ -433,9 +614,7 @@ export function createAuthRouter(): express.Router {
         }
       }
       deleteUserSessionsFromDb(user.id);
-
       saveServerSessions();
-      await saveDatabaseState({ upserts: { users: [user] } });
 
       return res.json({
         success: true,

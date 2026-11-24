@@ -280,7 +280,7 @@ export function createDbSyncRouter(): express.Router {
     });
   });
 
-  // GET /api/db/state
+  // GET /api/db/state (soporta sinceVersion para polling liviano y auditLimit para clínicas con +1 año de datos)
   router.get('/db/state', (req, res) => {
     const auth = authenticateServerRequest(req);
     if (!auth.authenticated || !auth.actor || !auth.user) {
@@ -290,22 +290,50 @@ export function createDbSyncRouter(): express.Router {
     }
     const serverDbState = getServerDbState();
     const stateVersion = getServerStateVersion();
+    const userPermissionsVersion = Number(auth.user.permissionsVersion || 1);
+
+    const rawSinceVersion = req.query.sinceVersion !== undefined ? Number(req.query.sinceVersion) : NaN;
+    const rawSincePerm = req.query.sincePermVersion !== undefined ? Number(req.query.sincePermVersion) : NaN;
+    const permUnchanged = !Number.isFinite(rawSincePerm) || rawSincePerm === userPermissionsVersion;
+
+    if (Number.isFinite(rawSinceVersion) && rawSinceVersion === stateVersion && permUnchanged) {
+      return res.json({
+        unchanged: true,
+        stateVersion,
+        permissionsVersion: userPermissionsVersion,
+      });
+    }
+
+    const rawAuditLimit = req.query.auditLimit !== undefined ? Number.parseInt(String(req.query.auditLimit), 10) : NaN;
+    const auditLimit =
+      Number.isFinite(rawAuditLimit) && rawAuditLimit > 0 ? Math.min(rawAuditLimit, 1000) : null;
 
     if (isSuperAdminRole(auth.user.roleId)) {
+      const fullAuditLogs = serverDbState.data.auditLogs || [];
       return res.json({
         stateVersion,
+        permissionsVersion: userPermissionsVersion,
+        auditLogsTotal: fullAuditLogs.length,
         ...serverDbState,
         data: {
           ...serverDbState.data,
+          auditLogs: auditLimit !== null ? fullAuditLogs.slice(0, auditLimit) : fullAuditLogs,
           users: sanitizeUsersForClient(serverDbState.data.users || []),
         },
       });
     }
 
     const isolatedState = filterStateForTenant(serverDbState, auth.actor);
+    const tenantAuditLogs = isolatedState.data.auditLogs || [];
     return res.json({
       stateVersion,
+      permissionsVersion: userPermissionsVersion,
+      auditLogsTotal: tenantAuditLogs.length,
       ...isolatedState,
+      data: {
+        ...isolatedState.data,
+        auditLogs: auditLimit !== null ? tenantAuditLogs.slice(0, auditLimit) : tenantAuditLogs,
+      },
     });
   });
 
@@ -653,15 +681,35 @@ export function createDbSyncRouter(): express.Router {
 
           let item = { ...rawItem };
           if (col === 'users') {
-            if (!isSuperAdmin && isSuperAdminRole(item.roleId)) {
+            const existingTarget = existingUserMap.get(item.id);
+            if (!isSuperAdmin && (isSuperAdminRole(item.roleId) || (existingTarget && isSuperAdminRole(existingTarget.roleId)))) {
               return res.status(403).json({ error: '403 Prohibido: No puede crear o modificar cuentas de Super Administrador.' });
             }
-            if (!isSuperAdmin && item.id !== authUser.id && !canManageRole(actor.role, item.roleId)) {
-              return res.status(403).json({
-                error: `403 Prohibido: Jerarquía insuficiente para crear o editar un usuario con rol ${item.roleId}.`,
-              });
+            if (!isSuperAdmin && item.id !== authUser.id) {
+              if (!canManageRole(actor.role, item.roleId)) {
+                return res.status(403).json({
+                  error: `403 Prohibido: Jerarquía insuficiente para crear o editar un usuario con rol ${item.roleId}.`,
+                });
+              }
+              if (existingTarget && !canManageRole(actor.role, existingTarget.roleId)) {
+                return res.status(403).json({
+                  error: `403 Prohibido: Jerarquía insuficiente para modificar al usuario actual con rol ${existingTarget.roleId}.`,
+                });
+              }
+              if (actor.role === 'ADMIN_SUCURSAL' && existingTarget && (actor.allowedBranchIds || []).length > 0) {
+                const targetBranchIds = (cur.userBranches || [])
+                  .filter((ub: any) => ub.userId === existingTarget.id)
+                  .map((ub: any) => ub.branchId);
+                const sharesBranch =
+                  targetBranchIds.length === 0 ||
+                  targetBranchIds.some((bid: string) => actor.allowedBranchIds.includes(bid));
+                if (!sharesBranch) {
+                  return res.status(403).json({
+                    error: '403 Prohibido: Como Administrador de Sucursal solo puede modificar usuarios de sus sucursales asignadas.',
+                  });
+                }
+              }
             }
-            const existingTarget = existingUserMap.get(item.id);
             const sameList = (a: unknown, b: unknown): boolean => {
               const arrA = Array.isArray(a) ? Array.from(new Set(a.map((v) => String(v)))).sort() : [];
               const arrB = Array.isArray(b) ? Array.from(new Set(b.map((v) => String(v)))).sort() : [];

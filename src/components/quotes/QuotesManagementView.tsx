@@ -21,6 +21,8 @@ import {
   AlertCircle,
   Edit2,
   ShieldCheck,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface QuotesManagementViewProps {
@@ -39,6 +41,8 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [selectedStatus, setSelectedStatus] = useState<string>('TODOS');
+  const [currentPage, setCurrentPage] = useState(1);
+  const QUOTES_PAGE_SIZE = 20;
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [quoteToEditId, setQuoteToEditId] = useState<string | null>(null);
@@ -82,6 +86,16 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
     }
     return true;
   });
+
+  const quotesTotalPages = Math.max(1, Math.ceil(filteredQuotes.length / QUOTES_PAGE_SIZE));
+  const paginatedQuotes = filteredQuotes.slice(
+    (currentPage - 1) * QUOTES_PAGE_SIZE,
+    currentPage * QUOTES_PAGE_SIZE
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedBranchId, selectedStatus]);
 
   // KPIs
   const totalAmountQuotes = quotes.reduce((acc, q) => acc + q.finalAmount, 0);
@@ -383,7 +397,7 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredQuotes.map((q) => {
+                paginatedQuotes.map((q) => {
                   const patient = patients.find((p) => p.id === q.patientId);
                   const branch = branches.find((b) => b.id === q.branchId);
                   const odontologist = users.find((u) => u.id === q.odontologistId);
@@ -528,6 +542,38 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
             </tbody>
           </table>
         </div>
+        {quotesTotalPages > 1 && (
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between text-xs text-slate-600">
+            <span>
+              Mostrando {(currentPage - 1) * QUOTES_PAGE_SIZE + 1}–
+              {Math.min(currentPage * QUOTES_PAGE_SIZE, filteredQuotes.length)} de{' '}
+              <strong>{filteredQuotes.length}</strong> presupuestos
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 inline-flex items-center gap-1 font-semibold"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                <span>Anterior</span>
+              </button>
+              <span className="font-bold text-slate-800">
+                {currentPage} / {quotesTotalPages}
+              </span>
+              <button
+                type="button"
+                disabled={currentPage >= quotesTotalPages}
+                onClick={() => setCurrentPage((p) => Math.min(quotesTotalPages, p + 1))}
+                className="px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 inline-flex items-center gap-1 font-semibold"
+              >
+                <span>Siguiente</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modals */}

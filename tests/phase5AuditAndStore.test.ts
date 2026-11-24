@@ -245,6 +245,9 @@ test('E2E Fase 5: GET /api/audit-logs con paginación, filtros, RBAC por sucursa
     });
     assert.equal(orgLogin.status, 200);
 
+    // Aislar la muestra controlada de 5 registros (excluyendo los eventos LOGIN_SUCCESS recién generados por los logins de prueba)
+    state.data.auditLogs = state.data.auditLogs.filter((l: any) => l.action !== 'LOGIN_SUCCESS');
+
     const page1 = await apiRequest(baseUrl, `/api/audit-logs?limit=2&offset=0&organizationId=${orgBId}`, {
       cookie: orgLogin.sidCookie,
     });

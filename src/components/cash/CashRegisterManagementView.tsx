@@ -6,6 +6,7 @@ import { OpenCashRegisterModal } from './OpenCashRegisterModal.tsx';
 import { RecordCashMovementModal } from './RecordCashMovementModal.tsx';
 import { CloseCashRegisterModal } from './CloseCashRegisterModal.tsx';
 import { CashReceiptModal } from './CashReceiptModal.tsx';
+import { HistoricalImportModal } from '../shared/HistoricalImportModal.tsx';
 import {
   DollarSign,
   Plus,
@@ -25,6 +26,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   Search,
+  ChevronLeft,
+  ChevronRight,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 export const CashRegisterManagementView: React.FC = () => {
@@ -42,11 +46,14 @@ export const CashRegisterManagementView: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'current' | 'history' | 'receipts'>('current');
   const [receiptSearch, setReceiptSearch] = useState<string>('');
+  const [receiptsPage, setReceiptsPage] = useState<number>(1);
+  const RECEIPTS_PAGE_SIZE = 25;
 
   // Modals state
   const [isOpenModalOpen, setIsOpenModalOpen] = useState(false);
   const [isMovementModalOpen, setIsMovementModalOpen] = useState(false);
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
+  const [isHistoricalImportOpen, setIsHistoricalImportOpen] = useState(false);
   const [viewPaymentId, setViewPaymentId] = useState<string | null>(null);
   const [annulPaymentId, setAnnulPaymentId] = useState<string | null>(null);
   const [annulReason, setAnnulReason] = useState<string>('');
@@ -466,17 +473,30 @@ export const CashRegisterManagementView: React.FC = () => {
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
           <div className="px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Recibos de Dinero Emitidos en {currentBranch?.name}
+              Recibos de Dinero Emitidos en {currentBranch?.name} ({filteredBranchPayments.length})
             </h3>
-            <div className="relative w-full sm:w-72">
-              <Search className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={receiptSearch}
-                onChange={(e) => setReceiptSearch(e.target.value)}
-                placeholder="Buscar por nro. recibo, paciente o C.I..."
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              />
+            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => setIsHistoricalImportOpen(true)}
+                className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                <span>Importar Cobros Históricos</span>
+              </button>
+              <div className="relative flex-1 sm:w-64">
+                <Search className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={receiptSearch}
+                  onChange={(e) => {
+                    setReceiptSearch(e.target.value);
+                    setReceiptsPage(1);
+                  }}
+                  placeholder="Buscar por nro. recibo, paciente o C.I..."
+                  className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
             </div>
           </div>
 
@@ -503,7 +523,9 @@ export const CashRegisterManagementView: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredBranchPayments.map((p) => {
+                  filteredBranchPayments
+                    .slice((receiptsPage - 1) * RECEIPTS_PAGE_SIZE, receiptsPage * RECEIPTS_PAGE_SIZE)
+                    .map((p) => {
                     const pat = patients.find((pt) => pt.id === p.patientId);
                     const isAnnulled = p.status === 'ANULADO';
 
@@ -580,6 +602,42 @@ export const CashRegisterManagementView: React.FC = () => {
               </tbody>
             </table>
           </div>
+          {Math.ceil(filteredBranchPayments.length / RECEIPTS_PAGE_SIZE) > 1 && (
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between text-xs text-slate-600">
+              <span>
+                Mostrando {(receiptsPage - 1) * RECEIPTS_PAGE_SIZE + 1}–
+                {Math.min(receiptsPage * RECEIPTS_PAGE_SIZE, filteredBranchPayments.length)} de{' '}
+                <strong>{filteredBranchPayments.length}</strong> recibos
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={receiptsPage <= 1}
+                  onClick={() => setReceiptsPage((p) => Math.max(1, p - 1))}
+                  className="px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 inline-flex items-center gap-1 font-semibold"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  <span>Anterior</span>
+                </button>
+                <span className="font-bold text-slate-800">
+                  {receiptsPage} / {Math.ceil(filteredBranchPayments.length / RECEIPTS_PAGE_SIZE)}
+                </span>
+                <button
+                  type="button"
+                  disabled={receiptsPage >= Math.ceil(filteredBranchPayments.length / RECEIPTS_PAGE_SIZE)}
+                  onClick={() =>
+                    setReceiptsPage((p) =>
+                      Math.min(Math.ceil(filteredBranchPayments.length / RECEIPTS_PAGE_SIZE), p + 1)
+                    )
+                  }
+                  className="px-2.5 py-1.5 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 inline-flex items-center gap-1 font-semibold"
+                >
+                  <span>Siguiente</span>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -840,6 +898,13 @@ export const CashRegisterManagementView: React.FC = () => {
           </div>
         </div>
       )}
+
+      <HistoricalImportModal
+        isOpen={isHistoricalImportOpen}
+        onClose={() => setIsHistoricalImportOpen(false)}
+        defaultEntity="payments"
+        onImportCompleted={() => reloadData()}
+      />
     </div>
   );
 };
