@@ -4,6 +4,7 @@ import { dbStore } from '../../db/inMemoryStore.ts';
 import { getEmployeeDisplayName } from '../../db/payrollEngine.ts';
 import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 import { getAsuncionYearMonth } from '../../utils/reportPeriod.ts';
+import { calculateIrpRetentionAmount } from '../reports/DoctorCommissionsReport.tsx';
 
 interface SettlementBuilderModalProps {
   isOpen: boolean;
@@ -41,6 +42,7 @@ export const SettlementBuilderModal: React.FC<SettlementBuilderModalProps> = ({
   const [bonuses, setBonuses] = useState<ConceptLine[]>([]);
   const [advances, setAdvances] = useState<ConceptLine[]>([]);
   const [deductions, setDeductions] = useState<ConceptLine[]>([]);
+  const [irpRetentionRate, setIrpRetentionRate] = useState<number>(0);
   const [adjustments, setAdjustments] = useState<AdjustmentLine[]>([]);
   const [notes, setNotes] = useState('');
   const [submitForApproval, setSubmitForApproval] = useState(true);
@@ -57,6 +59,7 @@ export const SettlementBuilderModal: React.FC<SettlementBuilderModalProps> = ({
     setBonuses([]);
     setAdvances([]);
     setDeductions([]);
+    setIrpRetentionRate(0);
     setAdjustments([]);
     setNotes('');
     setSubmitForApproval(true);
@@ -105,7 +108,8 @@ export const SettlementBuilderModal: React.FC<SettlementBuilderModalProps> = ({
     .reduce((s, a) => s + Math.max(0, Math.round(Number(a.amount || 0))), 0);
 
   const grossTotal = effectiveBaseSalary + selectedCommsTotal + bonusesTotal + adjCredit;
-  const debitsTotal = advancesTotal + deductionsTotal + adjDebit;
+  const irpRetentionAmount = calculateIrpRetentionAmount(grossTotal, irpRetentionRate);
+  const debitsTotal = advancesTotal + deductionsTotal + irpRetentionAmount + adjDebit;
   const netPayable = Math.max(0, grossTotal - debitsTotal);
 
   const toggleCommission = (commId: string) => {
@@ -136,9 +140,14 @@ export const SettlementBuilderModal: React.FC<SettlementBuilderModalProps> = ({
         advances: advances
           .filter((a) => Number(a.amount) > 0)
           .map((a) => ({ concept: a.concept || 'Anticipo salarial', amount: Number(a.amount) })),
-        deductions: deductions
-          .filter((d) => Number(d.amount) > 0)
-          .map((d) => ({ concept: d.concept || 'Descuento administrativo', amount: Number(d.amount) })),
+        deductions: [
+          ...deductions
+            .filter((d) => Number(d.amount) > 0)
+            .map((d) => ({ concept: d.concept || 'Descuento administrativo', amount: Number(d.amount) })),
+          ...(irpRetentionRate > 0 && irpRetentionAmount > 0
+            ? [{ concept: `Retención IRP (${irpRetentionRate}%)`, amount: irpRetentionAmount }]
+            : []),
+        ],
         manualAdjustments: adjustments
           .filter((a) => Number(a.amount) > 0)
           .map((a) => ({ concept: a.concept || 'Ajuste', sign: a.sign, amount: Number(a.amount) })),
@@ -523,6 +532,34 @@ export const SettlementBuilderModal: React.FC<SettlementBuilderModalProps> = ({
             </div>
           </div>
 
+          {/* Retención IRP opcional (SET Paraguay) */}
+          <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <label className="block text-xs font-bold text-amber-950">
+                Retención IRP (SET) — Opcional
+              </label>
+              <p className="text-[11px] text-amber-800">
+                Por defecto 0%. Si corresponde, se calcula sobre el bruto liquidable y figura como línea separada en la liquidación e impresión.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <select
+                value={irpRetentionRate}
+                onChange={(e) => setIrpRetentionRate(Number(e.target.value))}
+                className="text-xs bg-white border border-amber-300 rounded-xl px-3 py-2 font-semibold text-amber-950 focus:ring-2 focus:ring-amber-500 cursor-pointer"
+              >
+                <option value={0}>0% (Sin retención)</option>
+                <option value={8}>8% (IRP Servicios Personales)</option>
+                <option value={10}>10% (Tasa Máxima IRP)</option>
+              </select>
+              {irpRetentionAmount > 0 && (
+                <span className="font-mono font-bold tabular-nums text-xs text-rose-700 whitespace-nowrap">
+                  - ₲ {irpRetentionAmount.toLocaleString('es-PY')}
+                </span>
+              )}
+            </div>
+          </div>
+
           {/* Resumen de Cálculo */}
           <div className="p-4 rounded-xl bg-slate-900 text-white grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div>
@@ -542,6 +579,11 @@ export const SettlementBuilderModal: React.FC<SettlementBuilderModalProps> = ({
               <div className="font-mono font-bold tabular-nums text-sm text-rose-400">
                 - ₲ {debitsTotal.toLocaleString('es-PY')}
               </div>
+              {irpRetentionAmount > 0 && (
+                <div className="text-[10px] text-amber-300 font-mono mt-0.5">
+                  Incluye IRP ({irpRetentionRate}%): - ₲ {irpRetentionAmount.toLocaleString('es-PY')}
+                </div>
+              )}
             </div>
             <div>
               <div className="text-slate-400">Neto a Pagar</div>

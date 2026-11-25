@@ -47,6 +47,15 @@ import {
   PayrollPrintReportModal,
 } from './PayrollActionModals.tsx';
 import { EmployeeRemunerationDrawer } from './EmployeeRemunerationDrawer.tsx';
+import {
+  buildDoctorCommissionsCsv,
+  computeDoctorCommissionsData,
+} from '../reports/DoctorCommissionsReport.tsx';
+import {
+  NO_PROFESSIONALS_MESSAGE,
+  formatProfessionalOptionLabel,
+  getActiveHealthProfessionals,
+} from '../../utils/healthProfessional.ts';
 
 type SubTab = 'panel' | 'personal' | 'salarios' | 'comisiones' | 'liquidaciones' | 'cartera';
 
@@ -122,6 +131,8 @@ export const StaffPayrollManagementView: React.FC = () => {
     payment?: StaffPaymentRecord | null;
     settlementsSummary?: PayrollSettlementRecord[];
   } | null>(null);
+  const [exportDoctorId, setExportDoctorId] = useState<string>('');
+  const [exportDoctorRate, setExportDoctorRate] = useState<number>(40);
 
   const notify = (type: 'success' | 'error', text: string) => {
     setFeedback({ type, text });
@@ -289,6 +300,64 @@ export const StaffPayrollManagementView: React.FC = () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     notify('success', 'Planilla exportada en formato compatible con Excel (UTF-8).');
+  };
+
+  const healthProfessionals = useMemo(
+    () => getActiveHealthProfessionals(users),
+    [users]
+  );
+
+  const selectedExportDoctor =
+    healthProfessionals.find((d: any) => d.id === exportDoctorId) ||
+    healthProfessionals[0] ||
+    null;
+
+  const handleExportDoctorDetailCsv = () => {
+    if (!canExportPayroll) {
+      notify('error', 'No tiene permiso para exportar planillas financieras.');
+      return;
+    }
+    if (!selectedExportDoctor) {
+      notify('error', NO_PROFESSIONALS_MESSAGE);
+      return;
+    }
+    const todayIso = getTodayAsuncionISO();
+    const periodFilter =
+      periodYearFilter !== 'ALL' && periodMonthFilter !== 'ALL'
+        ? {
+            preset: 'CUSTOM_MONTH' as const,
+            customYear: Number(periodYearFilter),
+            customMonth: Number(periodMonthFilter),
+          }
+        : { preset: 'ALL' as const };
+
+    const { finalItems } = computeDoctorCommissionsData({
+      snapshot,
+      doctorId: selectedExportDoctor.id,
+      selectedBranchId: branchFilter === 'ALL' ? '' : branchFilter,
+      periodFilter,
+      todayIso,
+      commissionRate: exportDoctorRate,
+      irpRetentionRate: 0,
+    });
+
+    const csvContent = buildDoctorCommissionsCsv({
+      doctor: selectedExportDoctor,
+      items: finalItems,
+    });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Liquidacion_Honorarios_${selectedExportDoctor.lastName || 'Odontologo'}_${todayIso}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    notify(
+      'success',
+      `CSV detallado de honorarios exportado (${finalItems.length} cobros).`
+    );
   };
 
   if (isOwnOnlyMode && !linkedEmployee) {
@@ -1050,6 +1119,53 @@ export const StaffPayrollManagementView: React.FC = () => {
                 </button>
               )}
             </div>
+
+            {canExportPayroll && !isOwnOnlyMode && (
+              <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/70 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+                <div className="font-semibold text-slate-700">
+                  Exportar CSV detallado por odontólogo (cobro / paciente / procedimiento):
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={selectedExportDoctor?.id || ''}
+                    onChange={(e) => setExportDoctorId(e.target.value)}
+                    disabled={healthProfessionals.length === 0}
+                    className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 disabled:opacity-60"
+                  >
+                    {healthProfessionals.length === 0 ? (
+                      <option value="">{NO_PROFESSIONALS_MESSAGE}</option>
+                    ) : (
+                      healthProfessionals.map((d: any) => (
+                        <option key={d.id} value={d.id}>
+                          {formatProfessionalOptionLabel(d)}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <select
+                    value={exportDoctorRate}
+                    onChange={(e) => setExportDoctorRate(Number(e.target.value))}
+                    className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-teal-800"
+                  >
+                    <option value={30}>30%</option>
+                    <option value={35}>35%</option>
+                    <option value={40}>40%</option>
+                    <option value={45}>45%</option>
+                    <option value={50}>50%</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleExportDoctorDetailCsv}
+                    disabled={!selectedExportDoctor}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl cursor-pointer disabled:opacity-50"
+                  >
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-teal-600" />
+                    <span>CSV Honorarios</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs text-slate-600">
                 <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase text-[10px]">
@@ -1067,6 +1183,10 @@ export const StaffPayrollManagementView: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {settlements.map((s: PayrollSettlementRecord) => {
                     const emp = allEmployees.find((e: any) => e.id === s.employeeId);
+                    const settlementItems = dbStore.getPayrollSettlementItems(s.id);
+                    const irpItem = settlementItems.find((it: any) =>
+                      String(it.concept || '').startsWith('Retención IRP')
+                    );
                     return (
                       <tr key={s.id} className="hover:bg-slate-50/60">
                         <td className="px-4 py-3">
@@ -1084,7 +1204,12 @@ export const StaffPayrollManagementView: React.FC = () => {
                           + ₲ {(s.commissionsTotal + s.bonusesTotal).toLocaleString('es-PY')}
                         </td>
                         <td className="px-4 py-3 text-right font-mono tabular-nums text-rose-700">
-                          - ₲ {(s.advancesTotal + s.deductionsTotal).toLocaleString('es-PY')}
+                          <div>- ₲ {(s.advancesTotal + s.deductionsTotal).toLocaleString('es-PY')}</div>
+                          {irpItem && (
+                            <div className="text-[10px] text-amber-700 font-semibold">
+                              {irpItem.concept}: - ₲ {Number(irpItem.amount).toLocaleString('es-PY')}
+                            </div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right font-mono tabular-nums">
                           <div className="font-bold text-slate-900">₲ {s.netPayable.toLocaleString('es-PY')}</div>

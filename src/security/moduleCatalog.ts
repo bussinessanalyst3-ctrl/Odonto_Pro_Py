@@ -25,6 +25,7 @@ export type ModuleGroupId =
   | 'operacion'
   | 'clinica'
   | 'administracion'
+  | 'rrhh'
   | 'sistema';
 
 export interface ModuleGroupDefinition {
@@ -49,6 +50,7 @@ export const MODULE_GROUPS: ModuleGroupDefinition[] = [
   { id: 'operacion', label: 'OPERACIÓN CLÍNICA' },
   { id: 'clinica', label: 'ODONTOLOGÍA Y TRATAMIENTOS' },
   { id: 'administracion', label: 'ADMINISTRACIÓN Y CAJA' },
+  { id: 'rrhh', label: 'RRHH' },
   { id: 'sistema', label: 'GESTIÓN Y SEGURIDAD' },
 ];
 
@@ -129,10 +131,10 @@ export const SYSTEM_MODULES: SystemModuleDefinition[] = [
   },
   {
     id: 'staff-payroll',
-    label: 'Finanzas del Personal',
-    sidebarLabel: 'Finanzas del Personal',
+    label: 'Gestión del Funcionario',
+    sidebarLabel: 'Gestión del Funcionario',
     description: 'Sueldos, comisiones, liquidaciones y pagos al equipo de la clínica.',
-    groupId: 'administracion',
+    groupId: 'rrhh',
     category: 'management',
     defaultRoles: ['SUPER_ADMIN', 'ADMIN_ORGANIZACION', 'ADMIN_SUCURSAL', 'SUPERVISOR', 'VENDEDOR', 'ODONTOLOGO', 'CAJA'],
   },

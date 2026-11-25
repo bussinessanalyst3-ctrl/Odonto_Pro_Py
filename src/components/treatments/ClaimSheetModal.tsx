@@ -3,6 +3,10 @@ import { X, Printer, Download, ShieldCheck, Building2, Stethoscope, FileText, Ch
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
+import {
+  formatProfessionalName,
+  getActiveHealthProfessionals,
+} from '../../utils/healthProfessional.ts';
 
 interface ClaimSheetModalProps {
   isOpen: boolean;
@@ -23,8 +27,8 @@ export const ClaimSheetModal: React.FC<ClaimSheetModalProps> = ({
   const org = snapshot.organization;
   const orgLegalName = resolveOrganizationLegalName(org);
   const patients = snapshot.patients || [];
-  const doctors = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO');
-  const mainDoctor = doctors[0] || snapshot.users[0];
+  const doctors = getActiveHealthProfessionals(snapshot.users);
+  const mainDoctor = doctors[0] || null;
 
   if (!isOpen) return null;
 
@@ -166,11 +170,13 @@ export const ClaimSheetModal: React.FC<ClaimSheetModalProps> = ({
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sucursal & Profesional Auditor</span>
               <div className="font-bold text-slate-900">{branchName || 'Sucursal Principal'}</div>
               <div className="text-slate-600">
-                Dr(a). Tratante: <span className="font-semibold">{mainDoctor ? `${mainDoctor.firstName} ${mainDoctor.lastName}` : 'Dr. Lucas Arrua'}</span>
+                Profesional Tratante: <span className="font-semibold">{mainDoctor ? formatProfessionalName(mainDoctor) : 'Sin profesional asignado'}</span>
               </div>
-              <div className="text-slate-500 text-[11px]">
-                Registro Profesional MSPBS N° {mainDoctor?.dentalLicenseNumber || '14.892'}
-              </div>
+              {mainDoctor?.professionalLicense && (
+                <div className="text-slate-500 text-[11px]">
+                  Registro Profesional MSPBS: {mainDoctor.professionalLicense}
+                </div>
+              )}
             </div>
           </div>
 
@@ -270,11 +276,13 @@ export const ClaimSheetModal: React.FC<ClaimSheetModalProps> = ({
             <div className="pt-8 grid grid-cols-2 gap-8 text-center text-xs">
               <div className="border-t border-slate-400 pt-2">
                 <div className="font-bold text-slate-900">
-                  {mainDoctor ? `${mainDoctor.firstName} ${mainDoctor.lastName}` : 'Dr. Lucas Arrua Almada'}
+                  {mainDoctor ? formatProfessionalName(mainDoctor) : 'Profesional Tratante'}
                 </div>
-                <div className="text-[11px] text-slate-500">
-                  Odontólogo Tratante • Reg. MSPBS N° {mainDoctor?.dentalLicenseNumber || '14.892'}
-                </div>
+                {mainDoctor?.professionalLicense && (
+                  <div className="text-[11px] text-slate-500">
+                    Odontólogo Tratante • Reg. MSPBS: {mainDoctor.professionalLicense}
+                  </div>
+                )}
               </div>
               <div className="border-t border-slate-400 pt-2">
                 <div className="font-bold text-slate-900">

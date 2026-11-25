@@ -4,6 +4,11 @@ import { dbStore } from '../../db/inMemoryStore.ts';
 import { formatPYG } from '../../db/seeds/paraguay-catalogs.ts';
 import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import {
+  NO_PROFESSIONALS_MESSAGE,
+  formatProfessionalOptionLabel,
+  getActiveHealthProfessionals,
+} from '../../utils/healthProfessional.ts';
 
 interface CreateTreatmentModalProps {
   isOpen: boolean;
@@ -25,10 +30,11 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
   const [branchId, setBranchId] = useState<string>(snapshot.branches[0]?.id || '');
   const [serviceId, setServiceId] = useState<string>('');
   const [title, setTitle] = useState<string>('');
+  const professionals = getActiveHealthProfessionals(snapshot.users);
   const [odontologistId, setOdontologistId] = useState<string>(
-    session?.role === 'ODONTOLOGO'
-      ? session.userId
-      : snapshot.users.find((u) => u.roleId === 'ODONTOLOGO')?.id || snapshot.users[0]?.id || ''
+    professionals.some((u) => u.id === session?.userId)
+      ? (session?.userId || '')
+      : (professionals[0]?.id || '')
   );
   const [totalAmount, setTotalAmount] = useState<number>(0);
   const [paidAmount, setPaidAmount] = useState<number>(0);
@@ -50,10 +56,11 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
     setBranchId(latest.branches[0]?.id || '');
     setServiceId('');
     setTitle('');
+    const latestProfessionals = getActiveHealthProfessionals(latest.users);
     setOdontologistId(
-      session?.role === 'ODONTOLOGO'
-        ? session.userId
-        : latest.users.find((u) => u.roleId === 'ODONTOLOGO')?.id || latest.users[0]?.id || ''
+      latestProfessionals.some((u) => u.id === session?.userId)
+        ? (session?.userId || '')
+        : (latestProfessionals[0]?.id || '')
     );
     setTotalAmount(0);
     setPaidAmount(0);
@@ -437,16 +444,24 @@ export const CreateTreatmentModal: React.FC<CreateTreatmentModalProps> = ({
                 value={odontologistId}
                 onChange={(e) => setOdontologistId(e.target.value)}
                 required
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                disabled={professionals.length === 0}
+                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-hidden disabled:opacity-60"
               >
-                {snapshot.users
-                  .filter((u) => u.roleId === 'ODONTOLOGO' || u.roleId === 'SUPER_ADMIN')
-                  .map((u) => (
+                {professionals.length === 0 ? (
+                  <option value="">{NO_PROFESSIONALS_MESSAGE}</option>
+                ) : (
+                  professionals.map((u) => (
                     <option key={u.id} value={u.id}>
-                      Dr(a). {u.firstName} {u.lastName}
+                      {formatProfessionalOptionLabel(u)}
                     </option>
-                  ))}
+                  ))
+                )}
               </select>
+              {professionals.length === 0 && (
+                <p className="text-[11px] text-amber-700 font-medium mt-1">
+                  {NO_PROFESSIONALS_MESSAGE}
+                </p>
+              )}
             </div>
 
             {/* Status */}

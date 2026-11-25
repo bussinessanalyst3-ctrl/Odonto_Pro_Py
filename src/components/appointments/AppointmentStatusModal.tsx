@@ -15,6 +15,7 @@ import {
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { hasBackendSession, patchAuthoritativeAction } from '../../services/authoritativeApi.ts';
+import { formatProfessionalName } from '../../utils/healthProfessional.ts';
 
 interface AppointmentStatusModalProps {
   appointment: any;
@@ -162,7 +163,7 @@ export const AppointmentStatusModal: React.FC<AppointmentStatusModalProps> = ({
           {/* Quick info */}
           <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1 text-slate-600">
             <div>
-              <strong>Profesional:</strong> Dr(a). {dentist ? `${dentist.firstName} ${dentist.lastName}` : ((appointment as any).historicalDoctorName || 'Por Asignar')}
+              <strong>Profesional:</strong> {dentist ? formatProfessionalName(dentist) : ((appointment as any).historicalDoctorName || 'Por Asignar')}
             </div>
             <div>
               <strong>Sucursal:</strong> {branch?.name} ({chair?.name || 'Sillón General'})

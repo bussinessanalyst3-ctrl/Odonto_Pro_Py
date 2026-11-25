@@ -12,6 +12,10 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
+import {
+  formatProfessionalName,
+  isHealthProfessional,
+} from '../../utils/healthProfessional.ts';
 
 interface ClinicalRecordDetailModalProps {
   record: any;
@@ -161,11 +165,13 @@ export const ClinicalRecordDetailModal: React.FC<ClinicalRecordDetailModalProps>
               </div>
               <div>
                 <div className="font-bold text-slate-900">
-                  Dr(a). {dentist ? `${dentist.firstName} ${dentist.lastName}` : ((record as any).historicalDoctorName || 'Odontólogo Tratante')}
+                  {dentist ? formatProfessionalName(dentist) : ((record as any).historicalDoctorName || 'Odontólogo Tratante')}
                 </div>
-                <div className="text-teal-700 font-semibold">
-                  Registro Profesional MSPBS: {(record as any).odontologistLicenseSnapshot || dentist?.professionalLicense || 'Sin registro cargado'}
-                </div>
+                {((record as any).odontologistLicenseSnapshot || (dentist && isHealthProfessional(dentist) && dentist.professionalLicense)) && (
+                  <div className="text-teal-700 font-semibold">
+                    Registro Profesional MSPBS: {(record as any).odontologistLicenseSnapshot || dentist?.professionalLicense}
+                  </div>
+                )}
                 <div className="text-[11px] text-slate-400">
                   Firma Electrónica Médica Certificada - Ley N° 1682/01
                 </div>

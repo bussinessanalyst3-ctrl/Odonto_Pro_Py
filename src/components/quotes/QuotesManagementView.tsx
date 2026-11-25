@@ -5,6 +5,7 @@ import { hasBackendSession, postAuthoritativeAction } from '../../services/autho
 import { CreateQuoteModal } from './CreateQuoteModal.tsx';
 import { QuoteDetailModal } from './QuoteDetailModal.tsx';
 import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
+import { formatProfessionalName } from '../../utils/healthProfessional.ts';
 import {
   Calculator,
   Search,
@@ -446,7 +447,9 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
                       <td className="py-3 px-3">
                         <div className="text-slate-800 font-medium">{branch?.name}</div>
                         <div className="text-[11px] text-teal-700">
-                          Dr(a). {odontologist?.lastName || (q as any).historicalDoctorName || 'General'}
+                          {odontologist
+                            ? formatProfessionalName(odontologist, { lastNameOnly: true })
+                            : ((q as any).historicalDoctorName || 'General')}
                         </div>
                       </td>
 

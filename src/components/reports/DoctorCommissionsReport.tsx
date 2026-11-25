@@ -19,64 +19,72 @@ import {
   isDateInReportPeriod,
   toAsuncionDateISO,
 } from '../../utils/reportPeriod.ts';
+import {
+  NO_PROFESSIONALS_MESSAGE,
+  formatProfessionalName,
+  formatProfessionalOptionLabel,
+  getActiveHealthProfessionals,
+  isHealthProfessional,
+} from '../../utils/healthProfessional.ts';
 
-interface DoctorCommissionsReportProps {
-  selectedBranchId: string;
-  periodFilter?: ReportPeriodFilter;
-  selectedDoctorId?: string;
-  onDoctorChange?: (doctorId: string) => void;
+export interface DoctorCommissionLineItem {
+  id: string;
+  dateIso: string;
+  patientName: string;
+  patientDoc: string;
+  procedureName: string;
+  branchName: string;
+  totalBilled: number;
+  commissionPct: number;
+  commissionAmount: number;
+  receiptNumber: string;
 }
 
-export const DoctorCommissionsReport: React.FC<DoctorCommissionsReportProps> = ({
-  selectedBranchId,
-  periodFilter,
-  selectedDoctorId,
-  onDoctorChange,
-}) => {
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    return dbStore.subscribe(() => setTick((t) => t + 1));
-  }, []);
+export function calculateIrpRetentionAmount(
+  grossAmount: number,
+  irpRetentionRate: number
+): number {
+  const safeGross = Math.max(0, Math.round(Number(grossAmount || 0)));
+  const safeRate = Math.max(0, Number(irpRetentionRate || 0));
+  if (safeRate <= 0 || safeGross <= 0) return 0;
+  return Math.round((safeGross * safeRate) / 100);
+}
 
-  const snapshot = dbStore.getSnapshot();
-  const doctors = (snapshot.users || []).filter(
-    (u) => u.roleId === 'ODONTOLOGO' || u.roleId === 'SUPER_ADMIN' || u.roleId === 'ADMIN_SUCURSAL'
-  );
+export function computeDoctorCommissionsData(params: {
+  snapshot: any;
+  doctorId: string;
+  selectedBranchId?: string;
+  periodFilter?: ReportPeriodFilter;
+  todayIso: string;
+  commissionRate: number;
+  irpRetentionRate?: number;
+}) {
+  const {
+    snapshot,
+    doctorId,
+    selectedBranchId = '',
+    periodFilter,
+    todayIso,
+    commissionRate,
+    irpRetentionRate = 0,
+  } = params;
 
-  const [activeDoctorId, setActiveDoctorId] = useState<string>(
-    selectedDoctorId || doctors[0]?.id || ''
-  );
-  const [commissionRate, setCommissionRate] = useState<number>(40); // 40% estándar para odontólogos en PY
-  const [irpRetentionRate, setIrpRetentionRate] = useState<number>(0); // 0%, 8% o 10% IRP en Paraguay
-
-  useEffect(() => {
-    if (selectedDoctorId) {
-      setActiveDoctorId(selectedDoctorId);
-    } else if (!activeDoctorId && doctors[0]?.id) {
-      setActiveDoctorId(doctors[0].id);
-    }
-  }, [selectedDoctorId, doctors.length]);
-
-  const currentDoctor = doctors.find((d) => d.id === activeDoctorId) || doctors[0];
-  const todayIso = getTodayAsuncionISO();
   const activePeriod: ReportPeriodFilter = periodFilter || { preset: 'ALL' };
-  const periodLabel = getPeriodLabel(activePeriod, todayIso);
-
-  // Tratamientos, presupuestos y citas vinculados a este profesional
-  const allTreatments = snapshot.treatments || [];
-  const allQuotes = snapshot.quotes || [];
-  const allAppointments = snapshot.appointments || [];
+  const allTreatments = snapshot?.treatments || [];
+  const allQuotes = snapshot?.quotes || [];
+  const allAppointments = snapshot?.appointments || [];
+  const allPayments = snapshot?.payments || [];
+  const allPatients = snapshot?.patients || [];
+  const allBranches = snapshot?.branches || [];
 
   const doctorQuoteIds = new Set(
-    allQuotes
-      .filter((q) => q.odontologistId === currentDoctor?.id)
-      .map((q) => q.id)
+    allQuotes.filter((q: any) => q.odontologistId === doctorId).map((q: any) => q.id)
   );
 
   const doctorTreatmentsMap = new Map<string, any>();
   for (const t of allTreatments) {
     const matchesDoctor =
-      t.odontologistId === currentDoctor?.id ||
+      t.odontologistId === doctorId ||
       (t.quoteId && doctorQuoteIds.has(t.quoteId));
     if (matchesDoctor) {
       doctorTreatmentsMap.set(t.id, t);
@@ -85,7 +93,7 @@ export const DoctorCommissionsReport: React.FC<DoctorCommissionsReportProps> = (
 
   const doctorAppointmentsMap = new Map<string, any>();
   for (const a of allAppointments) {
-    if (a.odontologistId !== currentDoctor?.id) continue;
+    if (a.odontologistId !== doctorId) continue;
     if (selectedBranchId && a.branchId !== selectedBranchId) continue;
     if (isDateInReportPeriod(a.appointmentDate, activePeriod, todayIso)) {
       doctorAppointmentsMap.set(a.id, a);
@@ -97,28 +105,30 @@ export const DoctorCommissionsReport: React.FC<DoctorCommissionsReportProps> = (
   ).length;
 
   // Producción REAL: únicamente cobros efectivos (status !== 'ANULADO') vinculados a tratamientos o citas del profesional
-  const allPayments = snapshot.payments || [];
   const doctorPayments = allPayments
-    .filter((p) => {
+    .filter((p: any) => {
       if (!p || p.status === 'ANULADO') return false;
       if (selectedBranchId && p.branchId !== selectedBranchId) return false;
       if (!isDateInReportPeriod(p.createdAt || p.paymentDate, activePeriod, todayIso)) return false;
 
       if (p.treatmentId && doctorTreatmentsMap.has(p.treatmentId)) return true;
       if (p.quoteId && doctorQuoteIds.has(p.quoteId)) return true;
-      if (p.appointmentId && allAppointments.some((a) => a.id === p.appointmentId && a.odontologistId === currentDoctor?.id)) {
+      if (
+        p.appointmentId &&
+        allAppointments.some((a: any) => a.id === p.appointmentId && a.odontologistId === doctorId)
+      ) {
         return true;
       }
       return false;
     })
-    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
-  const finalItems = doctorPayments.map((pay) => {
-    const patient = snapshot.patients.find((p) => p.id === pay.patientId);
-    const branch = snapshot.branches.find((b) => b.id === pay.branchId);
+  const finalItems: DoctorCommissionLineItem[] = doctorPayments.map((pay: any) => {
+    const patient = allPatients.find((p: any) => p.id === pay.patientId);
+    const branch = allBranches.find((b: any) => b.id === pay.branchId);
     const treatment = pay.treatmentId ? doctorTreatmentsMap.get(pay.treatmentId) : null;
     const appointment = pay.appointmentId
-      ? allAppointments.find((a) => a.id === pay.appointmentId)
+      ? allAppointments.find((a: any) => a.id === pay.appointmentId)
       : null;
 
     const amount = Math.round(Number(pay.amount || 0));
@@ -144,42 +154,127 @@ export const DoctorCommissionsReport: React.FC<DoctorCommissionsReportProps> = (
 
   const totalProduction = finalItems.reduce((acc, it) => acc + it.totalBilled, 0);
   const grossCommission = Math.round((totalProduction * commissionRate) / 100);
-  const irpRetentionAmount = Math.round((grossCommission * irpRetentionRate) / 100);
+  const irpRetentionAmount = calculateIrpRetentionAmount(grossCommission, irpRetentionRate);
   const netCommissionToPay = grossCommission - irpRetentionAmount;
+
+  return {
+    attendedAppointmentsCount,
+    finalItems,
+    totalProduction,
+    grossCommission,
+    irpRetentionAmount,
+    netCommissionToPay,
+  };
+}
+
+export function buildDoctorCommissionsCsv(params: {
+  doctor: any;
+  items: DoctorCommissionLineItem[];
+}): string {
+  const { doctor, items } = params;
+  const headers = [
+    'Fecha',
+    'Doctor',
+    'Reg_Profesional',
+    'Paciente',
+    'Cedula',
+    'Procedimiento',
+    'Sucursal',
+    'Recibo',
+    'Cobrado_PYG',
+    'Comision_Pct',
+    'Comision_PYG',
+  ];
+  const doctorName = `${doctor?.firstName || ''} ${doctor?.lastName || ''}`.trim();
+  const doctorLicense = isHealthProfessional(doctor)
+    ? doctor?.professionalLicense || ''
+    : '';
+  const rows = items.map((it) => [
+    it.dateIso,
+    `"${doctorName.replace(/"/g, '""')}"`,
+    `"${String(doctorLicense).replace(/"/g, '""')}"`,
+    `"${it.patientName.replace(/"/g, '""')}"`,
+    it.patientDoc,
+    `"${String(it.procedureName).replace(/"/g, '""')}"`,
+    `"${it.branchName.replace(/"/g, '""')}"`,
+    `"${it.receiptNumber}"`,
+    it.totalBilled,
+    `${it.commissionPct}%`,
+    it.commissionAmount,
+  ]);
+
+  return '\uFEFF' + [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n');
+}
+
+interface DoctorCommissionsReportProps {
+  selectedBranchId: string;
+  periodFilter?: ReportPeriodFilter;
+  selectedDoctorId?: string;
+  onDoctorChange?: (doctorId: string) => void;
+}
+
+export const DoctorCommissionsReport: React.FC<DoctorCommissionsReportProps> = ({
+  selectedBranchId,
+  periodFilter,
+  selectedDoctorId,
+  onDoctorChange,
+}) => {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    return dbStore.subscribe(() => setTick((t) => t + 1));
+  }, []);
+
+  const snapshot = dbStore.getSnapshot();
+  const doctors = getActiveHealthProfessionals(snapshot.users || []);
+
+  const [activeDoctorId, setActiveDoctorId] = useState<string>(
+    selectedDoctorId && doctors.some((d) => d.id === selectedDoctorId)
+      ? selectedDoctorId
+      : doctors[0]?.id || ''
+  );
+  const [commissionRate, setCommissionRate] = useState<number>(40); // 40% estándar para odontólogos en PY
+  const [irpRetentionRate, setIrpRetentionRate] = useState<number>(0); // 0%, 8% o 10% IRP en Paraguay
+
+  useEffect(() => {
+    if (selectedDoctorId && doctors.some((d) => d.id === selectedDoctorId)) {
+      setActiveDoctorId(selectedDoctorId);
+    } else if (!doctors.some((d) => d.id === activeDoctorId)) {
+      setActiveDoctorId(doctors[0]?.id || '');
+    }
+  }, [selectedDoctorId, doctors.length]);
+
+  const currentDoctor = doctors.find((d) => d.id === activeDoctorId) || doctors[0] || null;
+  const todayIso = getTodayAsuncionISO();
+  const activePeriod: ReportPeriodFilter = periodFilter || { preset: 'ALL' };
+  const periodLabel = getPeriodLabel(activePeriod, todayIso);
+
+  const {
+    attendedAppointmentsCount,
+    finalItems,
+    totalProduction,
+    grossCommission,
+    irpRetentionAmount,
+    netCommissionToPay,
+  } = computeDoctorCommissionsData({
+    snapshot,
+    doctorId: currentDoctor?.id || '',
+    selectedBranchId,
+    periodFilter: activePeriod,
+    todayIso,
+    commissionRate,
+    irpRetentionRate,
+  });
 
   const handlePrint = () => {
     window.print();
   };
 
   const handleExportCSV = () => {
-    const headers = [
-      'Fecha',
-      'Doctor',
-      'Reg_Profesional',
-      'Paciente',
-      'Cedula',
-      'Procedimiento',
-      'Sucursal',
-      'Recibo',
-      'Cobrado_PYG',
-      'Comision_Pct',
-      'Comision_PYG',
-    ];
-    const rows = finalItems.map((it) => [
-      it.dateIso,
-      `"${currentDoctor?.firstName || ''} ${currentDoctor?.lastName || ''}"`,
-      currentDoctor?.professionalLicense || 'Sin registro',
-      `"${it.patientName}"`,
-      it.patientDoc,
-      `"${String(it.procedureName).replace(/"/g, '""')}"`,
-      `"${it.branchName}"`,
-      `"${it.receiptNumber}"`,
-      it.totalBilled,
-      `${it.commissionPct}%`,
-      it.commissionAmount,
-    ]);
-
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n');
+    if (!currentDoctor) return;
+    const csvContent = buildDoctorCommissionsCsv({
+      doctor: currentDoctor,
+      items: finalItems,
+    });
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -203,17 +298,25 @@ export const DoctorCommissionsReport: React.FC<DoctorCommissionsReportProps> = (
             <Stethoscope className="h-6 w-6" />
           </div>
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-base font-bold text-slate-900">
-                Dr(a). {currentDoctor?.firstName || ''} {currentDoctor?.lastName || ''}
-              </h3>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-100 text-teal-800 border border-teal-200">
-                Reg. MSPBS: {currentDoctor?.professionalLicense || 'Sin registro'}
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Liquidación individual de honorarios reales • Período: {periodLabel} • {attendedAppointmentsCount} citas atendidas
-            </p>
+            {currentDoctor ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900">
+                    {formatProfessionalName(currentDoctor)}
+                  </h3>
+                  {currentDoctor.professionalLicense && (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-100 text-teal-800 border border-teal-200">
+                      Reg. MSPBS: {currentDoctor.professionalLicense}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Liquidación individual de honorarios reales • Período: {periodLabel} • {attendedAppointmentsCount} citas atendidas
+                </p>
+              </>
+            ) : (
+              <p className="text-xs font-semibold text-amber-800">{NO_PROFESSIONALS_MESSAGE}</p>
+            )}
           </div>
         </div>
 
@@ -229,13 +332,18 @@ export const DoctorCommissionsReport: React.FC<DoctorCommissionsReportProps> = (
                 setActiveDoctorId(e.target.value);
                 if (onDoctorChange) onDoctorChange(e.target.value);
               }}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer"
+              disabled={doctors.length === 0}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer disabled:opacity-60"
             >
-              {doctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  Dr(a). {d.firstName} {d.lastName} ({d.professionalLicense || 'Profesional'})
-                </option>
-              ))}
+              {doctors.length === 0 ? (
+                <option value="">{NO_PROFESSIONALS_MESSAGE}</option>
+              ) : (
+                doctors.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {formatProfessionalOptionLabel(d)}
+                  </option>
+                ))
+              )}
             </select>
           </div>
 
@@ -274,7 +382,8 @@ export const DoctorCommissionsReport: React.FC<DoctorCommissionsReportProps> = (
           <div className="flex items-end gap-2 pt-4 sm:pt-0">
             <button
               onClick={handleExportCSV}
-              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              disabled={!currentDoctor}
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
               title="Exportar a archivo CSV para Excel"
             >
               <Download className="h-3.5 w-3.5" />
@@ -282,7 +391,8 @@ export const DoctorCommissionsReport: React.FC<DoctorCommissionsReportProps> = (
             </button>
             <button
               onClick={handlePrint}
-              className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+              disabled={!currentDoctor}
+              className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
               title="Imprimir boleta de honorarios"
             >
               <Printer className="h-3.5 w-3.5" />

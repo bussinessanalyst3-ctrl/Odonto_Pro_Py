@@ -16,6 +16,7 @@ import {
   getPeriodLabel,
   isDateInReportPeriod,
 } from '../../utils/reportPeriod.ts';
+import { formatProfessionalName } from '../../utils/healthProfessional.ts';
 
 interface ReceptionOperationsReportProps {
   selectedBranchId: string;
@@ -208,7 +209,7 @@ export const ReceptionOperationsReport: React.FC<ReceptionOperationsReportProps>
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] text-slate-500 mt-1">
                         <span className="flex items-center gap-1">
                           <Stethoscope className="h-3 w-3 text-teal-600" />
-                          Dr(a). {doctor ? `${doctor.firstName} ${doctor.lastName}` : 'Odontólogo'}
+                          {doctor ? formatProfessionalName(doctor) : ((app as any).historicalDoctorName || 'Odontólogo')}
                         </span>
                         <span>•</span>
                         <span className="flex items-center gap-1">

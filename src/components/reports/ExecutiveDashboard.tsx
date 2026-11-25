@@ -23,6 +23,7 @@ import {
   toAsuncionDateISO,
 } from '../../utils/reportPeriod.ts';
 import { useAuth } from '../../auth/authContext.tsx';
+import { formatProfessionalName } from '../../utils/healthProfessional.ts';
 import { hasModuleAccess } from '../../security/moduleCatalog.ts';
 
 interface ExecutiveDashboardProps {
@@ -320,7 +321,7 @@ export const ExecutiveDashboard: React.FC<ExecutiveDashboardProps> = ({
                               </span>
                             </div>
                             <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] text-slate-500 mt-0.5">
-                              <span>Dr(a). {dentist ? `${dentist.firstName} ${dentist.lastName}` : 'Odontólogo'}</span>
+                              <span>{dentist ? formatProfessionalName(dentist) : ((app as any).historicalDoctorName || 'Odontólogo')}</span>
                               <span>•</span>
                               <span className="flex items-center gap-1">
                                 <Armchair className="h-3 w-3 text-slate-400" />

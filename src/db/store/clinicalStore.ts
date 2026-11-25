@@ -6,6 +6,7 @@ import {
   UNKNOWN_CREATOR_LABEL,
 } from '../payrollEngine.ts';
 import type { StoreContext } from './types.ts';
+import { formatProfessionalName } from '../../utils/healthProfessional.ts';
 
 function normalizeDocumentKey(val: unknown): string {
   return String(val || '')
@@ -464,7 +465,7 @@ export function checkDoubleBooking(
         const doc = data.users.find((u) => u.id === params.odontologistId);
         return {
           hasConflict: true,
-          reason: `Conflicto de agenda: El Dr(a). ${doc?.firstName || ''} ${doc?.lastName || ''} ya tiene una cita asignada de ${existing.startTime.slice(0, 5)} a ${existing.endTime.slice(0, 5)}.`,
+          reason: `Conflicto de agenda: ${formatProfessionalName(doc, { fallback: 'El profesional' })} ya tiene una cita asignada de ${existing.startTime.slice(0, 5)} a ${existing.endTime.slice(0, 5)}.`,
         };
       }
 
@@ -679,7 +680,7 @@ export function addClinicalRecord(
       recordDate: effectiveRecordDate,
       dentistMSPBS: dentist?.professionalLicense || 'N/A',
     },
-    description: `Registro de evolución y nota clínica (${effectiveRecordDate}) firmado por Dr(a). ${dentist ? `${dentist.firstName} ${dentist.lastName}` : 'Odontólogo'} (${dentist?.professionalLicense || 'Sin Reg.'}) - Ley 1682/01`,
+    description: `Registro de evolución y nota clínica (${effectiveRecordDate}) firmado por ${formatProfessionalName(dentist, { fallback: 'Odontólogo' })}${dentist?.professionalLicense ? ` (${dentist.professionalLicense})` : ''} - Ley 1682/01`,
     createdAt: new Date(),
   });
 
@@ -762,7 +763,7 @@ export function createOdontogramVersion(
     userAgent: 'OdontoPro FDI Engine',
     oldValues: null,
     newValues: { version: nextVersion, type: params.odontogramType, itemsCount: params.items?.length || 0 },
-    description: `Nueva versión v${nextVersion} de Odontograma (${params.odontogramType}) registrada por Dr(a). ${dentist ? `${dentist.firstName} ${dentist.lastName}` : 'Tratante'}`,
+    description: `Nueva versión v${nextVersion} de Odontograma (${params.odontogramType}) registrada por ${formatProfessionalName(dentist, { fallback: 'Tratante' })}`,
     createdAt: new Date(),
   });
 

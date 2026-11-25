@@ -175,6 +175,11 @@ export const UserModal: React.FC<UserModalProps> = ({
   if (!isOpen) return null;
 
   const isOdonto = roleId === 'ODONTOLOGO';
+  const isAdminRole =
+    roleId === 'SUPER_ADMIN' ||
+    roleId === 'ADMIN_ORGANIZACION' ||
+    roleId === 'ADMIN_SUCURSAL';
+  const showLicenseField = isOdonto || isAdminRole;
 
   const handleToggleBranch = (bId: string) => {
     if (selectedBranches.includes(bId)) {
@@ -257,7 +262,7 @@ export const UserModal: React.FC<UserModalProps> = ({
             status,
             phone: phone.trim(),
             specialty: specialty.trim(),
-            professionalLicense: isOdonto ? license.trim() : null,
+            professionalLicense: showLicenseField ? (license.trim() || null) : null,
             branchIds: cleanSelectedBranches,
             defaultBranchId: defaultBranchId || cleanSelectedBranches[0],
           },
@@ -284,7 +289,7 @@ export const UserModal: React.FC<UserModalProps> = ({
             status,
             phone: phone.trim(),
             specialty: specialty.trim(),
-            professionalLicense: isOdonto ? license.trim() : undefined,
+            professionalLicense: showLicenseField ? (license.trim() || undefined) : undefined,
             branchIds: cleanSelectedBranches,
             defaultBranchId: defaultBranchId || cleanSelectedBranches[0],
             passwordRecord: {
@@ -560,15 +565,21 @@ export const UserModal: React.FC<UserModalProps> = ({
             </div>
           </div>
 
-          {/* Licencia Sanitaria MSPBS (Obligatorio para Odontólogos) */}
-          {isOdonto && (
+          {/* Licencia Sanitaria MSPBS (Obligatorio para Odontólogos, opcional para roles administrativos) */}
+          {showLicenseField && (
             <div className="p-3.5 bg-amber-50/90 border border-amber-200 rounded-2xl space-y-2">
               <div className="flex items-center gap-1.5 text-amber-900 text-xs font-bold">
                 <Award className="h-4 w-4 text-amber-700 shrink-0" />
-                <span>Habilitación Sanitaria MSPBS (Paraguay) *</span>
+                <span>
+                  {isOdonto
+                    ? 'Habilitación Sanitaria MSPBS (Paraguay) *'
+                    : 'Habilitación Sanitaria MSPBS (Opcional)'}
+                </span>
               </div>
               <p className="text-[11px] text-amber-800 leading-snug">
-                El MSPBS exige registrar el número de registro profesional para la firma de odontogramas, evolución y recetas.
+                {isOdonto
+                  ? 'El MSPBS exige registrar el número de registro profesional para la firma de odontogramas, evolución y recetas.'
+                  : 'Complete solo si este usuario atiende pacientes.'}
               </p>
               <div>
                 <input

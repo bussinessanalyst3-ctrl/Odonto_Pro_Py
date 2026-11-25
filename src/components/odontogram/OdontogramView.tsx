@@ -22,6 +22,10 @@ import { ToothSVG, ToothData } from './ToothSVG.tsx';
 import { ToothClinicalDrawer, CONDITIONS_CATALOG } from './ToothClinicalDrawer.tsx';
 import { useAuth } from '../../auth/authContext.tsx';
 import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
+import {
+  formatProfessionalName,
+  isHealthProfessional,
+} from '../../utils/healthProfessional.ts';
 
 interface OdontogramViewProps {
   initialPatientId?: string;
@@ -435,7 +439,7 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
                     });
                     return (
                       <option key={o.id} value={o.id}>
-                        Versión {o.version} • {d} (Dr. {doc?.lastName || (o as any).historicalDoctorName || 'Tratante'})
+                        Versión {o.version} • {d} ({doc ? formatProfessionalName(doc, { lastNameOnly: true }) : ((o as any).historicalDoctorName || 'Tratante')})
                       </option>
                     );
                   })
@@ -643,11 +647,15 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
             <div>
               <span className="font-semibold text-slate-700">Responsable Clínico: </span>
               <span className="text-teal-800 font-bold">
-                Dr(a). {currentOdontologist ? `${currentOdontologist.firstName} ${currentOdontologist.lastName}` : ((activeOdontogram as any).historicalDoctorName || 'Tratante')}
+                {currentOdontologist
+                  ? formatProfessionalName(currentOdontologist)
+                  : ((activeOdontogram as any).historicalDoctorName || 'Tratante')}
               </span>
-              <span className="text-slate-400 ml-1">
-                (Reg. MSPBS: {currentOdontologist?.professionalLicense || 'N/A'})
-              </span>
+              {currentOdontologist && isHealthProfessional(currentOdontologist) && currentOdontologist.professionalLicense && (
+                <span className="text-slate-400 ml-1">
+                  (Reg. MSPBS: {currentOdontologist.professionalLicense})
+                </span>
+              )}
             </div>
             <div>
               <span className="font-semibold text-slate-700">Última Actualización: </span>

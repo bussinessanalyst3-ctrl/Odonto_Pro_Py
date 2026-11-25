@@ -21,6 +21,13 @@ import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { CreateClinicalRecordModal } from './CreateClinicalRecordModal.tsx';
 import { ClinicalRecordDetailModal } from './ClinicalRecordDetailModal.tsx';
+import {
+  NO_PROFESSIONALS_MESSAGE,
+  formatProfessionalName,
+  formatProfessionalOptionLabel,
+  getActiveHealthProfessionals,
+  isHealthProfessional,
+} from '../../utils/healthProfessional.ts';
 
 export const ClinicalRecordsView: React.FC = () => {
   const { session } = useAuth();
@@ -60,10 +67,7 @@ export const ClinicalRecordsView: React.FC = () => {
 
   const patients = snapshot.patients;
   const branches = snapshot.branches;
-  const activeDentists = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO');
-  const dentists = activeDentists.length > 0
-    ? activeDentists
-    : snapshot.users.filter((u) => u.roleId === 'SUPER_ADMIN' || u.roleId === 'ADMIN_SUCURSAL');
+  const dentists = getActiveHealthProfessionals(snapshot.users);
   const records = snapshot.clinicalRecords || [];
 
   // Filter and sort clinical evolutions chronologically (most recent date first)
@@ -213,11 +217,15 @@ export const ClinicalRecordsView: React.FC = () => {
               className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
               <option value="ALL">Todos los Odontólogos ({dentists.length})</option>
-              {dentists.map((d) => (
-                <option key={d.id} value={d.id}>
-                  Dr(a). {d.firstName} {d.lastName} ({d.professionalLicense || 'MSPBS'})
-                </option>
-              ))}
+              {dentists.length === 0 ? (
+                <option value="" disabled>{NO_PROFESSIONALS_MESSAGE}</option>
+              ) : (
+                dentists.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {formatProfessionalOptionLabel(d)}
+                  </option>
+                ))
+              )}
             </select>
           </div>
         </div>
@@ -310,11 +318,13 @@ export const ClinicalRecordsView: React.FC = () => {
                     <div className="text-right">
                       <div className="text-xs font-bold text-slate-900 flex items-center justify-end gap-1.5">
                         <Stethoscope className="h-3.5 w-3.5 text-teal-600" />
-                        <span>Dr(a). {dentist ? `${dentist.firstName} ${dentist.lastName}` : ((rec as any).historicalDoctorName || 'Odontólogo Tratante')}</span>
+                        <span>{dentist ? formatProfessionalName(dentist) : ((rec as any).historicalDoctorName || 'Odontólogo Tratante')}</span>
                       </div>
-                      <div className="text-[11px] text-teal-700 font-semibold">
-                        Reg. Profesional: {(rec as any).odontologistLicenseSnapshot || dentist?.professionalLicense || 'Sin registro cargado'}
-                      </div>
+                      {((rec as any).odontologistLicenseSnapshot || (dentist && isHealthProfessional(dentist) && dentist.professionalLicense)) && (
+                        <div className="text-[11px] text-teal-700 font-semibold">
+                          Reg. Profesional: {(rec as any).odontologistLicenseSnapshot || dentist?.professionalLicense}
+                        </div>
+                      )}
                     </div>
 
                     <button

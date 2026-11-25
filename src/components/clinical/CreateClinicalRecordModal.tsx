@@ -15,6 +15,13 @@ import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
+import {
+  NO_PROFESSIONALS_MESSAGE,
+  formatProfessionalName,
+  formatProfessionalOptionLabel,
+  getActiveHealthProfessionals,
+  isHealthProfessional,
+} from '../../utils/healthProfessional.ts';
 
 interface CreateClinicalRecordModalProps {
   initialPatientId?: string;
@@ -31,17 +38,14 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
   const activePatients = snapshot.patients.filter((p) => p.status !== 'INACTIVE');
   const patients = activePatients.length > 0 ? activePatients : snapshot.patients;
   const branches = snapshot.branches;
-  const activeDentists = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO' && u.status !== 'INACTIVE');
-  const dentists = activeDentists.length > 0
-    ? activeDentists
-    : snapshot.users.filter((u) => u.status !== 'INACTIVE' && (u.roleId === 'SUPER_ADMIN' || u.roleId === 'ADMIN_SUCURSAL'));
+  const dentists = getActiveHealthProfessionals(snapshot.users);
 
   const [patientId, setPatientId] = useState<string>(initialPatientId || patients[0]?.id || '');
   const [branchId, setBranchId] = useState<string>(branches[0]?.id || '');
   const [odontologistId, setOdontologistId] = useState<string>(
-    session?.role === 'ODONTOLOGO'
-      ? session.userId
-      : (dentists[0]?.id || session?.userId || '')
+    dentists.some((d) => d.id === session?.userId)
+      ? (session?.userId || '')
+      : (dentists[0]?.id || '')
   );
   const [recordDate, setRecordDate] = useState<string>(() => getTodayAsuncionISO());
 
@@ -216,15 +220,25 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
               <select
                 value={odontologistId}
                 onChange={(e) => setOdontologistId(e.target.value)}
-                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                disabled={dentists.length === 0}
+                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:opacity-60"
                 required
               >
-                {dentists.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    Dr(a). {d.firstName} {d.lastName} ({d.professionalLicense || 'MSPBS'})
-                  </option>
-                ))}
+                {dentists.length === 0 ? (
+                  <option value="">{NO_PROFESSIONALS_MESSAGE}</option>
+                ) : (
+                  dentists.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {formatProfessionalOptionLabel(d)}
+                    </option>
+                  ))
+                )}
               </select>
+              {dentists.length === 0 && (
+                <p className="text-[11px] text-amber-700 font-medium mt-1">
+                  {NO_PROFESSIONALS_MESSAGE}
+                </p>
+              )}
             </div>
           </div>
 
@@ -336,9 +350,17 @@ export const CreateClinicalRecordModal: React.FC<CreateClinicalRecordModalProps>
             <div className="flex items-center gap-2">
               <Award className="h-5 w-5 text-teal-700 shrink-0" />
               <div>
-                <strong>Firma Digital de Registro Profesional:</strong> Asentada por Dr(a).{' '}
-                {selectedDentist?.firstName} {selectedDentist?.lastName} (
-                {selectedDentist?.professionalLicense || 'Sin registro cargado'})
+                <strong>Firma Digital de Registro Profesional:</strong>{' '}
+                {selectedDentist ? (
+                  <>
+                    Asentada por {formatProfessionalName(selectedDentist)}
+                    {isHealthProfessional(selectedDentist) && selectedDentist.professionalLicense
+                      ? ` (${selectedDentist.professionalLicense})`
+                      : ''}
+                  </>
+                ) : (
+                  NO_PROFESSIONALS_MESSAGE
+                )}
               </div>
             </div>
           </div>

@@ -16,6 +16,7 @@ import {
 } from '../stateStore.ts';
 import { authenticateServerRequest, denyIfModuleNotAllowed } from '../security.ts';
 import { getTodayAsuncionISO } from '../../src/config/appBrand.ts';
+import { formatProfessionalName } from '../../src/utils/healthProfessional.ts';
 
 function normalizeTimeStr(val: string): string {
   const s = String(val || '').trim();
@@ -280,7 +281,7 @@ export function createClinicalBillingRouter(): express.Router {
             if (newStart < exEnd && newEnd > exStart) {
               if (existing.odontologistId === odontologistId) {
                 return res.status(409).json({
-                  error: `Conflicto de agenda: El Dr(a). ${doctor.firstName} ${doctor.lastName} ya tiene una cita de ${String(existing.startTime).slice(0, 5)} a ${String(existing.endTime).slice(0, 5)}.`,
+                  error: `Conflicto de agenda: ${formatProfessionalName(doctor, { fallback: 'El profesional' })} ya tiene una cita de ${String(existing.startTime).slice(0, 5)} a ${String(existing.endTime).slice(0, 5)}.`,
                   code: 'CONFLICT_DOUBLE_BOOKING_DOCTOR',
                 });
               }
@@ -2067,7 +2068,7 @@ export function createClinicalBillingRouter(): express.Router {
             userAgent: req.headers['user-agent'] || 'Backend Clinical Engine',
             oldValues: null,
             newValues: { diagnosis, odontologistId, patientId, recordDate: effectiveRecordDate },
-            description: `Evolución clínica (${effectiveRecordDate}) firmada por Dr(a). ${getUserDisplayName(doctor)} para ${patient.firstName} ${patient.lastName}`,
+            description: `Evolución clínica (${effectiveRecordDate}) firmada por ${formatProfessionalName(doctor, { fallback: getUserDisplayName(doctor) })} para ${patient.firstName} ${patient.lastName}`,
             createdAt: nowIso,
           };
           data.auditLogs.unshift(auditLog);

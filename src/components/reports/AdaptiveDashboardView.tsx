@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   BarChart3,
   TrendingUp,
-  Stethoscope,
   DollarSign,
   Users,
   Building2,
@@ -18,12 +17,11 @@ import {
   getPeriodLabel,
 } from '../../utils/reportPeriod.ts';
 import { AdminFinancialReport } from './AdminFinancialReport.tsx';
-import { DoctorCommissionsReport } from './DoctorCommissionsReport.tsx';
 import { ReceptionOperationsReport } from './ReceptionOperationsReport.tsx';
 import { ExecutiveDashboard } from './ExecutiveDashboard.tsx';
 import { hasModuleAccess } from '../../security/moduleCatalog.ts';
 
-type DashboardPerspective = 'EXECUTIVE' | 'ADMIN' | 'DOCTOR' | 'RECEPTION';
+type DashboardPerspective = 'EXECUTIVE' | 'ADMIN' | 'RECEPTION';
 
 const MONTH_NAMES = [
   'Enero',
@@ -63,9 +61,6 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
   // Perspective inicial
   const [activePerspective, setActivePerspective] = useState<DashboardPerspective>('EXECUTIVE');
   const [selectedBranchId, setSelectedBranchId] = useState<string>(externalBranchId || session?.currentBranchId || '');
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string>(
-    userRole === 'ODONTOLOGO' ? session?.userId || '' : ''
-  );
   const [timePeriod, setTimePeriod] = useState<ReportPeriodPreset>('MONTH');
   const [customYear, setCustomYear] = useState<number>(todayYm.year);
   const [customMonth, setCustomMonth] = useState<number>(todayYm.month);
@@ -75,23 +70,17 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
     hasModuleAccess(session, 'cash', roleObj) ||
     hasModuleAccess(session, 'quotes', roleObj) ||
     hasModuleAccess(session, 'staff-payroll', roleObj);
-  const canViewDoctorPerspective =
-    hasModuleAccess(session, 'treatments', roleObj) ||
-    hasModuleAccess(session, 'clinical', roleObj) ||
-    hasModuleAccess(session, 'odontogram', roleObj) ||
-    hasModuleAccess(session, 'staff-payroll', roleObj);
   const canViewReceptionPerspective =
     hasModuleAccess(session, 'agenda', roleObj) || hasModuleAccess(session, 'patients', roleObj);
 
   useEffect(() => {
     if (
       (activePerspective === 'ADMIN' && !canViewAdminPerspective) ||
-      (activePerspective === 'DOCTOR' && !canViewDoctorPerspective) ||
       (activePerspective === 'RECEPTION' && !canViewReceptionPerspective)
     ) {
       setActivePerspective('EXECUTIVE');
     }
-  }, [activePerspective, canViewAdminPerspective, canViewDoctorPerspective, canViewReceptionPerspective]);
+  }, [activePerspective, canViewAdminPerspective, canViewReceptionPerspective]);
 
   useEffect(() => {
     if (externalBranchId !== undefined) {
@@ -130,7 +119,7 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Métricas adaptativas según rol, liquidación de comisiones, recaudación en PYG y control operacional
+                Métricas adaptativas según rol, recaudación en PYG, agenda y control operacional
               </p>
             </div>
           </div>
@@ -160,20 +149,6 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
               >
                 <DollarSign className="h-3.5 w-3.5 text-teal-600" />
                 <span>Directiva & Finanzas</span>
-              </button>
-            )}
-
-            {canViewDoctorPerspective && (
-              <button
-                onClick={() => setActivePerspective('DOCTOR')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer ${
-                  activePerspective === 'DOCTOR'
-                    ? 'bg-white text-teal-900 shadow-xs border border-slate-200'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Stethoscope className="h-3.5 w-3.5 text-teal-600" />
-                <span>Odontólogos & Comisiones</span>
               </button>
             )}
 
@@ -285,15 +260,6 @@ export const AdaptiveDashboardView: React.FC<AdaptiveDashboardViewProps> = ({
           selectedBranchId={selectedBranchId}
           periodFilter={periodFilter}
           onSelectBranch={setSelectedBranchId}
-        />
-      )}
-
-      {activePerspective === 'DOCTOR' && canViewDoctorPerspective && (
-        <DoctorCommissionsReport
-          selectedBranchId={selectedBranchId}
-          periodFilter={periodFilter}
-          selectedDoctorId={selectedDoctorId}
-          onDoctorChange={setSelectedDoctorId}
         />
       )}
 

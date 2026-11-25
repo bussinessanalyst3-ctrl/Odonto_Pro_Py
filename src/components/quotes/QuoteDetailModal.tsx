@@ -4,6 +4,10 @@ import { useAuth } from '../../auth/authContext.tsx';
 import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
 import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
 import {
+  formatProfessionalName,
+  isHealthProfessional,
+} from '../../utils/healthProfessional.ts';
+import {
   X,
   Printer,
   Share2,
@@ -260,11 +264,15 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
                 Profesional Responsable
               </span>
               <p className="font-bold text-slate-900 text-sm">
-                Dr(a). {odontologist?.firstName} {odontologist?.lastName}
+                {odontologist
+                  ? formatProfessionalName(odontologist)
+                  : ((quote as any).historicalDoctorName || 'Profesional Responsable')}
               </p>
-              <p className="text-slate-600">
-                Registro MSPBS: {odontologist?.medicalLicenseNumber || 'En trámite'}
-              </p>
+              {odontologist && isHealthProfessional(odontologist) && odontologist.professionalLicense && (
+                <p className="text-slate-600">
+                  Registro MSPBS: {odontologist.professionalLicense}
+                </p>
+              )}
               <p className="text-slate-600">Sede: {branch?.name}</p>
             </div>
             <div>
@@ -371,9 +379,11 @@ export const QuoteDetailModal: React.FC<QuoteDetailModalProps> = ({
             <div>
               <div className="border-t border-dashed border-slate-400 w-48 mx-auto mb-1"></div>
               <p className="font-bold text-slate-800">Firma del Odontólogo</p>
-              <p className="text-[11px] text-slate-500">
-                Reg. MSPBS: {odontologist?.medicalLicenseNumber || 'Profesional Autorizado'}
-              </p>
+              {odontologist && isHealthProfessional(odontologist) && odontologist.professionalLicense && (
+                <p className="text-[11px] text-slate-500">
+                  Reg. MSPBS: {odontologist.professionalLicense}
+                </p>
+              )}
             </div>
             <div>
               <div className="border-t border-dashed border-slate-400 w-48 mx-auto mb-1"></div>

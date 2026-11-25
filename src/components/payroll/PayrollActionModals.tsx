@@ -425,18 +425,23 @@ export const PayrollPrintReportModal: React.FC<PayrollPrintReportModalProps> = (
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item: any) => (
-                    <tr key={item.id}>
-                      <td className="border border-slate-200 px-3 py-2 font-semibold">{item.itemType}</td>
-                      <td className="border border-slate-200 px-3 py-2">{item.concept}</td>
-                      <td className="border border-slate-200 px-3 py-2 text-right font-mono tabular-nums">
-                        {item.sign === 'CREDIT' ? `₲ ${Number(item.amount).toLocaleString('es-PY')}` : '—'}
-                      </td>
-                      <td className="border border-slate-200 px-3 py-2 text-right font-mono tabular-nums text-rose-700">
-                        {item.sign === 'DEBIT' ? `₲ ${Number(item.amount).toLocaleString('es-PY')}` : '—'}
-                      </td>
-                    </tr>
-                  ))}
+                  {items.map((item: any) => {
+                    const isIrpLine = String(item.concept || '').startsWith('Retención IRP');
+                    return (
+                      <tr key={item.id} className={isIrpLine ? 'bg-amber-50/60' : undefined}>
+                        <td className={`border border-slate-200 px-3 py-2 font-semibold ${isIrpLine ? 'text-amber-900' : ''}`}>
+                          {isIrpLine ? 'RETENCIÓN IRP' : item.itemType}
+                        </td>
+                        <td className="border border-slate-200 px-3 py-2">{item.concept}</td>
+                        <td className="border border-slate-200 px-3 py-2 text-right font-mono tabular-nums">
+                          {item.sign === 'CREDIT' ? `₲ ${Number(item.amount).toLocaleString('es-PY')}` : '—'}
+                        </td>
+                        <td className="border border-slate-200 px-3 py-2 text-right font-mono tabular-nums text-rose-700">
+                          {item.sign === 'DEBIT' ? `₲ ${Number(item.amount).toLocaleString('es-PY')}` : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
 

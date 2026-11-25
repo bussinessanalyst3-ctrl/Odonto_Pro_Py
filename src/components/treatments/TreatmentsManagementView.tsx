@@ -35,6 +35,7 @@ import { InsuranceClaimsTab } from './InsuranceClaimsTab.tsx';
 import { HistoricalImportModal } from '../shared/HistoricalImportModal.tsx';
 import { useAuth } from '../../auth/authContext.tsx';
 import { hasBackendSession, patchAuthoritativeAction } from '../../services/authoritativeApi.ts';
+import { formatProfessionalName } from '../../utils/healthProfessional.ts';
 
 interface TreatmentsManagementViewProps {
   initialPatientId?: string;
@@ -572,7 +573,7 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
                           <span>•</span>
                           <span>{branch?.name}</span>
                           <span>•</span>
-                          <span>Dr(a). {doc?.lastName || (t as any).historicalDoctorName || 'Asignado'}</span>
+                          <span>{doc ? formatProfessionalName(doc, { lastNameOnly: true }) : ((t as any).historicalDoctorName || 'Asignado')}</span>
                         </div>
                       </div>
 

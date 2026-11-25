@@ -15,6 +15,11 @@ import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 import { hasBackendSession, postAuthoritativeAction } from '../../services/authoritativeApi.ts';
+import {
+  NO_PROFESSIONALS_MESSAGE,
+  formatProfessionalOptionLabel,
+  getActiveHealthProfessionals,
+} from '../../utils/healthProfessional.ts';
 
 interface CreateAppointmentModalProps {
   initialDate?: string;
@@ -31,10 +36,7 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
   const branches = snapshot.branches;
   const activePatients = snapshot.patients.filter((p) => p.status !== 'INACTIVE');
   const patients = activePatients.length > 0 ? activePatients : snapshot.patients;
-  const activeDentists = snapshot.users.filter((u) => u.roleId === 'ODONTOLOGO' && u.status !== 'INACTIVE');
-  const dentists = activeDentists.length > 0
-    ? activeDentists
-    : snapshot.users.filter((u) => u.status !== 'INACTIVE' && (u.roleId === 'SUPER_ADMIN' || u.roleId === 'ADMIN_SUCURSAL'));
+  const dentists = getActiveHealthProfessionals(snapshot.users);
   const services = snapshot.services.filter((s) => s.status !== 'INACTIVE');
 
   const [branchId, setBranchId] = useState<string>(branches[0]?.id || '');
@@ -255,15 +257,25 @@ export const CreateAppointmentModal: React.FC<CreateAppointmentModalProps> = ({
               <select
                 value={odontologistId}
                 onChange={(e) => setOdontologistId(e.target.value)}
-                className="w-full text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none min-h-[44px] md:min-h-0"
+                disabled={dentists.length === 0}
+                className="w-full text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-900 font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none min-h-[44px] md:min-h-0 disabled:opacity-60"
                 required
               >
-                {dentists.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    Dr(a). {d.firstName} {d.lastName} ({d.professionalLicense || 'MSPBS'})
-                  </option>
-                ))}
+                {dentists.length === 0 ? (
+                  <option value="">{NO_PROFESSIONALS_MESSAGE}</option>
+                ) : (
+                  dentists.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {formatProfessionalOptionLabel(d)}
+                    </option>
+                  ))
+                )}
               </select>
+              {dentists.length === 0 && (
+                <p className="text-[11px] text-amber-700 font-medium mt-1">
+                  {NO_PROFESSIONALS_MESSAGE}
+                </p>
+              )}
             </div>
 
             <div>

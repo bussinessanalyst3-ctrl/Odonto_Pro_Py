@@ -10,6 +10,7 @@ import {
   UserEffectivePermissions,
 } from '../../security/rbacHierarchy.ts';
 import type { BackendActorContext, StoreContext } from './types.ts';
+import { formatProfessionalName } from '../../utils/healthProfessional.ts';
 
 export function revokeUserSessions(ctx: StoreContext, userId: string, adminUserId?: string) {
   const data = ctx.getData();
@@ -489,7 +490,7 @@ export function deleteUser(ctx: StoreContext, userId: string, actor?: BackendAct
     }
   }
 
-  const doctorHistoricalName = `Dr(a). ${targetUser.firstName} ${targetUser.lastName} (Registro Histórico)`;
+  const doctorHistoricalName = `${formatProfessionalName(targetUser)} (Registro Histórico)`;
   const staffHistoricalName = `${targetUser.firstName} ${targetUser.lastName} (Histórico)`;
 
   (data.appointments || []).forEach((a: any) => {

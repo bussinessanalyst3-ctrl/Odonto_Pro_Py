@@ -3,6 +3,12 @@ import { dbStore } from '../../db/inMemoryStore.ts';
 import { useAuth } from '../../auth/authContext.tsx';
 import { getTodayAsuncionISO } from '../../config/appBrand.ts';
 import {
+  NO_PROFESSIONALS_MESSAGE,
+  formatProfessionalName,
+  formatProfessionalOptionLabel,
+  getActiveHealthProfessionals,
+} from '../../utils/healthProfessional.ts';
+import {
   X,
   Plus,
   Trash2,
@@ -68,8 +74,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
   const [insurancePlans, setInsurancePlans] = useState(() => dbStore.getInsurancePlans(false));
 
   const dentists = useMemo(() => {
-    const list = users.filter((u) => u.roleId === 'ODONTOLOGO');
-    return list.length > 0 ? list : users;
+    return getActiveHealthProfessionals(users);
   }, [users]);
 
   // Recarga reactiva de catálogos
@@ -189,7 +194,7 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
     // Caso B: Modo Nuevo Presupuesto
     const defaultPatientId = initialPatientId || currentPatients[0]?.id || '';
     const defaultBranchId = session?.currentBranchId || currentBranches[0]?.id || '';
-    const defaultDentistId = currentUsers.find((u) => u.roleId === 'ODONTOLOGO')?.id || currentUsers[0]?.id || '';
+    const defaultDentistId = getActiveHealthProfessionals(currentUsers)[0]?.id || '';
 
     setPatientId(defaultPatientId);
     setBranchId(defaultBranchId);
@@ -650,14 +655,38 @@ export const CreateQuoteModal: React.FC<CreateQuoteModalProps> = ({
               <select
                 value={odontologistId}
                 onChange={(e) => setOdontologistId(e.target.value)}
-                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none text-slate-900"
+                disabled={dentists.length === 0 && !odontologistId}
+                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:outline-none text-slate-900 disabled:opacity-60"
               >
-                {dentists.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    Dr(a). {d.firstName} {d.lastName} {d.medicalLicenseNumber ? `(Reg: ${d.medicalLicenseNumber})` : ''}
-                  </option>
-                ))}
+                {(() => {
+                  const historicalAssigned =
+                    quoteToEditId && odontologistId && !dentists.some((d) => d.id === odontologistId)
+                      ? users.find((u) => u.id === odontologistId)
+                      : null;
+                  if (dentists.length === 0 && !historicalAssigned) {
+                    return <option value="">{NO_PROFESSIONALS_MESSAGE}</option>;
+                  }
+                  return (
+                    <>
+                      {historicalAssigned && (
+                        <option key={historicalAssigned.id} value={historicalAssigned.id}>
+                          {formatProfessionalName(historicalAssigned)} (Registro histórico)
+                        </option>
+                      )}
+                      {dentists.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {formatProfessionalOptionLabel(d)}
+                        </option>
+                      ))}
+                    </>
+                  );
+                })()}
               </select>
+              {dentists.length === 0 && (
+                <p className="text-[11px] text-amber-700 font-medium mt-1">
+                  {NO_PROFESSIONALS_MESSAGE}
+                </p>
+              )}
             </div>
           </div>
 
