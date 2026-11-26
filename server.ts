@@ -5,10 +5,17 @@ import { fileURLToPath } from 'url';
 import { getPgPool, loadDatabaseState } from './server/stateStore.ts';
 import {
   apiRateLimitMiddleware,
+  authenticateServerRequest,
   corsAndCsrfMiddleware,
   loadServerSessions,
   securityHeadersMiddleware,
 } from './server/security.ts';
+import {
+  allowClientErrorReport,
+  inferModuleFromRoute,
+  normalizeModuleId,
+  recordSystemError,
+} from './server/healthMonitor.ts';
 import { createAuthRouter } from './server/routes/authRoutes.ts';
 import { createDbSyncRouter } from './server/routes/dbSyncRoutes.ts';
 import { createAdminRouter } from './server/routes/adminRoutes.ts';
@@ -28,10 +35,84 @@ export async function createConfiguredApp(options?: { skipFrontend?: boolean }):
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
 
-  // Middlewares globales de seguridad, CORS/CSRF, Rate Limit y JSON body parsing
+  // Middlewares globales de seguridad, CORS/CSRF, Rate Limit
   app.use(securityHeadersMiddleware);
   app.use(corsAndCsrfMiddleware);
   app.use('/api/', apiRateLimitMiddleware);
+
+  // Endpoint liviano para reportes sanitizados del ErrorBoundary por módulo (límite 4 KB, sesión obligatoria)
+  app.post(
+    '/api/client-errors',
+    express.json({ limit: '4kb' }),
+    (err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+      if (err) {
+        return res.status(204).end();
+      }
+      return next();
+    },
+    (req: express.Request, res: express.Response) => {
+      try {
+        const auth = authenticateServerRequest(req);
+        // Descarta en silencio cualquier solicitud sin sesión válida
+        if (!auth.authenticated || !auth.user) {
+          return res.status(204).end();
+        }
+        const moduleId = normalizeModuleId(req.body?.module);
+        const userId = String(auth.user.id || '');
+        if (!allowClientErrorReport(userId, moduleId)) {
+          return res.status(204).end();
+        }
+        const rawMessage = typeof req.body?.message === 'string' ? req.body.message : 'Error de interfaz en módulo';
+        recordSystemError({
+          source: 'frontend',
+          module: moduleId,
+          route: `/ui/${moduleId}`,
+          method: 'UI',
+          statusCode: 500,
+          message: rawMessage,
+          organizationId: auth.user.organizationId,
+          userId,
+        });
+      } catch {
+        // Nunca interrumpir al cliente
+      }
+      return res.status(204).end();
+    }
+  );
+
+  // Observador liviano para respuestas >= 500 devueltas directamente por rutas (excluye 4xx y /api/health*)
+  app.use('/api/', (req, res, next) => {
+    try {
+      res.on('finish', () => {
+        try {
+          if (res.statusCode < 500 || (res as any).__healthRecorded) return;
+          const url = req.originalUrl || req.path || '';
+          if (url.startsWith('/api/health')) return;
+          const deltaCols =
+            url.startsWith('/api/db/delta') && req.body && typeof req.body === 'object'
+              ? [
+                  ...Object.keys((req.body as any).upserts || {}),
+                  ...Object.keys((req.body as any).deletes || {}),
+                ]
+              : undefined;
+          recordSystemError({
+            source: 'backend',
+            module: inferModuleFromRoute(url, deltaCols),
+            route: url,
+            method: req.method,
+            statusCode: res.statusCode,
+            message: `Error HTTP ${res.statusCode} en servidor`,
+          });
+        } catch {
+          // Nunca afectar la respuesta
+        }
+      });
+    } catch {
+      // Nunca afectar la petición
+    }
+    next();
+  });
+
   app.use(express.json({ limit: '25mb' }));
 
   // Rutas modulares de API Backend
@@ -56,6 +137,29 @@ export async function createConfiguredApp(options?: { skipFrontend?: boolean }):
           : 500;
     if (statusCode >= 500) {
       console.error(`[Server Error] ${req.method} ${req.originalUrl}:`, err?.message || err);
+      try {
+        (res as any).__healthRecorded = true;
+        const url = req.originalUrl || req.path || '/';
+        if (!url.startsWith('/api/health')) {
+          const deltaCols =
+            url.startsWith('/api/db/delta') && req.body && typeof req.body === 'object'
+              ? [
+                  ...Object.keys((req.body as any).upserts || {}),
+                  ...Object.keys((req.body as any).deletes || {}),
+                ]
+              : undefined;
+          recordSystemError({
+            source: 'backend',
+            module: inferModuleFromRoute(url, deltaCols),
+            route: url,
+            method: req.method,
+            statusCode,
+            message: err?.message || 'Error interno del servidor',
+          });
+        }
+      } catch {
+        // Nunca afectar la respuesta original
+      }
     }
     if (req.path.startsWith('/api/')) {
       return res.status(statusCode).json({

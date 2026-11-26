@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import {
   ShieldCheck,
   Building2,
+  Activity,
   Map as MapIcon,
   Database,
   FlaskConical,
@@ -15,6 +16,9 @@ import { getApiBaseUrl } from '../../config/apiConfig.ts';
 
 const OwnerClientsPanel = lazy(() =>
   import('./OwnerClientsPanel.tsx').then((m) => ({ default: m.OwnerClientsPanel }))
+);
+const OwnerSystemHealthPanel = lazy(() =>
+  import('./OwnerSystemHealthPanel.tsx').then((m) => ({ default: m.OwnerSystemHealthPanel }))
 );
 const RoadmapViewer = lazy(() =>
   import('../RoadmapViewer.tsx').then((m) => ({ default: m.RoadmapViewer }))
@@ -36,7 +40,7 @@ const SecurityHardeningView = lazy(() =>
   }))
 );
 
-type OwnerModuleTab = 'clients' | 'roadmap' | 'schema' | 'testing' | 'production' | 'security';
+type OwnerModuleTab = 'clients' | 'health' | 'roadmap' | 'schema' | 'testing' | 'production' | 'security';
 
 interface OwnerConsoleProps {
   onBackToApp: () => void;
@@ -49,6 +53,7 @@ const OWNER_TABS: Array<{
   icon: React.ComponentType<{ className?: string }>;
 }> = [
   { id: 'clients', label: 'Empresas y Clientes', shortLabel: 'Empresas', icon: Building2 },
+  { id: 'health', label: 'Estado del Sistema', shortLabel: 'Estado', icon: Activity },
   { id: 'roadmap', label: 'Fases y Roadmap', shortLabel: 'Roadmap', icon: MapIcon },
   { id: 'schema', label: 'Esquema SQL', shortLabel: 'Esquema', icon: Database },
   { id: 'testing', label: 'Pruebas Automatizadas', shortLabel: 'Pruebas', icon: FlaskConical },
@@ -179,6 +184,7 @@ export const OwnerConsole: React.FC<OwnerConsoleProps> = ({ onBackToApp }) => {
           }
         >
           {activeTab === 'clients' && <OwnerClientsPanel />}
+          {activeTab === 'health' && <OwnerSystemHealthPanel />}
           {activeTab === 'roadmap' && <RoadmapViewer />}
           {activeTab === 'schema' && <SchemaViewer />}
           {activeTab === 'testing' && <AutomatedTestingView />}

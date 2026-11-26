@@ -61,12 +61,13 @@ test('Fase 8 (Producción): Headers de seguridad, CORS/CSRF, Lockout, JSON malfo
   const baseUrl = `http://127.0.0.1:${addr.port}`;
 
   try {
-    // 1. Health & Security Headers in production mode
+    // 1. Health & Security Headers in production mode (liviano, sin datos internos)
     const healthRes = await rawRequest(baseUrl, '/api/health');
     assert.equal(healthRes.status, 200);
     assert.equal(healthRes.json?.status, 'ok');
-    assert.equal(healthRes.json?.environment, 'production');
-    assert.ok(typeof healthRes.json?.uptimeSec === 'number');
+    assert.equal(typeof healthRes.json?.time, 'string');
+    assert.equal(healthRes.json?.environment, undefined);
+    assert.equal(healthRes.json?.db, undefined);
     assert.equal(healthRes.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(healthRes.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
     assert.equal(healthRes.headers.get('x-frame-options'), 'SAMEORIGIN');

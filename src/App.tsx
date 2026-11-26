@@ -13,6 +13,7 @@ import {
   getModuleById,
   hasModuleAccess,
 } from './security/moduleCatalog.ts';
+import { ModuleErrorBoundary } from './components/common/ModuleErrorBoundary.tsx';
 
 const OwnerConsole = lazy(() =>
   import('./components/owner/OwnerConsole.tsx').then((m) => ({ default: m.OwnerConsole }))
@@ -301,51 +302,57 @@ function MainApplication() {
               </button>
             </div>
           ) : (
-            <Suspense
-              fallback={
-                <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-xs flex items-center justify-center min-h-[260px]">
-                  <div className="flex flex-col items-center gap-3 text-slate-500">
-                    <div className="h-8 w-8 rounded-full border-2 border-teal-600 border-t-transparent animate-spin" />
-                    <span className="text-xs font-semibold">Cargando módulo...</span>
-                  </div>
-                </div>
-              }
+            <ModuleErrorBoundary
+              key={activeTab}
+              moduleId={activeTab}
+              sessionToken={session?.sessionToken}
             >
-              {activeTab === 'dashboard' && (
-                <AdaptiveDashboardView
-                  onNavigateTab={handleGlobalNavigate}
-                  selectedBranchId={selectedBranchId}
-                />
-              )}
-              {activeTab === 'audit' && <AuditLogsView />}
-              {activeTab === 'quotes' && (
-                <QuotesManagementView onNavigateToTreatments={handleNavigateToTreatments} />
-              )}
-              {activeTab === 'cash' && <CashRegisterManagementView />}
-              {activeTab === 'staff-payroll' && <StaffPayrollManagementView />}
-              {activeTab === 'odontogram' && (
-                <OdontogramView
-                  onNavigateToTreatments={handleNavigateToTreatments}
-                  onNavigateToQuotes={(_patientId) => {
-                    setActiveTab('quotes');
-                  }}
-                />
-              )}
-              {activeTab === 'treatments' && (
-                <TreatmentsManagementView
-                  initialPatientId={treatmentNavTarget?.patientId}
-                  initialToothNumber={treatmentNavTarget?.toothNumber}
-                />
-              )}
-              {activeTab === 'agenda' && <AppointmentsCalendarView />}
-              {activeTab === 'clinical' && <ClinicalRecordsView />}
-              {activeTab === 'patients' && (
-                <PatientManagementView onNavigateToTab={handleGlobalNavigate} />
-              )}
-              {activeTab === 'users' && <UserManagementView />}
-              {activeTab === 'branches' && <BranchManagementView />}
-              {activeTab === 'organization' && <OrganizationManagementView />}
-            </Suspense>
+              <Suspense
+                fallback={
+                  <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-xs flex items-center justify-center min-h-[260px]">
+                    <div className="flex flex-col items-center gap-3 text-slate-500">
+                      <div className="h-8 w-8 rounded-full border-2 border-teal-600 border-t-transparent animate-spin" />
+                      <span className="text-xs font-semibold">Cargando módulo...</span>
+                    </div>
+                  </div>
+                }
+              >
+                {activeTab === 'dashboard' && (
+                  <AdaptiveDashboardView
+                    onNavigateTab={handleGlobalNavigate}
+                    selectedBranchId={selectedBranchId}
+                  />
+                )}
+                {activeTab === 'audit' && <AuditLogsView />}
+                {activeTab === 'quotes' && (
+                  <QuotesManagementView onNavigateToTreatments={handleNavigateToTreatments} />
+                )}
+                {activeTab === 'cash' && <CashRegisterManagementView />}
+                {activeTab === 'staff-payroll' && <StaffPayrollManagementView />}
+                {activeTab === 'odontogram' && (
+                  <OdontogramView
+                    onNavigateToTreatments={handleNavigateToTreatments}
+                    onNavigateToQuotes={(_patientId) => {
+                      setActiveTab('quotes');
+                    }}
+                  />
+                )}
+                {activeTab === 'treatments' && (
+                  <TreatmentsManagementView
+                    initialPatientId={treatmentNavTarget?.patientId}
+                    initialToothNumber={treatmentNavTarget?.toothNumber}
+                  />
+                )}
+                {activeTab === 'agenda' && <AppointmentsCalendarView />}
+                {activeTab === 'clinical' && <ClinicalRecordsView />}
+                {activeTab === 'patients' && (
+                  <PatientManagementView onNavigateToTab={handleGlobalNavigate} />
+                )}
+                {activeTab === 'users' && <UserManagementView />}
+                {activeTab === 'branches' && <BranchManagementView />}
+                {activeTab === 'organization' && <OrganizationManagementView />}
+              </Suspense>
+            </ModuleErrorBoundary>
           )}
         </main>
       </div>

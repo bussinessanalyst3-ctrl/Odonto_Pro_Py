@@ -13,6 +13,7 @@ import {
   syncFullStateToRelationalDb,
 } from '../src/db/pgRepository.ts';
 import { sanitizeUsersForClient } from './crypto.ts';
+import { inferModuleFromRoute, recordSystemError } from './healthMonitor.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,6 +59,18 @@ if (process.env.DATABASE_URL) {
     });
     pgPool.on('error', (err: any) => {
       console.error('[PostgreSQL] Unexpected client error:', err.message);
+      try {
+        recordSystemError({
+          source: 'database',
+          module: 'other',
+          route: '/db/pool',
+          method: 'DB',
+          statusCode: 503,
+          message: err?.message || 'Error inesperado en conexión PostgreSQL',
+        });
+      } catch {
+        // Silencioso
+      }
     });
     console.log('[PostgreSQL] Initialized PostgreSQL connection pool from DATABASE_URL.');
   } catch (err) {
@@ -333,6 +346,22 @@ export function saveDatabaseState(delta?: DbDeltaPayload): Promise<void> {
     return enqueuePgOperation(() => applyDeltaToRelationalDb(pgPool!, delta, serverDbState, versionSnapshot)).catch(
       (err: any) => {
         console.error('[PostgreSQL] Error applying relational delta:', err.message);
+        try {
+          const cols = [
+            ...Object.keys(delta.upserts || {}),
+            ...Object.keys(delta.deletes || {}),
+          ];
+          recordSystemError({
+            source: 'database',
+            module: inferModuleFromRoute('/api/db/delta', cols),
+            route: '/db/delta',
+            method: 'DB',
+            statusCode: 500,
+            message: err?.message || 'Error al guardar delta en PostgreSQL',
+          });
+        } catch {
+          // Silencioso
+        }
       }
     );
   }
@@ -340,6 +369,18 @@ export function saveDatabaseState(delta?: DbDeltaPayload): Promise<void> {
   return enqueuePgOperation(() => syncFullStateToRelationalDb(pgPool!, serverDbState, versionSnapshot)).catch(
     (err: any) => {
       console.error('[PostgreSQL] Error syncing full relational state:', err.message);
+      try {
+        recordSystemError({
+          source: 'database',
+          module: 'other',
+          route: '/db/sync',
+          method: 'DB',
+          statusCode: 500,
+          message: err?.message || 'Error al sincronizar estado en PostgreSQL',
+        });
+      } catch {
+        // Silencioso
+      }
     }
   );
 }

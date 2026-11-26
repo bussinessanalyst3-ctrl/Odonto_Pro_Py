@@ -506,11 +506,12 @@ test('E2E Fase 7: Presupuestos, Tratamientos, Turnos, Historia Clínica autorita
     });
     assert.equal(crossClinical.status, 403);
 
-    // 6. Health endpoint devuelve telemetría operativa segura sin secretos
+    // 6. Health endpoint liviano sin secretos ni consulta a BD
     const healthRes = await apiRequest(baseUrl, '/api/health');
     assert.equal(healthRes.status, 200);
     assert.equal(healthRes.json?.status, 'ok');
-    assert.equal(typeof healthRes.json?.uptimeSec, 'number');
+    assert.equal(typeof healthRes.json?.time, 'string');
+    assert.equal(healthRes.json?.db, undefined);
   } finally {
     server.closeAllConnections?.();
     await new Promise<void>((resolve) => server.close(() => resolve()));

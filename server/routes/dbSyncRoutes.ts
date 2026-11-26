@@ -18,7 +18,6 @@ import {
   actorHasDynamicPermission,
   CLINICAL_ACCESS_ROLES,
   filterStateForTenant,
-  getPgPool,
   getRecordVersion,
   getServerDbState,
   getServerStateVersion,
@@ -28,6 +27,11 @@ import {
   TenantActorContext,
   withOrgTransactionLock,
 } from '../stateStore.ts';
+import {
+  allowPublicDbHealthRequest,
+  getDeployedVersion,
+  getPublicDbHealthResponse,
+} from '../healthMonitor.ts';
 import {
   activeServerSessions,
   authenticateServerRequest,
@@ -247,39 +251,28 @@ function validateCollectionPermissionForActor(
 export function createDbSyncRouter(): express.Router {
   const router = express.Router();
 
-  // GET /api/health
-  router.get('/health', async (_req, res) => {
-    const pgPool = getPgPool();
-    let dbStatus = 'local-fallback';
-    let migrationsApplied: number | null = null;
-    if (pgPool) {
-      try {
-        await pgPool.query('SELECT 1');
-        dbStatus = 'connected';
-        try {
-          const migRes = await pgPool.query('SELECT COUNT(*)::int AS cnt FROM schema_migrations');
-          migrationsApplied = migRes.rows?.[0]?.cnt ?? 0;
-        } catch {
-          migrationsApplied = null;
-        }
-      } catch {
-        dbStatus = 'error';
-        return res.status(503).json({
-          status: 'degraded',
-          timestamp: new Date().toISOString(),
-          uptimeSec: Math.round(process.uptime()),
-          db: dbStatus,
-        });
-      }
-    }
+  // GET /api/health — Liviano para Render Health Check (sin consultar la base de datos)
+  router.get('/health', (_req, res) => {
+    const version = getDeployedVersion();
     return res.json({
       status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptimeSec: Math.round(process.uptime()),
-      environment: process.env.NODE_ENV || 'development',
-      db: dbStatus,
-      ...(migrationsApplied !== null ? { migrationsApplied } : {}),
+      time: new Date().toISOString(),
+      ...(version ? { version } : {}),
     });
+  });
+
+  // GET /api/health/db — Chequeo público mínimo para UptimeRobot (caché 30 s, sin detalles técnicos)
+  router.get('/health/db', async (req, res) => {
+    const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+    if (!allowPublicDbHealthRequest(clientIp)) {
+      return res.status(429).json({ status: 'degraded' });
+    }
+    try {
+      const result = await getPublicDbHealthResponse();
+      return res.status(result.httpStatus).json(result.body);
+    } catch {
+      return res.status(503).json({ status: 'down' });
+    }
   });
 
   // GET /api/db/state (soporta sinceVersion para polling liviano y auditLimit para clínicas con +1 año de datos)

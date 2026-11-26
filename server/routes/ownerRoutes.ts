@@ -2,6 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { authenticateServerRequest } from '../security.ts';
 import { getServerDbState, saveDatabaseState } from '../stateStore.ts';
+import { getOwnerSystemHealth } from '../healthMonitor.ts';
 
 function getConfiguredOwnerEmail(): string {
   return String(process.env.OWNER_EMAIL || '').trim().toLowerCase();
@@ -80,6 +81,17 @@ export function createOwnerRouter(): express.Router {
         role: user.roleId,
       },
     });
+  });
+
+  // GET /api/owner/health — Estado del servidor, BD y fallas por módulo (404 para no propietarios)
+  router.get('/health', async (req, res, next) => {
+    try {
+      const fresh = String(req.query?.fresh || '') === '1';
+      const health = await getOwnerSystemHealth({ fresh });
+      return res.json(health);
+    } catch (err) {
+      return next(err);
+    }
   });
 
   // GET /api/owner/organizations — Metadatos de empresas/clientes (sin datos clínicos de pacientes)
