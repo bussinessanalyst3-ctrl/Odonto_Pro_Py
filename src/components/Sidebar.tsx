@@ -11,7 +11,6 @@ import {
   Users,
   Landmark,
   ShieldAlert,
-  ShieldCheck,
   LogOut,
   X,
   Briefcase,
@@ -29,6 +28,7 @@ import {
   SystemModuleId,
   hasModuleAccess,
 } from '../security/moduleCatalog.ts';
+import { OdontoProWordmark, PatientAvatar } from './ui/DesignPrimitives.tsx';
 
 const SIDEBAR_MODULE_ICONS: Record<SystemModuleId, React.ComponentType<{ className?: string }>> = {
   dashboard: BarChart3,
@@ -123,38 +123,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
         />
       )}
 
-      {/* Barra lateral fija */}
+      {/* Barra lateral clara fija */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 w-64 max-w-[82vw] md:w-72 bg-white border-r border-slate-200/80 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
-          isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+        className={`fixed top-0 bottom-0 left-0 z-50 w-64 max-w-[82vw] md:w-72 bg-white border-r border-[#E6E2D9] flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+          isOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full'
         }`}
       >
-        {/* Encabezado del Sidebar / Branding Dinámico */}
-        <div className="h-14 md:h-16 flex items-center justify-between px-3.5 md:px-5 border-b border-slate-100 bg-white">
-          <div className="flex items-center gap-2.5 md:gap-3 min-w-0">
-            <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white shadow-sm font-bold overflow-hidden shrink-0">
-              <ShieldCheck className="h-4 w-4 md:h-5 md:w-5" />
+        {/* Encabezado del Sidebar / Marca ODONTOPRO */}
+        <div className="h-14 md:h-16 flex items-center justify-between px-4 md:px-5 border-b border-[#EFECE5] bg-white">
+          <div className="min-w-0">
+            <div title={APP_NAME}>
+              <OdontoProWordmark size="md" />
             </div>
-            <div className="min-w-0">
-              <div className="font-extrabold text-slate-900 text-sm md:text-base leading-tight tracking-tight flex items-center gap-1.5">
-                <span className="truncate max-w-[130px]" title={APP_NAME}>
-                  {APP_NAME}
-                </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 border border-teal-200">
-                  {branding.currency}
-                </span>
-              </div>
-              {companyLegalName && (
-                <p className="text-[11px] text-slate-500 font-medium truncate max-w-[155px]" title={companyLegalName}>
-                  {companyLegalName}
-                </p>
-              )}
-            </div>
+            {companyLegalName && (
+              <p
+                className="mt-1 text-[11px] text-[#6B706D] font-medium truncate max-w-[180px]"
+                title={companyLegalName}
+              >
+                {companyLegalName}
+              </p>
+            )}
           </div>
           {/* Botón cerrar para móvil con área táctil accesible (44px) */}
           <button
             onClick={onClose}
-            className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 lg:hidden cursor-pointer"
+            className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-[#6B706D] hover:text-[#1C1F1E] rounded-md hover:bg-[#F2F0EB] lg:hidden cursor-pointer"
             aria-label="Cerrar menú"
           >
             <X className="h-5 w-5" />
@@ -162,7 +155,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Lista de navegación con scroll táctil suave */}
-        <div className="flex-1 overflow-y-auto px-2.5 md:px-3 py-3 md:py-4 space-y-4 md:space-y-6 scrollbar-thin" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div
+          className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           {navGroups.map((group) => {
             // Filtrar ítems permitidos usando el catálogo único (con normalización de alias y herencia de rol)
             const allowedItems = group.items.filter((item) =>
@@ -171,8 +167,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             if (allowedItems.length === 0) return null;
 
             return (
-              <div key={group.id} className="space-y-1">
-                <div className="px-3 pb-1 md:pb-1.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase select-none">
+              <div key={group.id} className="space-y-0.5">
+                <div className="px-3 pb-1.5 text-[11px] font-medium text-[#6B706D] select-none">
                   {group.label}
                 </div>
                 {allowedItems.map((item) => {
@@ -183,28 +179,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       key={item.id}
                       onClick={() => handleItemClick(item.id)}
-                      className={`w-full flex items-center justify-between px-3 py-2 md:py-2.5 min-h-[44px] md:min-h-[42px] rounded-xl text-xs font-semibold transition-all group cursor-pointer touch-manipulation ${
+                      className={`w-full flex items-center justify-between px-3 py-2 min-h-[44px] md:min-h-[40px] rounded-md text-[13px] transition-colors group cursor-pointer touch-manipulation ${
                         isActive
-                          ? 'bg-teal-50 text-teal-800 border border-teal-200/80 shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                          ? 'bg-[#ECF5F5] text-[#0F5C63] font-semibold'
+                          : 'text-[#525755] font-medium hover:text-[#1C1F1E] hover:bg-[#F8F7F4]'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
                         <Icon
-                          className={`h-4 w-4 transition-colors ${
+                          className={`h-4 w-4 shrink-0 transition-colors ${
                             isActive
-                              ? 'text-teal-600'
-                              : 'text-slate-400 group-hover:text-slate-600'
+                              ? 'text-[#0F5C63]'
+                              : 'text-[#6B706D] group-hover:text-[#1C1F1E]'
                           }`}
                         />
-                        <span>{item.label}</span>
+                        <span className="truncate">{item.label}</span>
                       </div>
                       {item.badge && (
                         <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                            isActive
-                              ? 'bg-teal-200/60 text-teal-800'
-                              : 'bg-slate-100 text-slate-500'
+                          className={`text-[11px] font-medium tabular-nums shrink-0 ${
+                            isActive ? 'text-[#0F5C63]' : 'text-[#6B706D]'
                           }`}
                         >
                           {item.badge}
@@ -216,11 +210,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             );
           })}
-
         </div>
 
-        {/* Pie del Sidebar: Enlace exclusivo de propietario (solo si el backend lo confirma) y usuario actual */}
-        <div className="p-3 border-t border-slate-100 bg-slate-50/60 space-y-2">
+        {/* Pie del Sidebar: Enlace exclusivo de propietario y usuario actual */}
+        <div className="p-3 border-t border-[#EFECE5] bg-white space-y-2">
           {canAccessOwnerConsole && onOpenOwnerConsole && (
             <button
               type="button"
@@ -230,34 +223,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onClose();
                 }
               }}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-100 text-xs font-semibold transition-colors cursor-pointer"
+              className="w-full flex items-center justify-between px-3 py-2 min-h-[40px] rounded-md bg-[#F6F2EA] hover:bg-[#EFE8DB] border border-[#E2D7C5] text-[#5C4F3A] text-xs font-semibold transition-colors cursor-pointer"
             >
               <span className="flex items-center gap-2">
-                <Terminal className="h-3.5 w-3.5 text-teal-400" />
-                <span>Consola del Propietario</span>
+                <Terminal className="h-3.5 w-3.5 text-[#7A684C]" />
+                <span>Consola del propietario</span>
               </span>
-              <span className="text-[10px] font-mono text-slate-400">/owner</span>
             </button>
           )}
-          <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
+          <div className="flex items-center justify-between px-2 py-1.5 rounded-md">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="h-8 w-8 rounded-lg bg-teal-100 text-teal-800 font-bold text-xs flex items-center justify-center shrink-0">
-                {session?.firstName?.[0] || 'U'}
-                {session?.lastName?.[0] || ''}
-              </div>
+              <PatientAvatar
+                firstName={session?.firstName}
+                lastName={session?.lastName}
+                seed={session?.userId || session?.email}
+                size="sm"
+              />
               <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-800 truncate">
+                <p className="text-xs font-semibold text-[#1C1F1E] truncate">
                   {session?.firstName || 'Usuario'} {session?.lastName || ''}
                 </p>
-                <p className="text-[11px] text-teal-700 font-medium truncate">
+                <p className="text-[11px] text-[#6B706D] truncate">
                   {session?.roleName || userRole}
                 </p>
               </div>
             </div>
             <button
               onClick={logout}
-              title="Cerrar sesión segura"
-              className="p-2.5 md:p-1.5 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+              title="Cerrar sesión"
+              aria-label="Cerrar sesión"
+              className="p-2.5 md:p-2 min-h-[44px] min-w-[44px] md:min-h-[36px] md:min-w-[36px] flex items-center justify-center text-[#6B706D] hover:text-[#991B1B] hover:bg-[#FEF2F2] rounded-md transition-colors cursor-pointer"
             >
               <LogOut className="h-4 w-4" />
             </button>

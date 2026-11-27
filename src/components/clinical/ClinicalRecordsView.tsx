@@ -99,38 +99,30 @@ export const ClinicalRecordsView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs">
+      <div className="bg-white rounded-lg p-5 border border-[#E6E2D9]">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 border border-teal-200">
-                Historia Clínica Unificada
-              </span>
-              <span className="text-xs text-slate-500">
-                Ley N° 1682/01 de Secreto Profesional & Datos Médicos
-              </span>
-            </div>
-            <h1 className="text-2xl font-bold text-slate-900 mt-1">
-              Fichas Clínicas & Evoluciones Odontológicas
+            <h1 className="text-xl font-semibold tracking-tight text-[#1C1F1E]">
+              Historia clínica
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Historial unificado multi-sucursal con diagnóstico, tratamiento realizado, prescripciones y firma profesional con Registro MSPBS.
+            <p className="text-xs text-[#6B706D] mt-0.5">
+              Ley N° 1682/01 · Evoluciones odontológicas y registro MSPBS
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             {isClinicalRole ? (
               <button
                 onClick={() => setIsCreateOpen(true)}
-                className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-2xl font-semibold text-sm shadow-md shadow-teal-700/20 flex items-center gap-2 transition-all"
+                className="px-4 py-2.5 min-h-[42px] bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-lg font-medium text-sm flex items-center gap-2 transition-colors cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
-                <span>Nueva Evolución Clínica</span>
+                <span>Nueva evolución</span>
               </button>
             ) : (
-              <div className="px-3.5 py-2 bg-amber-50 border border-amber-200 rounded-2xl text-xs font-semibold text-amber-800 flex items-center gap-1.5">
-                <Lock className="h-4 w-4 text-amber-600" />
-                <span>Modo Solo Lectura (Rol Administrativo)</span>
+              <div className="px-3 py-1.5 bg-[#FEF6E7] border border-[#F5D69B] rounded-md text-xs font-medium text-[#92400E] flex items-center gap-1.5">
+                <Lock className="h-3.5 w-3.5 text-[#92400E]" />
+                <span>Solo lectura</span>
               </div>
             )}
           </div>

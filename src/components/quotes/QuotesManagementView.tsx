@@ -11,20 +11,17 @@ import {
   Search,
   Plus,
   CheckCircle2,
-  XCircle,
-  Clock,
   Printer,
   Send,
   Eye,
   Building2,
-  TrendingUp,
-  FileCheck,
   AlertCircle,
   Edit2,
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import { EmptyState, StatusLabel, UnderlineTabs } from '../ui/DesignPrimitives.tsx';
 
 interface QuotesManagementViewProps {
   onNavigateToTreatments?: (patientId: string) => void;
@@ -108,29 +105,13 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'APROBADO':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-            <CheckCircle2 className="h-3 w-3" /> Aprobado
-          </span>
-        );
+        return <StatusLabel tone="paid" label="Aprobado" />;
       case 'RECHAZADO':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-300">
-            <XCircle className="h-3 w-3" /> Rechazado
-          </span>
-        );
+        return <StatusLabel tone="danger" label="Rechazado" />;
       case 'VENCIDO':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
-            <Clock className="h-3 w-3" /> Vencido
-          </span>
-        );
+        return <StatusLabel tone="danger" label="Vencido" />;
       default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
-            <Clock className="h-3 w-3" /> Pendiente
-          </span>
-        );
+        return <StatusLabel tone="pending" label="Pendiente" />;
     }
   };
 
@@ -184,128 +165,104 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header bar */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-teal-600 flex items-center justify-center text-white shadow-md shadow-teal-600/20">
-              <Calculator className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                  Presupuestos Odontológicos
-                </h1>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
-                  Guaraníes (PYG)
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Generador de cotizaciones formales, conversión a tratamientos y envío por WhatsApp
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                setQuoteToEditId(null);
-                setIsCreateModalOpen(true);
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
-            >
-              <Plus className="h-4 w-4" />
-              Nuevo Presupuesto
-            </button>
-          </div>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-semibold text-[#1C1F1E] tracking-tight">
+            Presupuestos
+          </h1>
+          <p className="text-xs text-[#6B706D] mt-0.5 tabular-nums">
+            {quotes.length} cotizaciones en Guaraníes (₲)
+          </p>
         </div>
 
-        {/* KPI Cards Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                Total Cotizado
-              </span>
-              <Calculator className="h-4 w-4 text-teal-600" />
-            </div>
-            <p className="text-xl font-black text-slate-900 mt-2">
-              ₲ {totalAmountQuotes.toLocaleString('es-PY')}
-            </p>
-            <p className="text-[11px] text-slate-500 mt-1">
-              En {quotes.length} presupuestos emitidos
-            </p>
-          </div>
+        <button
+          onClick={() => {
+            setQuoteToEditId(null);
+            setIsCreateModalOpen(true);
+          }}
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-lg text-xs font-semibold transition-colors min-h-[40px] cursor-pointer"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Nuevo presupuesto</span>
+        </button>
+      </div>
 
-          <div className="bg-emerald-50/50 border border-emerald-200 rounded-xl p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
-                Presupuestos Aprobados
-              </span>
-              <FileCheck className="h-4 w-4 text-emerald-600" />
-            </div>
-            <p className="text-xl font-black text-emerald-800 mt-2">
-              ₲ {approvedTotalAmount.toLocaleString('es-PY')}
-            </p>
-            <p className="text-[11px] text-emerald-600 mt-1">
-              {approvedQuotes.length} planes en ejecución
-            </p>
-          </div>
+      {/* Continuous KPI Strip */}
+      <div className="bg-white rounded-lg border border-[#E6E2D9] grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-[#EFECE5]">
+        <div className="px-5 py-4">
+          <div className="text-[11px] font-medium text-[#6B706D]">Total cotizado</div>
+          <p className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
+            ₲ {totalAmountQuotes.toLocaleString('es-PY')}
+          </p>
+          <p className="text-[11px] text-[#6B706D] mt-0.5 tabular-nums">
+            {quotes.length} emitidos
+          </p>
+        </div>
 
-          <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
-                Pendientes de Decisión
-              </span>
-              <Clock className="h-4 w-4 text-amber-600" />
-            </div>
-            <p className="text-xl font-black text-amber-800 mt-2">
-              {pendingQuotes.length}
-            </p>
-            <p className="text-[11px] text-amber-600 mt-1">
-              Seguimiento por WhatsApp recomendado
-            </p>
-          </div>
+        <div className="px-5 py-4">
+          <div className="text-[11px] font-medium text-[#6B706D]">Aprobados</div>
+          <p className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
+            ₲ {approvedTotalAmount.toLocaleString('es-PY')}
+          </p>
+          <p className="text-[11px] text-[#3F6212] font-medium mt-0.5 tabular-nums">
+            {approvedQuotes.length} en ejecución
+          </p>
+        </div>
 
-          <div className="bg-blue-50/50 border border-blue-200 rounded-xl p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
-                Tasa de Aprobación
-              </span>
-              <TrendingUp className="h-4 w-4 text-blue-600" />
-            </div>
-            <p className="text-xl font-black text-blue-800 mt-2">
-              {conversionRate.toFixed(1)}%
-            </p>
-            <p className="text-[11px] text-blue-600 mt-1">
-              Conversión de consulta a tratamiento
-            </p>
-          </div>
+        <div className="px-5 py-4">
+          <div className="text-[11px] font-medium text-[#6B706D]">Pendientes</div>
+          <p className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
+            {pendingQuotes.length}
+          </p>
+          <p className="text-[11px] text-[#6B706D] mt-0.5">En espera de decisión</p>
+        </div>
+
+        <div className="px-5 py-4">
+          <div className="text-[11px] font-medium text-[#6B706D]">Tasa de aprobación</div>
+          <p className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
+            {conversionRate.toFixed(1)}%
+          </p>
+          <p className="text-[11px] text-[#6B706D] mt-0.5">Conversión a tratamiento</p>
         </div>
       </div>
 
-      {/* Filters and search */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-        <div className="relative w-full md:w-96">
-          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Buscar por nro de presupuesto, paciente o C.I..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
+      {/* Filters and Underline Status Tabs */}
+      <div className="bg-white rounded-lg border border-[#E6E2D9]">
+        <div className="px-4 sm:px-5 pt-2 border-b border-[#EFECE5]">
+          <UnderlineTabs
+            items={[
+              { id: 'TODOS', label: 'Todos', count: quotes.length },
+              { id: 'PENDIENTE', label: 'Pendientes', count: pendingQuotes.length },
+              { id: 'APROBADO', label: 'Aprobados', count: approvedQuotes.length },
+              { id: 'RECHAZADO', label: 'Rechazados' },
+              { id: 'VENCIDO', label: 'Vencidos' },
+            ]}
+            activeId={selectedStatus}
+            onChange={setSelectedStatus}
+            className="border-b-0"
           />
         </div>
 
-        <div className="flex items-center flex-wrap gap-2 w-full md:w-auto justify-end">
-          {/* Branch filter */}
-          <div className="flex items-center gap-1.5 bg-slate-50 px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs">
-            <Building2 className="h-3.5 w-3.5 text-slate-500" />
+        <div className="p-3.5 sm:px-5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
+          <div className="relative flex-1 md:max-w-md">
+            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B706D]" />
+            <input
+              type="text"
+              placeholder="Buscar por número, paciente o C.I..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 bg-[#F8F7F4] border border-[#E6E2D9] rounded-md text-xs text-[#1C1F1E] focus:bg-white focus:border-[#0F5C63] focus:outline-none min-h-[40px]"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-[#F8F7F4] px-3 py-2 rounded-md border border-[#E6E2D9] text-xs min-h-[40px]">
+            <Building2 className="h-3.5 w-3.5 text-[#6B706D]" />
             <select
               value={selectedBranchId}
               onChange={(e) => setSelectedBranchId(e.target.value)}
-              className="bg-transparent font-medium text-slate-800 focus:outline-none"
+              className="bg-transparent font-medium text-[#1C1F1E] focus:outline-none cursor-pointer"
             >
               <option value="">Todas las sucursales</option>
               {branches.map((b) => (
@@ -315,39 +272,22 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
               ))}
             </select>
           </div>
-
-          {/* Status filter buttons */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs">
-            {['TODOS', 'PENDIENTE', 'APROBADO', 'RECHAZADO', 'VENCIDO'].map((st) => (
-              <button
-                key={st}
-                onClick={() => setSelectedStatus(st)}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
-                  selectedStatus === st
-                    ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {st}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
       {actionFeedback && (
         <div
-          className={`rounded-2xl p-3.5 border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs ${
+          className={`rounded-lg p-3.5 border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs ${
             actionFeedback.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-              : 'bg-red-50 border-red-200 text-red-800'
+              ? 'bg-[#F4F8EA] border-[#D7E6B5] text-[#3F6212]'
+              : 'bg-[#FEF2F2] border-[#F5C2C2] text-[#991B1B]'
           }`}
         >
           <div className="flex items-center gap-2 font-medium">
             {actionFeedback.type === 'success' ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
             ) : (
-              <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+              <AlertCircle className="h-4 w-4 shrink-0" />
             )}
             <span>{actionFeedback.message}</span>
           </div>
@@ -356,7 +296,7 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigateToTreatments(actionFeedback.patientId!)}
-                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-bold transition-colors"
+                className="px-3 py-1.5 bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-md font-semibold transition-colors cursor-pointer"
               >
                 Ir a Tratamientos
               </button>
@@ -364,7 +304,7 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
             <button
               type="button"
               onClick={() => setActionFeedback(null)}
-              className="px-2.5 py-1 text-slate-600 hover:text-slate-900 font-semibold"
+              className="px-2.5 py-1 text-[#525755] hover:text-[#1C1F1E] font-medium cursor-pointer"
             >
               Cerrar
             </button>
@@ -373,28 +313,43 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
       )}
 
       {/* Quotes Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+      <div className="bg-white rounded-lg border border-[#E6E2D9] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-semibold">
+            <thead className="bg-[#F2F0EB] border-b border-[#E6E2D9] text-[#525755] font-semibold uppercase text-[10px] tracking-wider">
               <tr>
                 <th className="py-3 px-4">Presupuesto</th>
                 <th className="py-3 px-4">Paciente</th>
-                <th className="py-3 px-3">Sucursal & Odontólogo</th>
+                <th className="py-3 px-3">Sucursal y profesional</th>
                 <th className="py-3 px-3 text-right">Subtotal</th>
                 <th className="py-3 px-3 text-right">Descuento</th>
-                <th className="py-3 px-4 text-right">Total Final (PYG)</th>
+                <th className="py-3 px-4 text-right">Total</th>
                 <th className="py-3 px-3 text-center">Estado</th>
                 <th className="py-3 px-3 text-center">Validez</th>
                 <th className="py-3 px-4 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[#EFECE5]">
               {filteredQuotes.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-500">
-                    <AlertCircle className="h-8 w-8 mx-auto text-slate-300 mb-2" />
-                    No se encontraron presupuestos con los filtros seleccionados.
+                  <td colSpan={9} className="p-0">
+                    <EmptyState
+                      icon={Calculator}
+                      title="Sin presupuestos"
+                      description="No se encontraron presupuestos con los filtros seleccionados."
+                      action={
+                        <button
+                          onClick={() => {
+                            setQuoteToEditId(null);
+                            setIsCreateModalOpen(true);
+                          }}
+                          className="px-4 py-2 bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span>Nuevo presupuesto</span>
+                        </button>
+                      }
+                    />
                   </td>
                 </tr>
               ) : (
@@ -511,7 +466,7 @@ export const QuotesManagementView: React.FC<QuotesManagementViewProps> = ({
                                   type="button"
                                   disabled={approvingQuoteId === q.id}
                                   onClick={() => handleQuickApprove(q.id)}
-                                  className="px-2 py-1 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 rounded-lg transition-colors"
+                                  className="px-2.5 py-1 text-[11px] font-semibold text-white bg-[#0F5C63] hover:bg-[#0B474D] disabled:opacity-60 rounded-md transition-colors cursor-pointer"
                                 >
                                   {approvingQuoteId === q.id ? '...' : 'Confirmar'}
                                 </button>

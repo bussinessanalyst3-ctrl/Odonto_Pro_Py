@@ -251,51 +251,38 @@ export const UserManagementView: React.FC = () => {
   return (
     <div className="space-y-5">
       {/* Top Banner & Header Responsive */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-xs">
+      <div className="bg-white rounded-lg border border-[#E6E2D9] p-4 sm:p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center shadow-md shadow-teal-700/20 shrink-0">
-              <Users className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">
-                  Equipo Clínico & Control de Acceso (RBAC)
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
-                  Seguridad Criptográfica PBKDF2
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Administración de cuentas con correo institucional, nombre de usuario (@username), asignación de empresas y normativas del MSPBS.
-              </p>
-            </div>
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight text-[#1C1F1E]">
+              Equipo y accesos
+            </h2>
           </div>
 
           {/* Action buttons (responsive stack on mobile) */}
-          <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0">
+          <div className="flex flex-wrap items-center gap-2">
             {canManageRolesAuthority && (
               <button
                 onClick={() => setIsManageRolesModalOpen(true)}
-                className="flex-1 sm:flex-none px-3.5 py-2.5 text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                className="flex-1 sm:flex-none px-3.5 py-2.5 text-xs font-medium text-[#0F5C63] bg-[#ECF5F5] hover:bg-[#DCEEEF] border border-[#B9D9DC] rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <Shield className="h-3.5 w-3.5 text-teal-700" />
-                <span>Autoridad de Roles</span>
+                <Shield className="h-3.5 w-3.5 text-[#0F5C63]" />
+                <span>Autoridad de roles</span>
               </button>
             )}
 
             <button
               onClick={() => setIsPermissionsModalOpen(true)}
-              className="flex-1 sm:flex-none px-3.5 py-2.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              className="flex-1 sm:flex-none px-3.5 py-2.5 text-xs font-medium text-[#1C1F1E] bg-white hover:bg-[#FAF9F7] border border-[#E6E2D9] rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <ShieldCheck className="h-3.5 w-3.5 text-teal-600" />
-              <span>Matriz de Permisos</span>
+              <ShieldCheck className="h-3.5 w-3.5 text-[#0F5C63]" />
+              <span>Matriz de permisos</span>
             </button>
 
             {canCreateUser && (
               <button
                 onClick={handleOpenAddUser}
-                className="w-full sm:w-auto px-4 py-2.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl transition-all shadow-md shadow-teal-700/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2.5 text-xs font-medium text-white bg-[#0F5C63] hover:bg-[#0B474D] rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <UserPlus className="h-4 w-4" />
                 <span>Crear Usuario</span>

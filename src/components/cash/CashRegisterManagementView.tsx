@@ -8,28 +8,21 @@ import { CloseCashRegisterModal } from './CloseCashRegisterModal.tsx';
 import { CashReceiptModal } from './CashReceiptModal.tsx';
 import { HistoricalImportModal } from '../shared/HistoricalImportModal.tsx';
 import {
-  DollarSign,
   Plus,
   Lock,
   Unlock,
   Building2,
   ArrowUpRight,
   ArrowDownLeft,
-  Banknote,
-  Send,
-  QrCode,
-  CreditCard,
   Printer,
-  History,
-  Receipt,
   AlertCircle,
-  CheckCircle2,
   AlertTriangle,
   Search,
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
 } from 'lucide-react';
+import { StatusLabel, UnderlineTabs } from '../ui/DesignPrimitives.tsx';
 
 export const CashRegisterManagementView: React.FC = () => {
   const { session } = useAuth();
@@ -157,251 +150,188 @@ export const CashRegisterManagementView: React.FC = () => {
     : branchPayments;
 
   return (
-    <div className="space-y-6">
-      {/* Top Header Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-md shadow-emerald-600/20">
-              <DollarSign className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                  Caja Diaria & Pagos
-                </h1>
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  Guaraníes (PYG)
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-semibold text-[#1C1F1E] tracking-tight">
+            Caja
+          </h1>
+          <p className="text-xs text-[#6B706D] mt-0.5">
+            {currentBranch?.name || 'Sucursal'} · Guaraníes (₲)
+          </p>
+        </div>
+
+        {/* Branch selector */}
+        <div className="flex items-center gap-1.5 bg-white px-3 py-2 rounded-lg border border-[#E6E2D9] text-xs min-h-[40px]">
+          <Building2 className="h-4 w-4 text-[#525755]" />
+          <select
+            value={selectedBranchId}
+            onChange={(e) => setSelectedBranchId(e.target.value)}
+            className="bg-transparent font-medium text-[#1C1F1E] focus:outline-none cursor-pointer"
+          >
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name} ({b.city})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Active Cash Register Surface (flat, no card-in-card) */}
+      {activeRegister ? (
+        <div className="bg-white rounded-lg border border-[#E6E2D9] overflow-hidden">
+          <div className="px-5 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#EFECE5]">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <StatusLabel tone="paid" label="Turno abierto" />
+                <span className="text-sm font-semibold text-[#1C1F1E]">
+                  {currentBranch?.name}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Control de apertura, cobros por SIPAP, QR y efectivo, arqueos y emisión de recibos
+              <p className="text-xs text-[#6B706D] tabular-nums">
+                Abierta por{' '}
+                <span className="font-medium text-[#1C1F1E]">
+                  {activeCashier?.firstName} {activeCashier?.lastName}
+                </span>{' '}
+                a las {new Date(activeRegister.openedAt).toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit' })} hs · Fondo inicial: ₲ {activeRegister.openingAmount.toLocaleString('es-PY')}
               </p>
             </div>
-          </div>
 
-          {/* Branch selector */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-2 rounded-xl border border-slate-300 text-xs">
-              <Building2 className="h-4 w-4 text-emerald-600" />
-              <span className="text-slate-500 font-medium">Sucursal:</span>
-              <select
-                value={selectedBranchId}
-                onChange={(e) => setSelectedBranchId(e.target.value)}
-                className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer"
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setIsMovementModalOpen(true)}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 min-h-[44px] bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
               >
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name} ({b.city})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Active Cash Register Banner */}
-        <div className="mt-6">
-          {activeRegister ? (
-            <div className="bg-emerald-50/70 border border-emerald-300 rounded-2xl p-5 shadow-xs">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <span className="p-2.5 bg-emerald-600 text-white rounded-xl shadow-xs">
-                    <Unlock className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-emerald-950 text-sm">
-                        Turno de Caja Abierto en {currentBranch?.name}
-                      </span>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-200 text-emerald-900">
-                        ACTIVA
-                      </span>
-                    </div>
-                    <p className="text-xs text-emerald-800 mt-0.5">
-                      Abierta por{' '}
-                      <span className="font-semibold">
-                        {activeCashier?.firstName} {activeCashier?.lastName}
-                      </span>{' '}
-                      el {new Date(activeRegister.openedAt).toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit' })}hs
-                      con fondo inicial de ₲ {activeRegister.openingAmount.toLocaleString('es-PY')}.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => setIsMovementModalOpen(true)}
-                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 min-h-[44px] bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-colors shadow-sm cursor-pointer"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Nuevo Cobro / Movimiento</span>
-                  </button>
-
-                  <button
-                    onClick={() => setIsCloseModalOpen(true)}
-                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 min-h-[44px] bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white rounded-xl text-xs font-bold transition-colors shadow-sm cursor-pointer"
-                  >
-                    <Lock className="h-4 w-4" />
-                    <span>Arqueo & Cierre de Caja</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Real-time turn KPIs */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-emerald-200/60">
-                <div className="bg-white/80 p-3 rounded-xl border border-emerald-100">
-                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                    Efectivo en Cajón
-                  </span>
-                  <p className="text-lg font-black text-emerald-800 mt-1">
-                    ₲ {currentCashInDrawer.toLocaleString('es-PY')}
-                  </p>
-                  <span className="text-[10px] text-slate-400">
-                    Apertura: ₲ {activeRegister.openingAmount.toLocaleString('es-PY')}
-                  </span>
-                </div>
-
-                <div className="bg-white/80 p-3 rounded-xl border border-emerald-100">
-                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-                    Neto Recaudado Hoy
-                  </span>
-                  <p className="text-lg font-black text-slate-900 mt-1">
-                    ₲ {totalTurnoNeto.toLocaleString('es-PY')}
-                  </p>
-                  <span className="text-[10px] text-slate-400">
-                    {activeMovements.filter((m) => m.movementType === 'INGRESO').length} ingresos
-                    {totalTurnoEgresos > 0 ? ` • -₲ ${totalTurnoEgresos.toLocaleString('es-PY')} egresos` : ''}
-                  </span>
-                </div>
-
-                <div className="bg-white/80 p-3 rounded-xl border border-emerald-100">
-                  <span className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide flex items-center gap-1">
-                    <Send className="h-3 w-3" /> Cobros SIPAP
-                  </span>
-                  <p className="text-lg font-black text-blue-800 mt-1">
-                    ₲ {totalSipap.toLocaleString('es-PY')}
-                  </p>
-                  <span className="text-[10px] text-blue-600">Transferencias</span>
-                </div>
-
-                <div className="bg-white/80 p-3 rounded-xl border border-emerald-100">
-                  <span className="text-[11px] font-semibold text-teal-700 uppercase tracking-wide flex items-center gap-1">
-                    <QrCode className="h-3 w-3" /> QR & Tarjetas
-                  </span>
-                  <p className="text-lg font-black text-teal-800 mt-1">
-                    ₲ {totalQrYPos.toLocaleString('es-PY')}
-                  </p>
-                  <span className="text-[10px] text-teal-600">Pagos POS / QR</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <span className="p-2.5 bg-amber-500 text-white rounded-xl">
-                  <Lock className="h-5 w-5" />
-                </span>
-                <div>
-                  <h3 className="text-sm font-bold text-amber-950">
-                    No hay un turno de caja abierto en {currentBranch?.name}
-                  </h3>
-                  <p className="text-xs text-amber-800 mt-0.5">
-                    Debe realizar la apertura de turno con un fondo de cambio inicial para registrar cobros o gastos.
-                  </p>
-                </div>
-              </div>
+                <Plus className="h-4 w-4" />
+                <span>Nuevo cobro</span>
+              </button>
 
               <button
-                onClick={() => setIsOpenModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm shrink-0"
+                onClick={() => setIsCloseModalOpen(true)}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 min-h-[44px] bg-white hover:bg-[#F2F0EB] text-[#1C1F1E] border border-[#E6E2D9] rounded-lg text-xs font-medium transition-colors cursor-pointer"
               >
-                <Unlock className="h-4 w-4" />
-                Abrir Turno de Caja
+                <Lock className="h-4 w-4 text-[#525755]" />
+                <span>Arqueo y cierre</span>
               </button>
             </div>
-          )}
+          </div>
+
+          {/* Continuous Real-time Turn KPI Strip */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-[#EFECE5]">
+            <div className="px-5 py-4">
+              <div className="text-[11px] font-medium text-[#6B706D]">Efectivo en cajón</div>
+              <p className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
+                ₲ {currentCashInDrawer.toLocaleString('es-PY')}
+              </p>
+              <span className="text-[11px] text-[#6B706D] tabular-nums">
+                Apertura: ₲ {activeRegister.openingAmount.toLocaleString('es-PY')}
+              </span>
+            </div>
+
+            <div className="px-5 py-4">
+              <div className="text-[11px] font-medium text-[#6B706D]">Neto del turno</div>
+              <p className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
+                ₲ {totalTurnoNeto.toLocaleString('es-PY')}
+              </p>
+              <span className="text-[11px] text-[#6B706D] tabular-nums">
+                {activeMovements.filter((m) => m.movementType === 'INGRESO').length} ingresos
+                {totalTurnoEgresos > 0 ? ` · -₲ ${totalTurnoEgresos.toLocaleString('es-PY')} egresos` : ''}
+              </span>
+            </div>
+
+            <div className="px-5 py-4">
+              <div className="text-[11px] font-medium text-[#6B706D]">Transferencias SIPAP</div>
+              <p className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
+                ₲ {totalSipap.toLocaleString('es-PY')}
+              </p>
+              <span className="text-[11px] text-[#6B706D]">Bancos de Paraguay</span>
+            </div>
+
+            <div className="px-5 py-4">
+              <div className="text-[11px] font-medium text-[#6B706D]">QR y tarjetas</div>
+              <p className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
+                ₲ {totalQrYPos.toLocaleString('es-PY')}
+              </p>
+              <span className="text-[11px] text-[#6B706D]">POS y QR Bancard</span>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-white border border-[#E6E2D9] rounded-lg p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <StatusLabel tone="pending" label="Caja cerrada" />
+              <span className="text-sm font-semibold text-[#1C1F1E]">
+                {currentBranch?.name}
+              </span>
+            </div>
+            <p className="text-xs text-[#6B706D]">
+              Abre un turno con fondo inicial para registrar cobros o egresos.
+            </p>
+          </div>
+
+          <button
+            onClick={() => setIsOpenModalOpen(true)}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 min-h-[44px] bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-lg text-xs font-semibold transition-colors shrink-0 cursor-pointer"
+          >
+            <Unlock className="h-4 w-4" />
+            <span>Abrir turno de caja</span>
+          </button>
+        </div>
+      )}
 
       {/* Navigation Sub-Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-        <button
-          onClick={() => setActiveTab('current')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 ${
-            activeTab === 'current'
-              ? 'bg-emerald-600 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <Banknote className="h-4 w-4" />
-          <span>Movimientos del Turno Actual ({activeMovements.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('receipts')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 ${
-            activeTab === 'receipts'
-              ? 'bg-emerald-600 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <Receipt className="h-4 w-4" />
-          <span>Recibos Emitidos ({branchPayments.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors flex items-center gap-2 ${
-            activeTab === 'history'
-              ? 'bg-emerald-600 text-white shadow-xs'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <History className="h-4 w-4" />
-          <span>Historial de Cajas & Arqueos ({branchHistoryRegisters.length})</span>
-        </button>
-      </div>
+      <UnderlineTabs
+        items={[
+          { id: 'current', label: 'Movimientos del turno', count: activeMovements.length },
+          { id: 'receipts', label: 'Recibos emitidos', count: branchPayments.length },
+          { id: 'history', label: 'Historial y arqueos', count: branchHistoryRegisters.length },
+        ]}
+        activeId={activeTab}
+        onChange={(id) => setActiveTab(id as typeof activeTab)}
+      />
 
       {/* Sub-Tab 1: Movements of current turn */}
       {activeTab === 'current' && (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Asientos Contables del Turno Activo
+        <div className="bg-white rounded-lg border border-[#E6E2D9] overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[#EFECE5] flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-[#1C1F1E]">
+              Movimientos del turno activo
             </h3>
             {activeRegister && (
               <button
                 onClick={() => setIsMovementModalOpen(true)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#0F5C63] bg-[#ECF5F5] hover:bg-[#D5EAEA] rounded-md transition-colors border border-[#B9D9DC] cursor-pointer"
               >
                 <Plus className="h-3.5 w-3.5" />
-                Registrar Movimiento
+                <span>Registrar movimiento</span>
               </button>
             )}
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-semibold">
+              <thead className="bg-[#F2F0EB] border-b border-[#E6E2D9] text-[#525755] font-semibold uppercase text-[10px] tracking-wider">
                 <tr>
                   <th className="py-3 px-4">Hora</th>
                   <th className="py-3 px-3">Tipo</th>
-                  <th className="py-3 px-4">Concepto / Motivo</th>
-                  <th className="py-3 px-3">Medio de Pago</th>
+                  <th className="py-3 px-4">Concepto</th>
+                  <th className="py-3 px-3">Medio de pago</th>
                   <th className="py-3 px-3">Referencia</th>
                   <th className="py-3 px-3">Cajero</th>
-                  <th className="py-3 px-4 text-right">Monto (PYG)</th>
+                  <th className="py-3 px-4 text-right">Monto</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[#EFECE5]">
                 {activeMovements.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500">
-                      <AlertCircle className="h-8 w-8 mx-auto text-slate-300 mb-2" />
+                    <td colSpan={7} className="py-10 text-center text-[#6B706D]">
+                      <AlertCircle className="h-6 w-6 mx-auto text-[#A0A4A1] mb-2" />
                       {activeRegister
-                        ? 'No se han registrado cobros o egresos en este turno aún.'
-                        : 'No hay turno activo para visualizar movimientos.'}
+                        ? 'Aún no hay cobros ni egresos en este turno.'
+                        : 'Abre un turno para visualizar los movimientos.'}
                     </td>
                   </tr>
                 ) : (
@@ -410,8 +340,8 @@ export const CashRegisterManagementView: React.FC = () => {
                     const isIngreso = m.movementType === 'INGRESO';
 
                     return (
-                      <tr key={m.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-4 text-slate-500 font-mono">
+                      <tr key={m.id} className="hover:bg-[#F8F7F4] transition-colors">
+                        <td className="py-3 px-4 text-[#6B706D] tabular-nums">
                           {new Date(m.createdAt).toLocaleTimeString('es-PY', {
                             hour: '2-digit',
                             minute: '2-digit',
@@ -420,10 +350,10 @@ export const CashRegisterManagementView: React.FC = () => {
 
                         <td className="py-3 px-3">
                           <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${
                               isIngreso
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-red-100 text-red-800'
+                                ? 'bg-[#F4F8EA] text-[#3F6212] border-[#D7E6B5]'
+                                : 'bg-[#FEF2F2] text-[#991B1B] border-[#F5C2C2]'
                             }`}
                           >
                             {isIngreso ? (
@@ -431,32 +361,30 @@ export const CashRegisterManagementView: React.FC = () => {
                             ) : (
                               <ArrowUpRight className="h-3 w-3" />
                             )}
-                            {m.movementType}
+                            {isIngreso ? 'Ingreso' : 'Egreso'}
                           </span>
                         </td>
 
-                        <td className="py-3 px-4 font-medium text-slate-900">{m.concept}</td>
+                        <td className="py-3 px-4 font-medium text-[#1C1F1E]">{m.concept}</td>
 
-                        <td className="py-3 px-3">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700">
-                            {m.paymentMethod}
-                          </span>
+                        <td className="py-3 px-3 text-[#525755]">
+                          {m.paymentMethod.replace(/_/g, ' ')}
                         </td>
 
-                        <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
+                        <td className="py-3 px-3 text-[11px] text-[#6B706D] tabular-nums">
                           {m.referenceNumber || '—'}
                         </td>
 
-                        <td className="py-3 px-3 text-slate-600">
+                        <td className="py-3 px-3 text-[#525755]">
                           {performer?.firstName} {performer?.lastName}
                         </td>
 
                         <td
-                          className={`py-3 px-4 text-right font-black text-sm ${
-                            isIngreso ? 'text-emerald-700' : 'text-red-600'
+                          className={`py-3 px-4 text-right font-semibold text-xs tabular-nums ${
+                            isIngreso ? 'text-[#1C1F1E]' : 'text-[#B91C1C]'
                           }`}
                         >
-                          {isIngreso ? '+' : '-'}₲ {m.amount.toLocaleString('es-PY')}
+                          {isIngreso ? '' : '-'}₲ {m.amount.toLocaleString('es-PY')}
                         </td>
                       </tr>
                     );
@@ -505,18 +433,18 @@ export const CashRegisterManagementView: React.FC = () => {
               <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-semibold">
                 <tr>
                   <th className="py-3 px-4">Recibo N°</th>
-                  <th className="py-3 px-4">Fecha & Hora</th>
+                  <th className="py-3 px-4">Fecha y hora</th>
                   <th className="py-3 px-4">Paciente</th>
                   <th className="py-3 px-4">Concepto</th>
-                  <th className="py-3 px-3">Medio de Cobro</th>
-                  <th className="py-3 px-4 text-right">Monto (PYG)</th>
+                  <th className="py-3 px-3">Medio de cobro</th>
+                  <th className="py-3 px-4 text-right">Monto</th>
                   <th className="py-3 px-4 text-center">Acción</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[#EFECE5]">
                 {filteredBranchPayments.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500">
+                    <td colSpan={7} className="py-10 text-center text-[#6B706D]">
                       {receiptSearch.trim()
                         ? 'No se encontraron recibos que coincidan con la búsqueda.'
                         : 'No se han emitido recibos en esta sucursal aún.'}
@@ -532,13 +460,13 @@ export const CashRegisterManagementView: React.FC = () => {
                     return (
                       <tr
                         key={p.id}
-                        className={`hover:bg-slate-50 transition-colors ${isAnnulled ? 'bg-rose-50/30 opacity-75' : ''}`}
+                        className={`hover:bg-[#F8F7F4] transition-colors ${isAnnulled ? 'bg-[#FEF2F2]/40 opacity-80' : ''}`}
                       >
-                        <td className={`py-3 px-4 font-mono font-bold ${isAnnulled ? 'text-slate-400 line-through' : 'text-teal-800'}`}>
+                        <td className={`py-3 px-4 font-semibold tabular-nums ${isAnnulled ? 'text-[#6B706D] line-through' : 'text-[#0F5C63]'}`}>
                           {p.receiptNumber}
                         </td>
 
-                        <td className="py-3 px-4 text-slate-500">
+                        <td className="py-3 px-4 text-[#6B706D] tabular-nums">
                           {new Date(p.createdAt).toLocaleDateString('es-PY')}{' '}
                           {new Date(p.createdAt).toLocaleTimeString('es-PY', {
                             hour: '2-digit',
@@ -547,23 +475,21 @@ export const CashRegisterManagementView: React.FC = () => {
                         </td>
 
                         <td className="py-3 px-4">
-                          <span className="font-semibold text-slate-900 block">
+                          <span className="font-medium text-[#1C1F1E] block">
                             {pat?.firstName} {pat?.lastName}
                           </span>
-                          <span className="text-[11px] text-slate-500">
+                          <span className="text-[11px] text-[#6B706D] tabular-nums">
                             C.I. {pat?.documentNumber}
                           </span>
                         </td>
 
-                        <td className="py-3 px-4 text-slate-700">{p.notes || 'Atención Odontológica'}</td>
+                        <td className="py-3 px-4 text-[#525755]">{p.notes || 'Atención odontológica'}</td>
 
-                        <td className="py-3 px-3">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700">
-                            {p.paymentMethod}
-                          </span>
+                        <td className="py-3 px-3 text-[#525755]">
+                          {String(p.paymentMethod || '').replace(/_/g, ' ')}
                         </td>
 
-                        <td className={`py-3 px-4 text-right font-black text-sm ${isAnnulled ? 'text-rose-500 line-through' : 'text-slate-900'}`}>
+                        <td className={`py-3 px-4 text-right font-semibold text-xs tabular-nums ${isAnnulled ? 'text-[#B91C1C] line-through' : 'text-[#1C1F1E]'}`}>
                           ₲ {p.amount.toLocaleString('es-PY')}
                         </td>
 
@@ -571,10 +497,10 @@ export const CashRegisterManagementView: React.FC = () => {
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => setViewPaymentId(p.id)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors border border-teal-200"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#0F5C63] bg-[#ECF5F5] hover:bg-[#D5EAEA] rounded-md transition-colors border border-[#B9D9DC] cursor-pointer"
                             >
-                              <Printer className="h-3 w-3" />
-                              Ver Recibo
+                              <Printer className="h-3.5 w-3.5" />
+                              <span>Recibo</span>
                             </button>
                             {p.status !== 'ANULADO' ? (
                               <button
@@ -583,15 +509,13 @@ export const CashRegisterManagementView: React.FC = () => {
                                   setAnnulReason('');
                                   setAnnulError(null);
                                 }}
-                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200"
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-[#991B1B] bg-[#FEF2F2] hover:bg-[#FDE4E4] rounded-md transition-colors border border-[#F5C2C2] cursor-pointer"
                                 title="Anular Recibo y Revertir Saldo"
                               >
                                 Anular
                               </button>
                             ) : (
-                              <span className="px-2 py-0.5 text-[10px] font-black text-rose-700 bg-rose-100 rounded-md border border-rose-200">
-                                ANULADO
-                              </span>
+                              <StatusLabel tone="danger" label="Anulado" />
                             )}
                           </div>
                         </td>

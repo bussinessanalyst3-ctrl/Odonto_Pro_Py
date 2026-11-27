@@ -231,91 +231,63 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Header & Actions */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="space-y-5">
+      {/* Top Bar & Actions */}
+      <div className="bg-white rounded-lg px-5 py-4 border border-[#E6E2D9] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-slate-900">
-              Consolidado Financiero e Ingresos Globales
-            </h3>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
-              SET / DNIT Paraguay
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Monitoreo en tiempo real de facturación, medios de cobro bancarios (SIPAP / QR Bancard) y rendimiento por sucursal
+          <h3 className="text-sm font-semibold text-[#1C1F1E]">
+            Consolidado financiero · {periodLabel}
+          </h3>
+          <p className="text-xs text-[#6B706D] mt-0.5">
+            Ingresos efectivos en Guaraníes por sucursal y medio de cobro
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportCSV}
-            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            className="px-3 py-2 bg-white hover:bg-[#F2F0EB] text-[#1C1F1E] border border-[#E6E2D9] rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
           >
-            <Download className="h-3.5 w-3.5" />
-            <span>Exportar CSV (Excel)</span>
+            <Download className="h-3.5 w-3.5 text-[#525755]" />
+            <span>Exportar CSV</span>
           </button>
           <button
             onClick={() => window.print()}
-            className="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+            className="px-3.5 py-2 bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
           >
             <Printer className="h-3.5 w-3.5" />
-            <span>Imprimir Informe</span>
+            <span>Imprimir</span>
           </button>
         </div>
       </div>
 
-      {/* Primary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Ingresos Totales (PYG)</span>
-            <div className="p-2 rounded-xl bg-teal-50 text-teal-600">
-              <DollarSign className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-slate-900">{formatPYG(totalRevenue)}</div>
-          <div className="text-[11px] text-teal-700 font-medium mt-1.5 flex items-center gap-1">
-            <TrendingUp className="h-3.5 w-3.5" />
-            <span>{periodLabel} • Sin duplicación</span>
+      {/* Continuous Primary KPI Strip */}
+      <div className="bg-white rounded-lg border border-[#E6E2D9] grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-[#EFECE5]">
+        <div className="px-5 py-4">
+          <div className="text-[11px] font-medium text-[#6B706D]">Ingresos totales</div>
+          <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">{formatPYG(totalRevenue)}</div>
+          <div className="text-[11px] text-[#6B706D] mt-0.5">{periodLabel}</div>
+        </div>
+
+        <div className="px-5 py-4">
+          <div className="text-[11px] font-medium text-[#6B706D]">Ticket promedio</div>
+          <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">{formatPYG(averageTicket)}</div>
+          <div className="text-[11px] text-[#6B706D] mt-0.5 tabular-nums">
+            {totalTransactionsCount} cobros efectivos
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Ticket Promedio por Operación</span>
-            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
-              <TrendingUp className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{formatPYG(averageTicket)}</div>
-          <div className="text-[11px] text-slate-500 mt-1.5">
-            Sobre {totalTransactionsCount} cobros efectivos
+        <div className="px-5 py-4">
+          <div className="text-[11px] font-medium text-[#6B706D]">Pacientes activos</div>
+          <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">{filteredPatients.length}</div>
+          <div className="text-[11px] text-[#6B706D] mt-0.5">
+            {selectedBranchId ? 'En sucursal seleccionada' : `${branches.length} sucursales`}
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Pacientes Activos</span>
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
-              <Users className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{filteredPatients.length}</div>
-          <div className="text-[11px] text-teal-700 font-medium mt-1.5">
-            {selectedBranchId ? 'En sucursal seleccionada' : `Distribuidos en ${branches.length} sucursales`}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-medium">Presupuestos Emitidos</span>
-            <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
-              <FileSpreadsheet className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-slate-900">
+        <div className="px-5 py-4">
+          <div className="text-[11px] font-medium text-[#6B706D]">Presupuestos emitidos</div>
+          <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
             {formatPYG(
               filteredQuotes.reduce(
                 (s, q) => s + Math.round(Number(q.finalAmount ?? q.totalAmount ?? 0)),
@@ -323,7 +295,7 @@ export const AdminFinancialReport: React.FC<AdminFinancialReportProps> = ({
               )
             )}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1.5">
+          <div className="text-[11px] text-[#6B706D] mt-0.5 tabular-nums">
             {filteredQuotes.filter((q) => q.status === 'APROBADO').length} de {filteredQuotes.length} aprobados
           </div>
         </div>

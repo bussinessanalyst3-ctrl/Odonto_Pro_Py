@@ -388,36 +388,23 @@ export const StaffPayrollManagementView: React.FC = () => {
   );
 
   const subTabs: Array<{ id: SubTab; label: string; icon: React.ComponentType<{ className?: string }>; hidden?: boolean }> = [
-    { id: 'panel', label: 'Panel & Resumen', icon: TrendingUp },
-    { id: 'personal', label: isOwnOnlyMode ? 'Mi Ficha Laboral' : 'Personal (3 Áreas)', icon: Users },
-    { id: 'salarios', label: 'Salarios & Historial', icon: DollarSign },
-    { id: 'comisiones', label: isOwnOnlyMode ? 'Mis Comisiones' : 'Reglas & Comisiones', icon: Percent },
-    { id: 'liquidaciones', label: isOwnOnlyMode ? 'Mis Liquidaciones & Pagos' : 'Liquidaciones & Pagos', icon: Calculator },
-    { id: 'cartera', label: 'Cartera & Trazabilidad', icon: Briefcase, hidden: isOwnOnlyMode },
+    { id: 'panel', label: 'Resumen', icon: TrendingUp },
+    { id: 'personal', label: isOwnOnlyMode ? 'Mi ficha' : 'Personal', icon: Users },
+    { id: 'salarios', label: 'Salarios', icon: DollarSign },
+    { id: 'comisiones', label: isOwnOnlyMode ? 'Mis comisiones' : 'Comisiones', icon: Percent },
+    { id: 'liquidaciones', label: isOwnOnlyMode ? 'Mis liquidaciones' : 'Liquidaciones', icon: Calculator },
+    { id: 'cartera', label: 'Cartera', icon: Briefcase, hidden: isOwnOnlyMode },
   ];
 
   return (
     <div className="space-y-6">
       {/* Header Principal */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+      <div className="bg-white rounded-lg border border-[#E6E2D9] p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="h-12 w-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center shrink-0">
-              <Briefcase className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-xl font-bold text-slate-900">
-                  {isOwnOnlyMode ? 'Mi Remuneración & Comisiones' : 'Gestión Financiera del Personal'}
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-50 text-teal-800 border border-teal-200">
-                  PYG ₲ • Multisede
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Salarios históricos, comisiones configurables (Comercial, Clínica y Operativa), liquidaciones aprobadas, pagos al personal y cartera comercial.
-              </p>
-            </div>
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight text-[#1C1F1E]">
+              {isOwnOnlyMode ? 'Mi remuneración' : 'Finanzas del personal'}
+            </h2>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

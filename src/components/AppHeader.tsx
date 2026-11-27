@@ -16,6 +16,7 @@ import { formatPYG } from '../db/seeds/paraguay-catalogs.ts';
 import { UserSessionMenu } from './auth/UserSessionMenu.tsx';
 import { APP_NAME, resolveOrganizationLegalName } from '../config/appBrand.ts';
 import { hasModuleAccess } from '../security/moduleCatalog.ts';
+import { OdontoProWordmark } from './ui/DesignPrimitives.tsx';
 
 interface AppHeaderProps {
   selectedBranchId: string;
@@ -174,7 +175,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-2 md:px-6 lg:px-8 h-13 md:h-16 flex items-center justify-between gap-1.5 md:gap-4 transition-all">
+    <header className="sticky top-0 z-30 bg-white border-b border-[#E6E2D9] px-2.5 md:px-6 lg:px-8 h-14 md:h-16 flex items-center justify-between gap-2 md:gap-4 transition-all">
       {/* Barra de búsqueda móvil expandida */}
       {isMobileSearchOpen ? (
         <div className="flex items-center gap-2 w-full sm:hidden animate-in fade-in duration-150 py-1">
@@ -252,28 +253,28 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
       ) : (
         <>
-          {/* Botón para abrir sidebar en móvil + Título en móvil + Botón Buscar */}
+          {/* Botón para abrir sidebar en móvil + Marca ODONTOPRO + Botón Buscar */}
           <div className="flex items-center gap-1 sm:gap-2 lg:hidden shrink-0">
             <button
               onClick={onOpenMobileSidebar}
-              className="p-1.5 md:p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+              className="p-2 text-[#525755] hover:text-[#1C1F1E] rounded-md hover:bg-[#F2F0EB] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
               aria-label="Abrir menú de navegación"
             >
               <Menu className="h-5 w-5" />
             </button>
             <span
-              className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight flex items-center gap-0.5 truncate max-w-[110px] min-[360px]:max-w-[155px]"
+              className="flex items-center truncate max-w-[125px] min-[360px]:max-w-[165px]"
               title={
                 resolveOrganizationLegalName({ legalName: branding.legalName, name: org?.name })
                   ? `${APP_NAME} — ${resolveOrganizationLegalName({ legalName: branding.legalName, name: org?.name })}`
                   : APP_NAME
               }
             >
-              <span className="truncate">{APP_NAME}</span>
+              <OdontoProWordmark size="sm" />
             </span>
             <button
               onClick={() => setIsMobileSearchOpen(true)}
-              className="p-1.5 md:p-2 text-slate-600 hover:text-teal-700 rounded-xl hover:bg-slate-100 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center sm:hidden cursor-pointer"
+              className="p-2 text-[#525755] hover:text-[#0F5C63] rounded-md hover:bg-[#F2F0EB] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center sm:hidden cursor-pointer"
               aria-label="Buscar pacientes y citas"
               title="Buscar pacientes y citas"
             >
@@ -347,33 +348,24 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             )}
           </div>
 
-          {/* Controles de la derecha: Selector de Sede + Badge Multi-tenant + Seed */}
-          <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
-            {/* Selector de Sucursal Profesional */}
-            <div className="flex items-center gap-1 bg-slate-50 hover:bg-slate-100/80 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border border-slate-200 text-xs transition-colors max-w-[95px] min-[360px]:max-w-[125px] sm:max-w-none">
-              <MapPin className="h-3 sm:h-3.5 w-3 sm:w-3.5 text-teal-600 shrink-0" />
-              <div className="flex flex-col sm:flex-row sm:items-center sm:gap-1 text-left min-w-0">
-                <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold hidden sm:inline shrink-0">
-                  Sede:
-                </span>
-                <select
-                  value={selectedBranchId}
-                  onChange={(e) => onSelectBranch(e.target.value)}
-                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer pr-1 truncate text-[10px] sm:text-xs"
-                >
-                  <option value="">Todas ({branches.length})</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({b.city})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Indicador de Moneda Oficial Paraguay */}
-            <div className="hidden md:flex items-center gap-1 px-2.5 py-1 rounded-xl bg-teal-50 border border-teal-200/80 text-[11px] font-bold text-teal-800 shrink-0">
-              <span>₲ PYG</span>
+          {/* Controles de la derecha: Selector de Sede y Menú de Usuario */}
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            {/* Selector de Sucursal */}
+            <div className="flex items-center gap-1.5 bg-[#F8F7F4] hover:bg-[#F2F0EB] px-2 sm:px-3 py-1.5 rounded-md border border-[#E6E2D9] text-xs transition-colors max-w-[105px] min-[360px]:max-w-[135px] sm:max-w-none min-h-[38px]">
+              <MapPin className="h-3.5 w-3.5 text-[#0F5C63] shrink-0" />
+              <select
+                value={selectedBranchId}
+                onChange={(e) => onSelectBranch(e.target.value)}
+                aria-label="Seleccionar sucursal"
+                className="bg-transparent font-medium text-[#1C1F1E] focus:outline-none cursor-pointer pr-1 truncate text-xs"
+              >
+                <option value="">Todas ({branches.length})</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} ({b.city})
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Menú de Usuario con perfil y cambio de contraseña */}

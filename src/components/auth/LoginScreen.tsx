@@ -7,7 +7,6 @@ import {
   AlertCircle,
   CheckCircle2,
   ArrowRight,
-  ShieldCheck,
   KeyRound,
   User,
   X
@@ -15,6 +14,7 @@ import {
 import { useAuth } from '../../auth/authContext.tsx';
 import { useBranding } from '../../branding/BrandingContext.tsx';
 import { APP_NAME } from '../../config/appBrand.ts';
+import { OdontoProWordmark } from '../ui/DesignPrimitives.tsx';
 
 // Clave exclusiva para recordar únicamente el identificador (correo o nombre de usuario).
 // NUNCA se almacena la contraseña en ningún medio local.
@@ -184,68 +184,68 @@ export const LoginScreen: React.FC = () => {
   const companyLegalName = (branding.legalName || '').trim();
 
   return (
-    <div className="min-h-[100dvh] bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 flex flex-col justify-center py-4 px-3.5 md:py-12 md:px-6 lg:px-8 font-sans antialiased text-slate-800 relative overflow-x-hidden selection:bg-teal-500 selection:text-white">
-      {/* Luces difusas de fondo */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] sm:w-[900px] h-[350px] sm:h-[500px] bg-teal-500/10 blur-[130px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[350px] sm:w-[450px] h-[350px] sm:h-[450px] bg-cyan-600/10 blur-[100px] rounded-full pointer-events-none" />
-
+    <div className="min-h-[100dvh] bg-[#F8F7F4] flex flex-col justify-center py-6 px-4 md:py-12 md:px-6 lg:px-8 font-sans antialiased text-[#1C1F1E] relative overflow-x-hidden selection:bg-[#0F5C63] selection:text-white">
       {/* Contenedor Principal */}
-      <div className="w-full max-w-md mx-auto relative z-10">
-        {/* Cabecera Institucional */}
-        <div className="text-center mb-4 md:mb-6">
-          <div
-            className="inline-flex items-center justify-center h-11 w-11 md:h-16 md:w-16 rounded-xl md:rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-xl shadow-teal-500/20 mb-2 md:mb-4 border border-teal-300/30 overflow-hidden"
-            role="img"
-            aria-label={APP_NAME}
-          >
-            <ShieldCheck className="h-5 w-5 md:h-8 md:w-8 text-white" aria-hidden="true" />
+      <div className="w-full max-w-[420px] mx-auto relative z-10">
+        {/* Cabecera de Marca ODONTOPRO */}
+        <div className="text-center mb-5 md:mb-7">
+          <div className="inline-flex flex-col items-center">
+            <h1 aria-label={APP_NAME} className="leading-none">
+              <OdontoProWordmark size="lg" />
+            </h1>
+            <span
+              aria-hidden="true"
+              className="mt-2.5 h-[2px] w-10 bg-[#C6B08E] rounded-full"
+            />
           </div>
 
-          <h1 className="text-xl md:text-3xl font-extrabold text-white tracking-tight">
-            {APP_NAME}
-          </h1>
-
-          {companyLegalName && (
+          {companyLegalName ? (
             <p
-              className="mt-1 md:mt-1.5 text-xs md:text-sm font-medium text-teal-200/90 max-w-[280px] sm:max-w-sm mx-auto truncate px-2"
+              className="mt-2.5 text-xs md:text-sm font-medium text-[#525755] max-w-[300px] sm:max-w-sm mx-auto truncate px-2"
               title={companyLegalName}
             >
-              Empresa: {companyLegalName}
+              {companyLegalName}
+            </p>
+          ) : (
+            <p className="mt-2.5 text-xs md:text-sm text-[#6B706D]">
+              Gestión clínica odontológica y estética
             </p>
           )}
         </div>
 
-        {/* Tarjeta de Inicio de Sesión */}
-        <div className="bg-white/95 backdrop-blur-md py-4 px-4 md:py-8 md:px-8 shadow-2xl rounded-2xl md:rounded-3xl border border-white/20">
+        {/* Tarjeta Plana de Inicio de Sesión */}
+        <div className="bg-white py-5 px-4 md:py-7 md:px-7 rounded-lg border border-[#E6E2D9]">
           {/* Mensaje de Error / Bloqueo */}
           {errorMsg && (
             <div
-              className={`mb-3.5 md:mb-5 p-3 md:p-3.5 rounded-2xl text-xs flex items-start gap-2.5 animate-in fade-in duration-200 border ${
+              className={`mb-4 p-3 rounded-md text-xs flex items-start gap-2.5 border ${
                 isLocked
-                  ? 'bg-amber-50 border-amber-200 text-amber-900'
-                  : 'bg-rose-50 border-rose-200 text-rose-800'
+                  ? 'bg-[#FEF6E7] border-[#F5D69B] text-[#92400E]'
+                  : 'bg-[#FEF2F2] border-[#F5C2C2] text-[#991B1B]'
               }`}
               role="alert"
             >
-              <AlertCircle className={`h-4 w-4 shrink-0 mt-0.5 ${isLocked ? 'text-amber-600' : 'text-rose-600'}`} />
-              <div className="flex-1 font-semibold leading-relaxed">
-                {errorMsg}
-              </div>
+              <AlertCircle
+                className={`h-4 w-4 shrink-0 mt-0.5 ${
+                  isLocked ? 'text-[#B45309]' : 'text-[#B91C1C]'
+                }`}
+              />
+              <div className="flex-1 font-medium leading-relaxed">{errorMsg}</div>
             </div>
           )}
 
           {/* Formulario Estándar y Seguro con Autocompletado del Navegador */}
-          <form onSubmit={handleSubmit} method="post" autoComplete="on" className="space-y-3 md:space-y-4">
+          <form onSubmit={handleSubmit} method="post" autoComplete="on" className="space-y-4">
             {/* Campo 1: Correo electrónico o nombre de usuario */}
             <div>
               <label
                 htmlFor="login-identifier"
-                className="block text-[11px] md:text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 md:mb-1.5"
+                className="block text-xs font-semibold text-[#363B39] mb-1.5"
               >
-                Correo electrónico o nombre de usuario
+                Correo electrónico o usuario
               </label>
               <div className="relative">
-                <User className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <User className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6B706D] pointer-events-none" />
                 <input
                   id="login-identifier"
                   name="username"
@@ -255,10 +255,10 @@ export const LoginScreen: React.FC = () => {
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck="false"
-                  placeholder="usuario@clinica.com.py o nombre de usuario"
+                  placeholder="usuario@clinica.com.py"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2.5 md:py-3 text-base md:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white focus:outline-none transition-all font-medium text-slate-800 min-h-[44px] md:min-h-[46px]"
+                  className="block w-full pl-10 pr-3 py-2.5 text-base md:text-sm bg-[#F8F7F4]/60 border border-[#E6E2D9] rounded-md focus:ring-2 focus:ring-[#0F5C63]/20 focus:border-[#0F5C63] focus:bg-white focus:outline-none transition-colors text-[#1C1F1E] placeholder-[#8A8F8C] min-h-[44px]"
                 />
               </div>
             </div>
@@ -267,12 +267,12 @@ export const LoginScreen: React.FC = () => {
             <div>
               <label
                 htmlFor="login-password"
-                className="block text-[11px] md:text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 md:mb-1.5"
+                className="block text-xs font-semibold text-[#363B39] mb-1.5"
               >
                 Contraseña
               </label>
               <div className="relative">
-                <Lock className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <Lock className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6B706D] pointer-events-none" />
                 <input
                   id="login-password"
                   name="password"
@@ -282,51 +282,51 @@ export const LoginScreen: React.FC = () => {
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-12 py-2.5 md:py-3 text-base md:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 focus:bg-white focus:outline-none transition-all font-medium text-slate-800 min-h-[44px] md:min-h-[46px]"
+                  className="block w-full pl-10 pr-12 py-2.5 text-base md:text-sm bg-[#F8F7F4]/60 border border-[#E6E2D9] rounded-md focus:ring-2 focus:ring-[#0F5C63]/20 focus:border-[#0F5C63] focus:bg-white focus:outline-none transition-colors text-[#1C1F1E] placeholder-[#8A8F8C] min-h-[44px]"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer transition-colors"
+                  className="absolute right-0.5 top-1/2 -translate-y-1/2 text-[#6B706D] hover:text-[#1C1F1E] p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer transition-colors"
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
 
-            {/* Fila de Controles: Recordarme & Recuperación */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            {/* Fila de Controles: Recordarme y Recuperación */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
               <label className="flex items-center gap-2 cursor-pointer select-none py-1">
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => handleRememberMeChange(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                  className="h-4 w-4 rounded border-[#D5D0C5] accent-[#0F5C63] focus:ring-[#0F5C63] cursor-pointer"
                 />
-                <span className="text-xs text-slate-700 font-medium">Recordarme</span>
+                <span className="text-xs text-[#525755] font-medium">Recordarme</span>
               </label>
 
               <button
                 type="button"
                 onClick={openRecoveryModal}
-                className="text-xs text-teal-700 hover:text-teal-900 font-semibold transition-colors py-1 cursor-pointer hover:underline"
+                className="text-xs text-[#0F5C63] hover:text-[#0B474D] font-semibold transition-colors py-1 cursor-pointer hover:underline"
               >
                 ¿Olvidó su contraseña?
               </button>
             </div>
 
-            {/* Botón Principal: INICIAR SESIÓN */}
+            {/* Botón Principal */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full mt-2 md:mt-3 py-2.5 md:py-3 px-4 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-xl text-sm font-bold tracking-wide transition-all shadow-md shadow-teal-700/20 flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer min-h-[44px] md:min-h-[48px] active:scale-[0.99]"
+              className="w-full mt-1 py-2.5 px-4 bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-md text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer min-h-[44px] md:min-h-[46px]"
             >
               {isLoading ? (
                 <span>Validando credenciales...</span>
               ) : (
                 <>
-                  <span>INICIAR SESIÓN</span>
+                  <span>Iniciar sesión</span>
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
@@ -335,8 +335,8 @@ export const LoginScreen: React.FC = () => {
         </div>
 
         {/* Pie Institucional Discreto */}
-        <p className="mt-3.5 md:mt-5 text-center text-[11px] md:text-xs text-slate-400 px-2">
-          Protección de datos y confidencialidad médica conforme a normativas del MSPBS de Paraguay.
+        <p className="mt-4 md:mt-5 text-center text-[11px] md:text-xs text-[#6B706D] px-2">
+          Confidencialidad clínica conforme a normativas del MSPBS de Paraguay.
         </p>
       </div>
 
@@ -369,21 +369,24 @@ export const LoginScreen: React.FC = () => {
               </div>
             </div>
 
-            {/* Selector de Pestañas: Solicitar / Restablecer con código */}
-            <div className="flex rounded-xl bg-slate-100 p-1 mb-4 text-xs font-semibold">
+            {/* Selector de Pestañas estilo subrayado */}
+            <div className="flex items-center gap-5 border-b border-[#E6E2D9] mb-4 text-xs font-semibold">
               <button
                 type="button"
                 onClick={() => {
                   setRecoveryTab('REQUEST');
                   setRecoveryError(null);
                 }}
-                className={`flex-1 py-1.5 rounded-lg transition-all ${
+                className={`relative pb-2.5 min-h-[40px] transition-colors cursor-pointer ${
                   recoveryTab === 'REQUEST'
-                    ? 'bg-white text-teal-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'text-[#0F5C63]'
+                    : 'text-[#525755] hover:text-[#1C1F1E]'
                 }`}
               >
                 Solicitar enlace
+                {recoveryTab === 'REQUEST' && (
+                  <span className="absolute left-0 right-0 bottom-0 h-[2px] bg-[#0F5C63]" />
+                )}
               </button>
               <button
                 type="button"
@@ -391,13 +394,16 @@ export const LoginScreen: React.FC = () => {
                   setRecoveryTab('RESET');
                   setRecoveryError(null);
                 }}
-                className={`flex-1 py-1.5 rounded-lg transition-all ${
+                className={`relative pb-2.5 min-h-[40px] transition-colors cursor-pointer ${
                   recoveryTab === 'RESET'
-                    ? 'bg-white text-teal-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'text-[#0F5C63]'
+                    : 'text-[#525755] hover:text-[#1C1F1E]'
                 }`}
               >
                 Tengo un código
+                {recoveryTab === 'RESET' && (
+                  <span className="absolute left-0 right-0 bottom-0 h-[2px] bg-[#0F5C63]" />
+                )}
               </button>
             </div>
 

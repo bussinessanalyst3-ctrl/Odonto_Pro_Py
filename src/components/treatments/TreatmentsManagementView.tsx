@@ -36,6 +36,7 @@ import { HistoricalImportModal } from '../shared/HistoricalImportModal.tsx';
 import { useAuth } from '../../auth/authContext.tsx';
 import { hasBackendSession, patchAuthoritativeAction } from '../../services/authoritativeApi.ts';
 import { formatProfessionalName } from '../../utils/healthProfessional.ts';
+import { EmptyState, StatusLabel, UnderlineTabs } from '../ui/DesignPrimitives.tsx';
 
 interface TreatmentsManagementViewProps {
   initialPatientId?: string;
@@ -237,127 +238,66 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Header Card */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-teal-700 uppercase tracking-wider mb-1">
-              <Stethoscope className="h-4 w-4" />
-              <span>Tratamientos & Catálogo Odontológico</span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900">
-              Tratamientos Clínicos & Aranceles
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Gestión integral de planes de tratamiento, vinculación a piezas dentales FDI y precios en Guaraníes (PYG).
-            </p>
-          </div>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-semibold text-[#1C1F1E] tracking-tight">
+            Tratamientos
+          </h1>
+          <p className="text-xs text-[#6B706D] mt-0.5 tabular-nums">
+            {snapshot.treatments?.length || 0} planes · {snapshot.services.length} aranceles en Guaraníes
+          </p>
+        </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {activeTab === 'treatments' && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setIsHistoricalImportOpen(true)}
-                  className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
-                >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  <span>Importar Histórico (CSV)</span>
-                </button>
-                <button
-                  onClick={() => setIsCreateTreatmentOpen(true)}
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Nuevo Plan de Tratamiento</span>
-                </button>
-              </>
-            )}
-
-            {activeTab === 'catalog' && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {activeTab === 'treatments' && (
+            <>
               <button
-                onClick={() => {
-                  setServiceToEdit(null);
-                  setServiceModalOpen(true);
-                }}
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition-colors"
+                type="button"
+                onClick={() => setIsHistoricalImportOpen(true)}
+                className="px-3.5 py-2 bg-white hover:bg-[#F2F0EB] text-[#1C1F1E] border border-[#E6E2D9] rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors min-h-[40px] cursor-pointer"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-[#525755]" />
+                <span>Importar CSV</span>
+              </button>
+              <button
+                onClick={() => setIsCreateTreatmentOpen(true)}
+                className="px-4 py-2 bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors min-h-[40px] cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
-                <span>Nuevo Servicio en Catálogo</span>
+                <span>Nuevo tratamiento</span>
               </button>
-            )}
-          </div>
-        </div>
+            </>
+          )}
 
-        {/* Navigation Tabs */}
-        <div className="mt-6 flex border-b border-slate-100 gap-6 text-xs font-bold">
-          <button
-            onClick={() => setActiveTab('treatments')}
-            className={`pb-3 border-b-2 transition-colors flex items-center gap-1.5 ${
-              activeTab === 'treatments'
-                ? 'border-teal-600 text-teal-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Stethoscope className="h-4 w-4" />
-            <span>Planes de Tratamiento ({snapshot.treatments?.length || 0})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('catalog')}
-            className={`pb-3 border-b-2 transition-colors flex items-center gap-1.5 ${
-              activeTab === 'catalog'
-                ? 'border-teal-600 text-teal-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <BookOpen className="h-4 w-4" />
-            <span>Catálogo de Servicios Odontológicos ({snapshot.services.length})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('branch_pricing')}
-            className={`pb-3 border-b-2 transition-colors flex items-center gap-1.5 ${
-              activeTab === 'branch_pricing'
-                ? 'border-teal-600 text-teal-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Building2 className="h-4 w-4" />
-            <span>Precios por Sucursal</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('insurance_plans')}
-            className={`pb-3 border-b-2 transition-colors flex items-center gap-1.5 ${
-              activeTab === 'insurance_plans'
-                ? 'border-teal-600 text-teal-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Shield className="h-4 w-4" />
-            <span>Planes & Seguros ({snapshot.insurancePlans?.length || 0})</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('insurance_claims')}
-            className={`pb-3 border-b-2 transition-colors flex items-center gap-1.5 ${
-              activeTab === 'insurance_claims'
-                ? 'border-teal-600 text-teal-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Landmark className="h-4 w-4" />
-            <span>Liquidaciones & Reclamos ({snapshot.insuranceClaims?.length || 0})</span>
-            {((snapshot.insuranceClaims || []).filter((c: any) => c.status === 'PENDIENTE_ENVIO' || c.status === 'EN_AUDITORIA').length > 0) && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                {(snapshot.insuranceClaims || []).filter((c: any) => c.status === 'PENDIENTE_ENVIO' || c.status === 'EN_AUDITORIA').length}
-              </span>
-            )}
-          </button>
+          {activeTab === 'catalog' && (
+            <button
+              onClick={() => {
+                setServiceToEdit(null);
+                setServiceModalOpen(true);
+              }}
+              className="px-4 py-2 bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors min-h-[40px] cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Nuevo servicio</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Navigation Tabs */}
+      <UnderlineTabs
+        items={[
+          { id: 'treatments', label: 'Planes', count: snapshot.treatments?.length || 0 },
+          { id: 'catalog', label: 'Catálogo', count: snapshot.services.length },
+          { id: 'branch_pricing', label: 'Precios por sucursal' },
+          { id: 'insurance_plans', label: 'Planes y seguros', count: snapshot.insurancePlans?.length || 0 },
+          { id: 'insurance_claims', label: 'Liquidaciones', count: snapshot.insuranceClaims?.length || 0 },
+        ]}
+        activeId={activeTab}
+        onChange={(id) => setActiveTab(id as typeof activeTab)}
+      />
 
       {successMessage && (
         <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between gap-2 text-xs text-emerald-900 shadow-xs">
@@ -394,56 +334,44 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
       {/* TAB 1: TRATAMIENTOS DE PACIENTES */}
       {activeTab === 'treatments' && (
         <>
-          {/* Financial Metrics Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase">Monto Presupuestado</span>
-                <DollarSign className="h-4 w-4 text-teal-600" />
-              </div>
-              <div className="text-xl font-black text-slate-900 mt-1">
+          {/* Continuous Financial KPI Strip */}
+          <div className="bg-white rounded-lg border border-[#E6E2D9] grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-[#EFECE5]">
+            <div className="px-5 py-4">
+              <div className="text-[11px] font-medium text-[#6B706D]">Presupuestado</div>
+              <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
                 {formatPYG(metrics.totalAmount)}
               </div>
-              <div className="text-[11px] text-slate-400 mt-0.5">
-                {metrics.totalCount} planes de tratamiento
+              <div className="text-[11px] text-[#6B706D] mt-0.5 tabular-nums">
+                {metrics.totalCount} planes activos
               </div>
             </div>
 
-            <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase">Cobrado Efectivo / SIPAP</span>
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              </div>
-              <div className="text-xl font-black text-emerald-700 mt-1">
+            <div className="px-5 py-4">
+              <div className="text-[11px] font-medium text-[#6B706D]">Cobrado</div>
+              <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
                 {formatPYG(metrics.paidAmount)}
               </div>
-              <div className="text-[11px] text-emerald-600 mt-0.5">
+              <div className="text-[11px] text-[#3F6212] font-medium mt-0.5 tabular-nums">
                 {metrics.totalAmount > 0
                   ? `${Math.round((metrics.paidAmount / metrics.totalAmount) * 100)}% recuperado`
-                  : '0%'}
+                  : '0% recuperado'}
               </div>
             </div>
 
-            <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase">Saldo Pendiente de Cobro</span>
-                <Clock className="h-4 w-4 text-amber-600" />
-              </div>
-              <div className="text-xl font-black text-red-600 mt-1">
+            <div className="px-5 py-4">
+              <div className="text-[11px] font-medium text-[#6B706D]">Saldo pendiente</div>
+              <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
                 {formatPYG(metrics.balanceDue)}
               </div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Por percibir en caja</div>
+              <div className="text-[11px] text-[#6B706D] mt-0.5">Por percibir en caja</div>
             </div>
 
-            <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase">En Tratamiento Activo</span>
-                <TrendingUp className="h-4 w-4 text-blue-600" />
+            <div className="px-5 py-4">
+              <div className="text-[11px] font-medium text-[#6B706D]">En progreso</div>
+              <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
+                {metrics.inProgressCount}
               </div>
-              <div className="text-xl font-black text-blue-700 mt-1">
-                {metrics.inProgressCount} Pacientes
-              </div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Intervenciones en curso</div>
+              <div className="text-[11px] text-[#6B706D] mt-0.5">Intervenciones activas</div>
             </div>
           </div>
 
@@ -517,9 +445,21 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
           {/* Treatments List */}
           <div className="space-y-3">
             {filteredTreatments.length === 0 ? (
-              <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 text-slate-400">
-                <Stethoscope className="h-10 w-10 mx-auto text-slate-300 mb-2" />
-                <p className="text-sm font-semibold">No se encontraron tratamientos con los filtros seleccionados.</p>
+              <div className="bg-white rounded-lg border border-[#E6E2D9]">
+                <EmptyState
+                  icon={Stethoscope}
+                  title="Sin tratamientos registrados"
+                  description="No se encontraron planes con los filtros actuales."
+                  action={
+                    <button
+                      onClick={() => setIsCreateTreatmentOpen(true)}
+                      className="px-4 py-2 bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Nuevo tratamiento</span>
+                    </button>
+                  }
+                />
               </div>
             ) : (
               paginatedTreatments.map((t) => {
@@ -529,68 +469,72 @@ export const TreatmentsManagementView: React.FC<TreatmentsManagementViewProps> =
                 const percentPaid =
                   t.totalAmount > 0 ? Math.min(100, Math.round((t.paidAmount / t.totalAmount) * 100)) : 0;
 
+                const statusTone =
+                  t.status === 'COMPLETADO'
+                    ? 'paid'
+                    : t.status === 'EN_PROGRESO'
+                    ? 'active'
+                    : t.status === 'SUSPENDIDO' || t.status === 'CANCELADO'
+                    ? 'danger'
+                    : 'pending';
+                const statusText =
+                  t.status === 'COMPLETADO'
+                    ? 'Completado'
+                    : t.status === 'EN_PROGRESO'
+                    ? 'En progreso'
+                    : t.status === 'SUSPENDIDO'
+                    ? 'Suspendido'
+                    : t.status === 'CANCELADO'
+                    ? 'Cancelado'
+                    : 'Planificado';
+
                 return (
                   <div
                     key={t.id}
-                    className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:border-teal-300 transition-all space-y-3"
+                    className="bg-white rounded-lg p-5 border border-[#E6E2D9] hover:border-[#D4CFC3] transition-colors space-y-3"
                   >
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-[#EFECE5] pb-3">
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-bold text-slate-900">{t.title}</span>
-                          <span
-                            className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                              t.status === 'COMPLETADO'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : t.status === 'EN_PROGRESO'
-                                ? 'bg-blue-100 text-blue-800'
-                                : t.status === 'SUSPENDIDO'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            {t.status}
-                          </span>
+                          <span className="text-sm font-semibold text-[#1C1F1E]">{t.title}</span>
+                          <StatusLabel tone={statusTone} label={statusText} />
                           {t.appliedModality === 'PLAN_SEGURO' ? (
-                            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-900 border border-indigo-200 inline-flex items-center gap-1">
-                              <ShieldCheck className="h-3 w-3 text-indigo-600" />
-                              <span>{t.appliedPlanName || 'Seguro Dental'}</span>
+                            <span className="text-xs font-medium text-[#0F5C63] inline-flex items-center gap-1">
+                              <ShieldCheck className="h-3.5 w-3.5" />
+                              <span>{t.appliedPlanName || 'Seguro dental'}</span>
                             </span>
                           ) : (
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                              Particular
-                            </span>
+                            <span className="text-xs text-[#6B706D]">Particular</span>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-[#6B706D] mt-1">
                           <span>
-                            Paciente:{' '}
-                            <span className="font-semibold text-slate-800">
+                            <span className="font-medium text-[#1C1F1E]">
                               {pat?.firstName} {pat?.lastName}
                             </span>{' '}
-                            (C.I. {pat?.documentNumber || pat?.nationalId})
+                            <span className="tabular-nums">(C.I. {pat?.documentNumber || pat?.nationalId})</span>
                           </span>
-                          <span>•</span>
+                          <span>·</span>
                           <span>{branch?.name}</span>
-                          <span>•</span>
+                          <span>·</span>
                           <span>{doc ? formatProfessionalName(doc, { lastNameOnly: true }) : ((t as any).historicalDoctorName || 'Asignado')}</span>
                         </div>
                       </div>
 
-                      {/* Financial Status Chips */}
-                      <div className="text-right">
-                        <div className="text-sm font-black text-slate-900">
+                      {/* Financial Figures */}
+                      <div className="text-left md:text-right">
+                        <div className="text-sm font-semibold text-[#1C1F1E] tabular-nums">
                           {formatPYG(t.totalAmount)}
                         </div>
                         {t.originalListPrice && t.originalListPrice > t.totalAmount && (
-                          <div className="text-[10px] text-emerald-700 font-semibold">
-                            <span className="line-through text-slate-400 mr-1">{formatPYG(t.originalListPrice)}</span>
+                          <div className="text-[11px] text-[#3F6212] font-medium tabular-nums">
+                            <span className="line-through text-[#6B706D] mr-1">{formatPYG(t.originalListPrice)}</span>
                             <span>Ahorro: {formatPYG(t.originalListPrice - t.totalAmount)}</span>
                           </div>
                         )}
-                        <div className="text-[11px] text-slate-500">
-                          Cobrado: <span className="font-semibold text-emerald-700">{formatPYG(t.paidAmount)}</span> •
-                          Saldo: <span className="font-bold text-red-600">{formatPYG(t.balanceDue)}</span>
+                        <div className="text-[11px] text-[#6B706D] tabular-nums">
+                          Cobrado: <span className="font-medium text-[#1C1F1E]">{formatPYG(t.paidAmount)}</span> ·
+                          Saldo: <span className={`font-medium ${t.balanceDue > 0 ? 'text-[#B91C1C]' : 'text-[#1C1F1E]'}`}>{formatPYG(t.balanceDue)}</span>
                         </div>
                       </div>
                     </div>

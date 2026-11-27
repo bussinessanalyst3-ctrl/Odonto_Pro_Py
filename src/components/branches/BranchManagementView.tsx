@@ -148,46 +148,32 @@ export const BranchManagementView: React.FC = () => {
       )}
 
       {/* Top Banner */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-xs">
+      <div className="bg-white rounded-lg border border-[#E6E2D9] p-4 sm:p-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3">
-            <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center shadow-md shadow-teal-700/20 shrink-0">
-              <Landmark className="h-5 sm:h-6 w-5 sm:w-6" />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-                  Organización & Red de Sucursales
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 border border-teal-200">
-                  Multi-Sucursal
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Administración de la clínica central en Paraguay, apertura de sucursales, horarios
-                de atención y configuración de sillones dentales.
-              </p>
-            </div>
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight text-[#1C1F1E]">
+              Sucursales
+            </h2>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             {canEditOrg && (
               <button
                 onClick={() => setIsEditingOrg(!isEditingOrg)}
-                className="flex-1 sm:flex-none px-3.5 py-2.5 min-h-[42px] sm:min-h-[44px] text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                className="flex-1 sm:flex-none px-3.5 py-2.5 min-h-[42px] sm:min-h-[44px] text-xs font-medium text-[#1C1F1E] bg-white hover:bg-[#FAF9F7] border border-[#E6E2D9] rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <Edit2 className="h-3.5 w-3.5 text-slate-500" />
-                <span>{isEditingOrg ? 'Cancelar Edición' : 'Editar Datos Fiscales'}</span>
+                <Edit2 className="h-3.5 w-3.5 text-[#525755]" />
+                <span>{isEditingOrg ? 'Cancelar edición' : 'Editar datos fiscales'}</span>
               </button>
             )}
 
             {canCreateBranch && (
               <button
                 onClick={handleOpenAddBranch}
-                className="w-full sm:w-auto px-4 py-2.5 min-h-[42px] sm:min-h-[44px] text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl transition-all shadow-md shadow-teal-700/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2.5 min-h-[42px] sm:min-h-[44px] text-xs font-medium text-white bg-[#0F5C63] hover:bg-[#0B474D] rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
-                <span>Nueva Sucursal</span>
+                <span>Nueva sucursal</span>
               </button>
             )}
           </div>

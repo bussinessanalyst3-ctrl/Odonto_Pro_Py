@@ -77,56 +77,56 @@ export const ToothSVG: React.FC<ToothSVGProps> = ({
   return (
     <div
       onClick={() => onSelectTooth(toothNumber)}
-      className={`relative flex flex-col items-center p-1.5 rounded-2xl transition-all cursor-pointer group ${
+      className={`relative flex flex-col items-center p-1.5 rounded-lg transition-colors cursor-pointer group ${
         isSelected
-          ? 'bg-teal-50/80 ring-2 ring-teal-500 shadow-sm shadow-teal-500/20 scale-105'
-          : 'hover:bg-slate-100/70 hover:shadow-xs'
+          ? 'bg-[#ECF5F5] ring-2 ring-[#0F5C63]'
+          : 'hover:bg-[#F2F0EB]'
       }`}
       title={`Pieza FDI ${toothNumber} - Click para ver o editar`}
     >
       {/* Number Badge */}
       <span
-        className={`text-[11px] font-bold tracking-tight mb-1 transition-all ${
+        className={`text-[11px] font-semibold tabular-nums mb-1 transition-colors ${
           isSelected
-            ? 'text-teal-800 font-extrabold scale-110 drop-shadow-xs'
+            ? 'text-[#0F5C63]'
             : isAbsent
-            ? 'text-slate-400 line-through'
-            : 'text-slate-600 group-hover:text-teal-700'
+            ? 'text-[#A0A4A1] line-through'
+            : 'text-[#525755] group-hover:text-[#0F5C63]'
         }`}
       >
         {toothNumber}
       </span>
 
-      {/* SVG Canvas for single tooth with enamel finish */}
+      {/* SVG Canvas for single tooth with crisp uniform stroke */}
       <div className="relative w-11 h-11">
         <svg
           viewBox="0 0 100 100"
-          className={`w-full h-full drop-shadow-xs transition-transform ${
+          className={`w-full h-full transition-opacity ${
             isAbsent ? 'opacity-35' : 'opacity-100'
-          } ${isCrown ? 'ring-2 ring-amber-400 rounded-lg' : ''}`}
+          } ${isCrown ? 'ring-2 ring-[#C6B08E] rounded-md' : ''}`}
         >
-          {/* Enamel Gradients Definitions */}
+          {/* Subtle Warm Enamel Gradients */}
           <defs>
             <linearGradient id={`enamel-${toothNumber}-${topSurfaceName}`} x1="0%" y1="0%" x2="0%" y2="100%">
               <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="100%" stopColor="#F1F5F9" />
+              <stop offset="100%" stopColor="#F8F7F4" />
             </linearGradient>
             <linearGradient id={`enamel-${toothNumber}-${bottomSurfaceName}`} x1="0%" y1="100%" x2="0%" y2="0%">
               <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="100%" stopColor="#F1F5F9" />
+              <stop offset="100%" stopColor="#F8F7F4" />
             </linearGradient>
             <linearGradient id={`enamel-${toothNumber}-${leftSurfaceName}`} x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="100%" stopColor="#F1F5F9" />
+              <stop offset="100%" stopColor="#F8F7F4" />
             </linearGradient>
             <linearGradient id={`enamel-${toothNumber}-${rightSurfaceName}`} x1="100%" y1="0%" x2="0%" y2="0%">
               <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="100%" stopColor="#F1F5F9" />
+              <stop offset="100%" stopColor="#F8F7F4" />
             </linearGradient>
             <radialGradient id={`enamel-${toothNumber}-OCLUSAL`} cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="#FFFFFF" />
-              <stop offset="85%" stopColor="#F8FAFC" />
-              <stop offset="100%" stopColor="#E2E8F0" />
+              <stop offset="85%" stopColor="#FAF9F7" />
+              <stop offset="100%" stopColor="#EFECE5" />
             </radialGradient>
           </defs>
 
@@ -134,8 +134,8 @@ export const ToothSVG: React.FC<ToothSVGProps> = ({
           <polygon
             points="2,2 98,2 75,25 25,25"
             fill={getColor(topSurfaceName)}
-            stroke="#94A3B8"
-            strokeWidth="2"
+            stroke="#8B918E"
+            strokeWidth="1.75"
             strokeLinejoin="round"
             className="transition-colors hover:brightness-95"
             onClick={(e) => handlePolygonClick(e, topSurfaceName)}
@@ -145,8 +145,8 @@ export const ToothSVG: React.FC<ToothSVGProps> = ({
           <polygon
             points="25,75 75,75 98,98 2,98"
             fill={getColor(bottomSurfaceName)}
-            stroke="#94A3B8"
-            strokeWidth="2"
+            stroke="#8B918E"
+            strokeWidth="1.75"
             strokeLinejoin="round"
             className="transition-colors hover:brightness-95"
             onClick={(e) => handlePolygonClick(e, bottomSurfaceName)}
@@ -156,8 +156,8 @@ export const ToothSVG: React.FC<ToothSVGProps> = ({
           <polygon
             points="2,2 25,25 25,75 2,98"
             fill={getColor(leftSurfaceName)}
-            stroke="#94A3B8"
-            strokeWidth="2"
+            stroke="#8B918E"
+            strokeWidth="1.75"
             strokeLinejoin="round"
             className="transition-colors hover:brightness-95"
             onClick={(e) => handlePolygonClick(e, leftSurfaceName)}
@@ -167,8 +167,8 @@ export const ToothSVG: React.FC<ToothSVGProps> = ({
           <polygon
             points="98,2 98,98 75,75 75,25"
             fill={getColor(rightSurfaceName)}
-            stroke="#94A3B8"
-            strokeWidth="2"
+            stroke="#8B918E"
+            strokeWidth="1.75"
             strokeLinejoin="round"
             className="transition-colors hover:brightness-95"
             onClick={(e) => handlePolygonClick(e, rightSurfaceName)}
@@ -178,41 +178,37 @@ export const ToothSVG: React.FC<ToothSVGProps> = ({
           <polygon
             points="25,25 75,25 75,75 25,75"
             fill={getColor('OCLUSAL')}
-            stroke="#94A3B8"
-            strokeWidth="2"
+            stroke="#8B918E"
+            strokeWidth="1.75"
             strokeLinejoin="round"
             className="transition-colors hover:brightness-95"
             onClick={(e) => handlePolygonClick(e, 'OCLUSAL')}
           />
 
           {/* OVERLAYS */}
-          {/* Absent / Missing Cross (Gray/Black X) */}
           {isAbsent && (
-            <g stroke="#EF4444" strokeWidth="6" strokeLinecap="round">
-              <line x1="10" y1="10" x2="90" y2="90" />
-              <line x1="90" y1="10" x2="10" y2="90" />
-            </g>
-          )}
-
-          {/* Extraction indicated (Dashed Red Cross) */}
-          {isExtr && (
-            <g stroke="#DC2626" strokeWidth="5" strokeDasharray="6,4" strokeLinecap="round">
+            <g stroke="#B91C1C" strokeWidth="5" strokeLinecap="round">
               <line x1="12" y1="12" x2="88" y2="88" />
               <line x1="88" y1="12" x2="12" y2="88" />
             </g>
           )}
 
-          {/* Endodontics canal icon (Turquoise vertical thick canal) */}
-          {isEndo && (
-            <g stroke="#0D9488" strokeWidth="7" strokeLinecap="round">
-              <line x1="50" y1="10" x2="50" y2="90" />
-              <circle cx="50" cy="50" r="10" fill="#0D9488" />
+          {isExtr && (
+            <g stroke="#B91C1C" strokeWidth="4.5" strokeDasharray="6,4" strokeLinecap="round">
+              <line x1="12" y1="12" x2="88" y2="88" />
+              <line x1="88" y1="12" x2="12" y2="88" />
             </g>
           )}
 
-          {/* Dental Implant indicator (Purple screw threads) */}
+          {isEndo && (
+            <g stroke="#0F5C63" strokeWidth="5.5" strokeLinecap="round">
+              <line x1="50" y1="12" x2="50" y2="88" />
+              <circle cx="50" cy="50" r="8" fill="#0F5C63" />
+            </g>
+          )}
+
           {isImplant && (
-            <g stroke="#7C3AED" strokeWidth="4" strokeLinecap="round">
+            <g stroke="#4F5D95" strokeWidth="4" strokeLinecap="round">
               <line x1="50" y1="15" x2="50" y2="85" />
               <line x1="32" y1="30" x2="68" y2="30" />
               <line x1="35" y1="50" x2="65" y2="50" />
@@ -220,15 +216,14 @@ export const ToothSVG: React.FC<ToothSVGProps> = ({
             </g>
           )}
 
-          {/* Crown indicator (Gold circle outline) */}
           {isCrown && (
             <circle
               cx="50"
               cy="50"
               r="44"
               fill="none"
-              stroke="#F59E0B"
-              strokeWidth="5"
+              stroke="#B45309"
+              strokeWidth="4.5"
             />
           )}
         </svg>
@@ -237,14 +232,14 @@ export const ToothSVG: React.FC<ToothSVGProps> = ({
         {generalCondition && (
           <span
             className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full ring-1 ring-white"
-            style={{ backgroundColor: surfaces.GENERAL?.colorCode || '#3B82F6' }}
+            style={{ backgroundColor: surfaces.GENERAL?.colorCode || '#0F5C63' }}
             title={`Condición General: ${generalCondition}`}
           />
         )}
       </div>
 
       {/* Surface acronym indicator labels */}
-      <span className="text-[9px] text-slate-400 font-medium mt-0.5 uppercase">
+      <span className="text-[9px] text-[#6B706D] font-medium mt-0.5 uppercase">
         {generalCondition ? generalCondition.slice(0, 3) : ''}
       </span>
     </div>

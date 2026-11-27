@@ -358,18 +358,18 @@ function MainApplication() {
       </div>
 
       {/* Barra de Navegación Inferior Nativa para Móviles (filtrada por módulos efectivos del usuario) */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-xl px-1 md:px-2 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] flex items-center justify-around select-none">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#E6E2D9] px-1 md:px-2 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom,0px))] flex items-center justify-around select-none">
         {hasModuleAccess(session, 'dashboard', roleObj) && (
           <button
             type="button"
             onClick={() => setActiveTab('dashboard')}
-            className={`flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation ${
+            className={`flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-md text-[10px] font-medium transition-colors min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation ${
               activeTab === 'dashboard'
-                ? 'text-teal-700 font-bold bg-teal-50/80'
-                : 'text-slate-500 hover:text-slate-800'
+                ? 'text-[#0F5C63] font-semibold'
+                : 'text-[#6B706D] hover:text-[#1C1F1E]'
             }`}
           >
-            <LayoutDashboard className={`h-4 w-4 md:h-5 md:w-5 mb-0.5 ${activeTab === 'dashboard' ? 'text-teal-600' : 'text-slate-400'}`} />
+            <LayoutDashboard className={`h-4 w-4 md:h-5 md:w-5 mb-0.5 ${activeTab === 'dashboard' ? 'text-[#0F5C63]' : 'text-[#6B706D]'}`} />
             <span>Inicio</span>
           </button>
         )}
@@ -378,13 +378,13 @@ function MainApplication() {
           <button
             type="button"
             onClick={() => setActiveTab('agenda')}
-            className={`flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation ${
+            className={`flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-md text-[10px] font-medium transition-colors min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation ${
               activeTab === 'agenda'
-                ? 'text-teal-700 font-bold bg-teal-50/80'
-                : 'text-slate-500 hover:text-slate-800'
+                ? 'text-[#0F5C63] font-semibold'
+                : 'text-[#6B706D] hover:text-[#1C1F1E]'
             }`}
           >
-            <Calendar className={`h-4 w-4 md:h-5 md:w-5 mb-0.5 ${activeTab === 'agenda' ? 'text-teal-600' : 'text-slate-400'}`} />
+            <Calendar className={`h-4 w-4 md:h-5 md:w-5 mb-0.5 ${activeTab === 'agenda' ? 'text-[#0F5C63]' : 'text-[#6B706D]'}`} />
             <span>Agenda</span>
           </button>
         )}
@@ -393,13 +393,13 @@ function MainApplication() {
           <button
             type="button"
             onClick={() => setActiveTab('patients')}
-            className={`flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation ${
+            className={`flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-md text-[10px] font-medium transition-colors min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation ${
               activeTab === 'patients'
-                ? 'text-teal-700 font-bold bg-teal-50/80'
-                : 'text-slate-500 hover:text-slate-800'
+                ? 'text-[#0F5C63] font-semibold'
+                : 'text-[#6B706D] hover:text-[#1C1F1E]'
             }`}
           >
-            <Users className={`h-4 w-4 md:h-5 md:w-5 mb-0.5 ${activeTab === 'patients' ? 'text-teal-600' : 'text-slate-400'}`} />
+            <Users className={`h-4 w-4 md:h-5 md:w-5 mb-0.5 ${activeTab === 'patients' ? 'text-[#0F5C63]' : 'text-[#6B706D]'}`} />
             <span>Pacientes</span>
           </button>
         )}
@@ -410,13 +410,13 @@ function MainApplication() {
           <button
             type="button"
             onClick={() => setActiveTab('users')}
-            className={`flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation ${
+            className={`flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-md text-[10px] font-medium transition-colors min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation ${
               activeTab === 'users'
-                ? 'text-teal-700 font-bold bg-teal-50/80'
-                : 'text-slate-500 hover:text-slate-800'
+                ? 'text-[#0F5C63] font-semibold'
+                : 'text-[#6B706D] hover:text-[#1C1F1E]'
             }`}
           >
-            <UserCheck className={`h-4 w-4 md:h-5 md:w-5 mb-0.5 ${activeTab === 'users' ? 'text-teal-600' : 'text-slate-400'}`} />
+            <UserCheck className={`h-4 w-4 md:h-5 md:w-5 mb-0.5 ${activeTab === 'users' ? 'text-[#0F5C63]' : 'text-[#6B706D]'}`} />
             <span>Usuarios</span>
           </button>
         ) : (session?.role === 'ODONTOLOGO' || session?.role === 'ASISTENTE') &&
@@ -424,26 +424,26 @@ function MainApplication() {
           <button
             type="button"
             onClick={() => setActiveTab('treatments')}
-            className={`flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation ${
+            className={`flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-md text-[10px] font-medium transition-colors min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation ${
               activeTab === 'treatments'
-                ? 'text-teal-700 font-bold bg-teal-50/80'
-                : 'text-slate-500 hover:text-slate-800'
+                ? 'text-[#0F5C63] font-semibold'
+                : 'text-[#6B706D] hover:text-[#1C1F1E]'
             }`}
           >
-            <Stethoscope className={`h-4 w-4 md:h-5 md:w-5 mb-0.5 ${activeTab === 'treatments' ? 'text-teal-600' : 'text-slate-400'}`} />
+            <Stethoscope className={`h-4 w-4 md:h-5 md:w-5 mb-0.5 ${activeTab === 'treatments' ? 'text-[#0F5C63]' : 'text-[#6B706D]'}`} />
             <span>Clínica</span>
           </button>
         ) : hasModuleAccess(session, 'cash', roleObj) ? (
           <button
             type="button"
             onClick={() => setActiveTab('cash')}
-            className={`flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-xl text-[10px] font-semibold transition-all min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation ${
+            className={`flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-md text-[10px] font-medium transition-colors min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation ${
               activeTab === 'cash'
-                ? 'text-teal-700 font-bold bg-teal-50/80'
-                : 'text-slate-500 hover:text-slate-800'
+                ? 'text-[#0F5C63] font-semibold'
+                : 'text-[#6B706D] hover:text-[#1C1F1E]'
             }`}
           >
-            <WalletCards className={`h-4 w-4 md:h-5 md:w-5 mb-0.5 ${activeTab === 'cash' ? 'text-teal-600' : 'text-slate-400'}`} />
+            <WalletCards className={`h-4 w-4 md:h-5 md:w-5 mb-0.5 ${activeTab === 'cash' ? 'text-[#0F5C63]' : 'text-[#6B706D]'}`} />
             <span>Caja</span>
           </button>
         ) : null}
@@ -451,9 +451,9 @@ function MainApplication() {
         <button
           type="button"
           onClick={() => setIsMobileSidebarOpen(true)}
-          className="flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-xl text-[10px] font-semibold text-slate-500 hover:text-slate-800 transition-all min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation"
+          className="flex flex-col items-center justify-center py-1 px-1.5 md:px-2 rounded-md text-[10px] font-medium text-[#6B706D] hover:text-[#1C1F1E] transition-colors min-h-[44px] min-w-[48px] md:min-w-[52px] cursor-pointer touch-manipulation"
         >
-          <Menu className="h-4 w-4 md:h-5 md:w-5 mb-0.5 text-slate-500" />
+          <Menu className="h-4 w-4 md:h-5 md:w-5 mb-0.5 text-[#6B706D]" />
           <span>Más</span>
         </button>
       </nav>

@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Users,
   UserPlus,
   Search,
-  Filter,
-  HeartPulse,
   AlertTriangle,
   Building2,
   Phone,
@@ -13,7 +10,6 @@ import {
   Edit2,
   Power,
   ShieldCheck,
-  Calendar,
   FileSpreadsheet,
   ChevronLeft,
   ChevronRight,
@@ -21,7 +17,8 @@ import {
   List,
   MapPin,
   Briefcase,
-  UserCheck
+  UserCheck,
+  Users
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { UNKNOWN_CREATOR_LABEL } from '../../db/payrollEngine.ts';
@@ -31,6 +28,7 @@ import { ComprehensivePatientModal } from './ComprehensivePatientModal.tsx';
 import { HistoricalImportModal } from '../shared/HistoricalImportModal.tsx';
 import { resolveOrganizationLegalName } from '../../config/appBrand.ts';
 import { hasBackendSession, putAuthoritativeAction } from '../../services/authoritativeApi.ts';
+import { EmptyState, PatientAvatar, StatusLabel } from '../ui/DesignPrimitives.tsx';
 
 interface PatientManagementViewProps {
   onNavigateToTab?: (tab: string, payload?: any) => void;
@@ -185,76 +183,73 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   ).length;
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-teal-600 text-white flex items-center justify-center shadow-md shadow-teal-700/20 shrink-0">
-              <HeartPulse className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-slate-900">
-                  Ficha Médica Única & Registro de Pacientes
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-teal-100 text-teal-800 border border-teal-200">
-                  Ficha Clínica Unificada
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Historial unificado multi-sucursal, validación de Cédula de Identidad, anamnesis,
-                antecedentes farmacológicos y contacto directo por WhatsApp en Paraguay.
-              </p>
-            </div>
-          </div>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-semibold text-[#1C1F1E] tracking-tight">
+            Pacientes
+          </h1>
+          <p className="text-xs text-[#6B706D] mt-0.5 tabular-nums">
+            {patients.length} fichas registradas · Ley N° 1682/01
+          </p>
+        </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setIsHistoricalImportOpen(true)}
-              className="px-3.5 py-2 text-xs font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-xl transition-colors flex items-center gap-1.5"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              <span>Importar Histórico (CSV)</span>
-            </button>
-            <button
-              onClick={handleOpenAdd}
-              className="px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
-            >
-              <UserPlus className="h-4 w-4" />
-              <span>Nuevo Paciente</span>
-            </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsHistoricalImportOpen(true)}
+            className="px-3.5 py-2 text-xs font-medium text-[#1C1F1E] bg-white hover:bg-[#F2F0EB] border border-[#E6E2D9] rounded-lg transition-colors flex items-center gap-1.5 min-h-[40px] cursor-pointer"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-[#525755]" />
+            <span>Importar CSV</span>
+          </button>
+          <button
+            onClick={handleOpenAdd}
+            className="px-4 py-2 text-xs font-semibold text-white bg-[#0F5C63] hover:bg-[#0B474D] rounded-lg transition-colors flex items-center gap-1.5 min-h-[40px] cursor-pointer"
+          >
+            <UserPlus className="h-4 w-4" />
+            <span>Nuevo paciente</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Continuous KPI strip */}
+      <div className="bg-white rounded-lg border border-[#E6E2D9] grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-[#EFECE5]">
+        <div className="px-4 py-3.5 sm:px-5">
+          <div className="text-[11px] font-medium text-[#6B706D]">Fichas activas</div>
+          <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-0.5">
+            {activePatientsCount}
+          </div>
+          <div className="text-[11px] text-[#6B706D] mt-0.5 tabular-nums">
+            {inactivePatientsCount > 0 ? `${inactivePatientsCount} inactivo(s)` : 'Todos activos'}
           </div>
         </div>
 
-        {/* Quick KPI stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-slate-100">
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <div className="text-[11px] font-medium text-slate-500 uppercase">Fichas Activas</div>
-            <div className="text-lg font-bold text-slate-900 mt-0.5">{activePatientsCount} Pacientes</div>
-            <div className="text-[11px] text-teal-700 font-semibold">
-              {inactivePatientsCount > 0 ? `${inactivePatientsCount} inactivo(s)` : '100% C.I. Validada'}
-            </div>
+        <div className="px-4 py-3.5 sm:px-5">
+          <div className="text-[11px] font-medium text-[#6B706D]">Con cobertura</div>
+          <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-0.5">
+            {insuredPatientsCount}
           </div>
+          <div className="text-[11px] text-[#6B706D] mt-0.5">Plan o seguro activo</div>
+        </div>
 
-          <div className="p-3 bg-indigo-50/60 rounded-xl border border-indigo-100">
-            <div className="text-[11px] font-medium text-indigo-600 uppercase">Planes & Seguros</div>
-            <div className="text-lg font-bold text-indigo-900 mt-0.5">{insuredPatientsCount} Pacientes</div>
-            <div className="text-[11px] text-indigo-700 font-semibold">Con Cobertura Activa</div>
+        <div className="px-4 py-3.5 sm:px-5">
+          <div className="text-[11px] font-medium text-[#6B706D]">Alertas de alergias</div>
+          <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-0.5">
+            {patientsWithAllergies}
           </div>
+          <div className="text-[11px] text-[#6B706D] mt-0.5">
+            {patientsWithAllergies > 0 ? 'Con registro en anamnesis' : 'Sin alertas activas'}
+          </div>
+        </div>
 
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <div className="text-[11px] font-medium text-slate-500 uppercase">Alertas de Alergias</div>
-            <div className="text-lg font-bold text-rose-700 mt-0.5">{patientsWithAllergies} Pacientes</div>
-            <div className="text-[11px] text-rose-600">Alerta Penicilina / Látex</div>
+        <div className="px-4 py-3.5 sm:px-5">
+          <div className="text-[11px] font-medium text-[#6B706D]">Particulares</div>
+          <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-0.5">
+            {Math.max(0, activePatientsCount - insuredPatientsCount)}
           </div>
-
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <div className="text-[11px] font-medium text-slate-500 uppercase">Cumplimiento Legal</div>
-            <div className="text-lg font-bold text-slate-900 mt-0.5">Ley N° 1682/01</div>
-            <div className="text-[11px] text-emerald-700 font-semibold">Privacidad & Datos Médicos</div>
-          </div>
+          <div className="text-[11px] text-[#6B706D] mt-0.5">Tarifa de lista</div>
         </div>
       </div>
 
@@ -272,15 +267,15 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
       )}
 
       {/* Filter and Search Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
+      <div className="bg-white rounded-lg border border-[#E6E2D9] p-3.5 sm:p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
         <div className="relative flex-1">
-          <Search className="h-4 w-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6B706D]" />
           <input
             type="text"
-            placeholder="Buscar por C.I., Nombre, Teléfono o Ciudad..."
+            placeholder="Buscar por C.I., nombre, teléfono o ciudad..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full text-xs sm:text-sm pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500 font-medium text-slate-900"
+            className="w-full text-xs sm:text-sm pl-9 pr-4 py-2 bg-[#F8F7F4] border border-[#E6E2D9] rounded-md focus:bg-white focus:border-[#0F5C63] focus:outline-none text-[#1C1F1E] min-h-[40px]"
           />
         </div>
 
@@ -288,19 +283,19 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
           <select
             value={modalityFilter}
             onChange={(e) => setModalityFilter(e.target.value as any)}
-            className="flex-1 sm:flex-none text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-700 min-h-[40px] cursor-pointer"
+            className="flex-1 sm:flex-none text-xs bg-white border border-[#E6E2D9] rounded-md px-3 py-2 font-medium text-[#1C1F1E] min-h-[40px] cursor-pointer"
           >
-            <option value="ALL">Todas las Modalidades</option>
-            <option value="PARTICULAR">👤 Particular (Lista)</option>
-            <option value="PLAN_SEGURO">🛡️ Con Seguro / Plan</option>
+            <option value="ALL">Todas las modalidades</option>
+            <option value="PARTICULAR">Particular</option>
+            <option value="PLAN_SEGURO">Con seguro o plan</option>
           </select>
 
           <select
             value={branchFilter}
             onChange={(e) => setBranchFilter(e.target.value)}
-            className="flex-1 sm:flex-none text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-700 min-h-[40px] cursor-pointer"
+            className="flex-1 sm:flex-none text-xs bg-white border border-[#E6E2D9] rounded-md px-3 py-2 font-medium text-[#1C1F1E] min-h-[40px] cursor-pointer"
           >
-            <option value="ALL">Todas las Sucursales</option>
+            <option value="ALL">Todas las sucursales</option>
             {branches.map((b) => (
               <option key={b.id} value={b.id}>
                 {b.name}
@@ -311,33 +306,33 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="flex-1 sm:flex-none text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-700 min-h-[40px] cursor-pointer"
+            className="flex-1 sm:flex-none text-xs bg-white border border-[#E6E2D9] rounded-md px-3 py-2 font-medium text-[#1C1F1E] min-h-[40px] cursor-pointer"
           >
-            <option value="ALL">Todos los Estados</option>
-            <option value="ACTIVE">Solo Activos</option>
-            <option value="INACTIVE">Solo Inactivos</option>
+            <option value="ALL">Todos los estados</option>
+            <option value="ACTIVE">Solo activos</option>
+            <option value="INACTIVE">Solo inactivos</option>
           </select>
 
           <select
             value={alertFilter}
             onChange={(e) => setAlertFilter(e.target.value)}
-            className="flex-1 sm:flex-none text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-700 min-h-[40px] cursor-pointer"
+            className="flex-1 sm:flex-none text-xs bg-white border border-[#E6E2D9] rounded-md px-3 py-2 font-medium text-[#1C1F1E] min-h-[40px] cursor-pointer"
           >
-            <option value="ALL">Todas las Fichas</option>
-            <option value="ALLERGIES">⚠️ Con Alergias</option>
-            <option value="CONDITIONS">🩺 Con Patologías</option>
+            <option value="ALL">Todas las fichas</option>
+            <option value="ALLERGIES">Con alergias</option>
+            <option value="CONDITIONS">Con patologías</option>
           </select>
 
           <select
             value={advisorFilter}
             onChange={(e) => setAdvisorFilter(e.target.value)}
-            className="flex-1 sm:flex-none text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-medium text-slate-700 min-h-[40px] cursor-pointer"
+            className="flex-1 sm:flex-none text-xs bg-white border border-[#E6E2D9] rounded-md px-3 py-2 font-medium text-[#1C1F1E] min-h-[40px] cursor-pointer"
           >
-            <option value="ALL">Todos los Asesores</option>
+            <option value="ALL">Todos los asesores</option>
             {linkedEmployee && (
-              <option value="MY_PORTFOLIO">Mi Cartera ({linkedEmployee.firstName})</option>
+              <option value="MY_PORTFOLIO">Mi cartera ({linkedEmployee.firstName})</option>
             )}
-            <option value="UNASSIGNED">Sin Asesor Designado</option>
+            <option value="UNASSIGNED">Sin asesor designado</option>
             {advisors.map((adv: any) => (
               <option key={adv.id} value={adv.id}>
                 Asesor: {adv.firstName} {adv.lastName}
@@ -351,27 +346,27 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
               onClick={() =>
                 setAdvisorFilter((prev) => (prev === 'MY_PORTFOLIO' ? 'ALL' : 'MY_PORTFOLIO'))
               }
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-colors min-h-[40px] cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium border transition-colors min-h-[40px] cursor-pointer ${
                 advisorFilter === 'MY_PORTFOLIO'
-                  ? 'bg-teal-600 text-white border-teal-600'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  ? 'bg-[#0F5C63] text-white border-[#0F5C63]'
+                  : 'bg-white text-[#525755] border-[#E6E2D9] hover:bg-[#F2F0EB]'
               }`}
             >
               <Briefcase className="h-3.5 w-3.5" />
-              <span>Mi Cartera</span>
+              <span>Mi cartera</span>
             </button>
           )}
 
           {/* Toggle Tarjetas / Tabla */}
-          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 shrink-0 ml-auto sm:ml-0">
+          <div className="inline-flex rounded-md border border-[#E6E2D9] bg-[#F8F7F4] p-0.5 shrink-0 ml-auto sm:ml-0">
             <button
               type="button"
               onClick={() => setViewMode('cards')}
-              title="Vista de Tarjetas Adaptable"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              title="Vista de tarjetas"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer ${
                 viewMode === 'cards'
-                  ? 'bg-white text-teal-800 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900'
+                  ? 'bg-white text-[#0F5C63] border border-[#E6E2D9]'
+                  : 'text-[#6B706D] hover:text-[#1C1F1E]'
               }`}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
@@ -380,11 +375,11 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              title="Vista de Tabla Detallada"
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              title="Vista de tabla"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer ${
                 viewMode === 'table'
-                  ? 'bg-white text-teal-800 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900'
+                  ? 'bg-white text-[#0F5C63] border border-[#E6E2D9]'
+                  : 'text-[#6B706D] hover:text-[#1C1F1E]'
               }`}
             >
               <List className="h-3.5 w-3.5" />
@@ -394,8 +389,26 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
         </div>
       </div>
 
-      {/* Patients Display: Cards or Table */}
-      {viewMode === 'cards' ? (
+      {/* Patients Display: Empty / Cards / Table */}
+      {paginatedPatients.length === 0 ? (
+        <div className="bg-white rounded-lg border border-[#E6E2D9]">
+          <EmptyState
+            icon={Users}
+            title="Sin pacientes para mostrar"
+            description="Ajusta los filtros de búsqueda o registra una nueva ficha de paciente."
+            action={
+              <button
+                type="button"
+                onClick={handleOpenAdd}
+                className="px-4 py-2 bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <UserPlus className="h-4 w-4" />
+                <span>Nuevo paciente</span>
+              </button>
+            }
+          />
+        </div>
+      ) : viewMode === 'cards' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {paginatedPatients.map((p) => {
             const primaryBranch = branches.find((b) => b.id === p.primaryBranchId);
@@ -422,77 +435,76 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
             return (
               <div
                 key={p.id}
-                className={`bg-white rounded-3xl border p-4 sm:p-5 shadow-xs flex flex-col justify-between transition-all ${
-                  isInactive ? 'border-slate-200 opacity-75 bg-slate-50/60' : 'border-slate-200 hover:border-slate-300'
+                className={`bg-white rounded-lg border p-4 sm:p-5 flex flex-col justify-between transition-colors ${
+                  isInactive ? 'border-[#E6E2D9] opacity-75 bg-[#F8F7F4]' : 'border-[#E6E2D9] hover:border-[#D4CFC3]'
                 }`}
               >
                 <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="h-10 w-10 rounded-2xl bg-teal-100 text-teal-800 font-bold text-sm flex items-center justify-center shrink-0">
-                        {(p.firstName || '?').charAt(0)}{(p.lastName || '').charAt(0)}
-                      </div>
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <PatientAvatar
+                        firstName={p.firstName}
+                        lastName={p.lastName}
+                        seed={p.id}
+                        size="md"
+                      />
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <h3 className="font-bold text-slate-900 text-sm truncate">
+                          <h3 className="font-semibold text-[#1C1F1E] text-sm truncate">
                             {p.firstName} {p.lastName}
                           </h3>
                           {isInactive && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700">
-                              Inactivo
-                            </span>
+                            <StatusLabel tone="neutral" label="Inactivo" />
                           )}
                         </div>
-                        <div className="text-[11px] font-mono text-slate-500">
+                        <div className="text-xs text-[#6B706D] tabular-nums">
                           C.I. {p.documentNumber}
                         </div>
                       </div>
                     </div>
                     {p.bloodType && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shrink-0">
+                      <span className="text-[11px] font-semibold text-[#991B1B] bg-[#FEF2F2] border border-[#F5C2C2] px-1.5 py-0.5 rounded shrink-0">
                         {p.bloodType}
                       </span>
                     )}
                   </div>
 
-                  {/* Modalidad Comercial Badge */}
-                  <div className="mb-2.5">
+                  {/* Modalidad Comercial */}
+                  <div className="mb-2.5 text-xs">
                     {p.modality === 'PLAN_SEGURO' ? (
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-[11px] font-bold max-w-full">
-                        <ShieldCheck className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                      <div className="inline-flex items-center gap-1.5 text-[#0F5C63] font-medium max-w-full">
+                        <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">{insurancePlans.find((ip) => ip.id === p.insurancePlanId)?.name || 'Seguro Dental'}</span>
                         {p.insuranceMemberNumber && (
-                          <span className="text-[10px] text-indigo-600 font-mono font-normal shrink-0">
-                            • Nº {p.insuranceMemberNumber}
+                          <span className="text-[11px] text-[#6B706D] tabular-nums shrink-0">
+                            · Nº {p.insuranceMemberNumber}
                           </span>
                         )}
                       </div>
                     ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-medium border border-slate-200">
-                        Particular (Sin Cobertura)
-                      </span>
+                      <span className="text-[#6B706D]">Particular</span>
                     )}
                   </div>
 
                   {hasAlert && (
-                    <div className="mb-2.5 flex items-center gap-1.5 p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-bold">
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-600" />
+                    <div className="mb-2.5 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#FEF2F2] border border-[#F5C2C2] text-[#991B1B] text-xs font-medium">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[#B91C1C]" />
                       <span className="truncate">{p.allergies}</span>
                     </div>
                   )}
 
-                  <div className="space-y-1.5 text-xs text-slate-600 mt-2">
+                  <div className="space-y-1.5 text-xs text-[#525755] mt-2">
                     <div className="flex items-center gap-2">
-                      <MapPin className="h-3.5 w-3.5 text-teal-600 shrink-0" />
+                      <MapPin className="h-3.5 w-3.5 text-[#6B706D] shrink-0" />
                       <span className="truncate">{p.city} ({p.department})</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Building2 className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                      <Building2 className="h-3.5 w-3.5 text-[#6B706D] shrink-0" />
                       <span className="truncate">{primaryBranch?.name || 'Sede Central'}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate font-mono">{p.phone}</span>
+                      <Phone className="h-3.5 w-3.5 text-[#6B706D] shrink-0" />
+                      <span className="truncate tabular-nums">{p.phone}</span>
                     </div>
                     {(() => {
                       const assignedAdvisor = p.assignedAdvisorId
@@ -505,22 +517,22 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                         p.createdByNameSnapshot ||
                         (creatorUser ? `${creatorUser.firstName} ${creatorUser.lastName}` : UNKNOWN_CREATOR_LABEL);
                       return (
-                        <div className="pt-1.5 mt-1.5 border-t border-slate-100 space-y-1 text-[11px]">
+                        <div className="pt-2 mt-2 border-t border-[#EFECE5] space-y-1 text-[11px]">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-slate-400 flex items-center gap-1">
-                              <Briefcase className="h-3 w-3 text-teal-600" />
-                              Asesor:
+                            <span className="text-[#6B706D] flex items-center gap-1">
+                              <Briefcase className="h-3 w-3" />
+                              Asesor
                             </span>
-                            <span className={`font-semibold truncate ${assignedAdvisor ? 'text-teal-800' : 'text-slate-400'}`}>
+                            <span className={`font-medium truncate ${assignedAdvisor ? 'text-[#1C1F1E]' : 'text-[#6B706D]'}`}>
                               {assignedAdvisor ? `${assignedAdvisor.firstName} ${assignedAdvisor.lastName}` : 'No asignado'}
                             </span>
                           </div>
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-slate-400 flex items-center gap-1">
-                              <UserCheck className="h-3 w-3 text-slate-400" />
-                              Creado por:
+                            <span className="text-[#6B706D] flex items-center gap-1">
+                              <UserCheck className="h-3 w-3" />
+                              Creado por
                             </span>
-                            <span className="text-slate-600 truncate">{creatorLabel}</span>
+                            <span className="text-[#525755] truncate">{creatorLabel}</span>
                           </div>
                         </div>
                       );
@@ -528,14 +540,14 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                <div className="mt-4 pt-3 border-t border-[#EFECE5] flex flex-wrap items-center justify-between gap-2">
                   <a
                     href={waUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors min-h-[42px] sm:min-h-[44px]"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-[#3F6212] bg-[#F4F8EA] hover:bg-[#E7F0D3] border border-[#D7E6B5] rounded-md transition-colors min-h-[42px] sm:min-h-[44px]"
                   >
-                    <MessageCircle className="h-4 w-4 text-emerald-600" />
+                    <MessageCircle className="h-4 w-4 text-[#4D7C0F]" />
                     <span>WhatsApp</span>
                   </a>
 
@@ -543,7 +555,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setSelectedPatientId(p.id)}
-                      className="px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold transition-colors flex items-center justify-center gap-1 min-h-[42px] sm:min-h-[44px] cursor-pointer"
+                      className="px-3 py-2 rounded-md bg-[#ECF5F5] hover:bg-[#D5EAEA] text-[#0F5C63] border border-[#B9D9DC] text-xs font-semibold transition-colors flex items-center justify-center gap-1 min-h-[42px] sm:min-h-[44px] cursor-pointer"
                     >
                       <Eye className="h-3.5 w-3.5" />
                       <span>Ficha</span>
@@ -552,7 +564,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                     <button
                       type="button"
                       onClick={() => handleOpenEdit(p)}
-                      className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center cursor-pointer"
+                      className="p-2.5 rounded-md border border-[#E6E2D9] text-[#525755] hover:bg-[#F2F0EB] transition-colors min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center cursor-pointer"
                       title="Editar Ficha"
                     >
                       <Edit2 className="h-4 w-4" />
@@ -561,10 +573,10 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                     <button
                       type="button"
                       onClick={() => handleToggleStatus(p.id)}
-                      className={`p-2.5 rounded-xl border transition-colors min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center cursor-pointer ${
+                      className={`p-2.5 rounded-md border transition-colors min-h-[42px] min-w-[42px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center cursor-pointer ${
                         p.status !== 'INACTIVE'
-                          ? 'border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50'
-                          : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                          ? 'border-[#E6E2D9] text-[#6B706D] hover:text-[#B91C1C] hover:bg-[#FEF2F2]'
+                          : 'border-[#D7E6B5] text-[#3F6212] hover:bg-[#F4F8EA]'
                       }`}
                       title={p.status !== 'INACTIVE' ? 'Desactivar paciente' : 'Activar paciente'}
                     >
@@ -578,199 +590,196 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
         </div>
       ) : (
         /* Patients Table */
-        <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-600">
-            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-100 uppercase text-[10px] tracking-wider">
-              <tr>
-                <th className="px-5 py-3">Paciente / Documento</th>
-                <th className="px-4 py-3">Modalidad / Cobertura</th>
-                <th className="px-4 py-3">Ubicación (PY)</th>
-                <th className="px-4 py-3">Contacto Directo</th>
-                <th className="px-4 py-3">Asesor & Creación</th>
-                <th className="px-4 py-3">Alertas Clínicas (Anamnesis)</th>
-                <th className="px-4 py-3">Sucursal Base</th>
-                <th className="px-4 py-3 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-medium">
-              {paginatedPatients.map((p) => {
-                const primaryBranch = branches.find((b) => b.id === p.primaryBranchId);
-                const assignedPlan = insurancePlans.find((ip) => ip.id === p.insurancePlanId);
+        <div className="bg-white rounded-lg border border-[#E6E2D9] overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-[#525755]">
+              <thead className="bg-[#F2F0EB] text-[#525755] font-semibold border-b border-[#E6E2D9] uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th className="px-5 py-3">Paciente</th>
+                  <th className="px-4 py-3">Modalidad</th>
+                  <th className="px-4 py-3">Ubicación</th>
+                  <th className="px-4 py-3">Contacto</th>
+                  <th className="px-4 py-3">Asesor</th>
+                  <th className="px-4 py-3">Alertas clínicas</th>
+                  <th className="px-4 py-3">Sucursal</th>
+                  <th className="px-4 py-3 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#EFECE5]">
+                {paginatedPatients.map((p) => {
+                  const primaryBranch = branches.find((b) => b.id === p.primaryBranchId);
+                  const assignedPlan = insurancePlans.find((ip) => ip.id === p.insurancePlanId);
 
-                const hasAlert =
-                  p.allergies &&
-                  p.allergies.toLowerCase() !== 'ninguna' &&
-                  p.allergies.toLowerCase() !== 'ninguna conocida';
+                  const hasAlert =
+                    p.allergies &&
+                    p.allergies.toLowerCase() !== 'ninguna' &&
+                    p.allergies.toLowerCase() !== 'ninguna conocida';
 
-                const orgLegalName = resolveOrganizationLegalName({
-                  legalName: branding.legalName,
-                  name: snapshot.organization?.name,
-                });
-                const cleanPhone = (p.whatsapp || p.phone || '').replace(/\D/g, '');
-                const waUrl = `https://wa.me/${
-                  cleanPhone.startsWith('595') ? cleanPhone : '595' + cleanPhone.replace(/^0/, '')
-                }?text=${encodeURIComponent(
-                  orgLegalName
-                    ? `Hola ${p.firstName}, le saludamos desde ${orgLegalName}.`
-                    : `Hola ${p.firstName}, le saludamos cordialmente.`
-                )}`;
+                  const orgLegalName = resolveOrganizationLegalName({
+                    legalName: branding.legalName,
+                    name: snapshot.organization?.name,
+                  });
+                  const cleanPhone = (p.whatsapp || p.phone || '').replace(/\D/g, '');
+                  const waUrl = `https://wa.me/${
+                    cleanPhone.startsWith('595') ? cleanPhone : '595' + cleanPhone.replace(/^0/, '')
+                  }?text=${encodeURIComponent(
+                    orgLegalName
+                      ? `Hola ${p.firstName}, le saludamos desde ${orgLegalName}.`
+                      : `Hola ${p.firstName}, le saludamos cordialmente.`
+                  )}`;
 
-                return (
-                  <tr key={p.id} className={`hover:bg-slate-50/70 transition-colors ${p.status === 'INACTIVE' ? 'opacity-70 bg-slate-50/40' : ''}`}>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-xl bg-teal-100 text-teal-800 font-bold text-xs flex items-center justify-center shrink-0">
-                          {(p.firstName || '?').charAt(0)}
-                          {(p.lastName || '').charAt(0)}
+                  return (
+                    <tr key={p.id} className={`hover:bg-[#F8F7F4] transition-colors ${p.status === 'INACTIVE' ? 'opacity-70 bg-[#F8F7F4]' : ''}`}>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <PatientAvatar
+                            firstName={p.firstName}
+                            lastName={p.lastName}
+                            seed={p.id}
+                            size="sm"
+                          />
+                          <div>
+                            <div className="font-semibold text-[#1C1F1E] flex items-center gap-1.5 flex-wrap">
+                              <span>
+                                {p.firstName} {p.lastName}
+                              </span>
+                              {p.status === 'INACTIVE' && (
+                                <StatusLabel tone="neutral" label="Inactivo" />
+                              )}
+                              {p.bloodType && (
+                                <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-[#FEF2F2] text-[#991B1B] border border-[#F5C2C2]">
+                                  {p.bloodType}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-[#6B706D] tabular-nums">
+                              C.I. {p.documentNumber}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
-                            <span>
-                              {p.firstName} {p.lastName}
-                            </span>
-                            {p.status === 'INACTIVE' && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-200 text-slate-700">
-                                Inactivo
-                              </span>
-                            )}
-                            {p.bloodType && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                                {p.bloodType}
-                              </span>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        {p.modality === 'PLAN_SEGURO' ? (
+                          <div className="space-y-0.5">
+                            <div className="inline-flex items-center gap-1 text-[#0F5C63] font-medium max-w-[170px] truncate">
+                              <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{assignedPlan?.name || 'Plan de seguro'}</span>
+                            </div>
+                            {p.insuranceMemberNumber && (
+                              <div className="text-[11px] text-[#6B706D] tabular-nums">
+                                Nº {p.insuranceMemberNumber}
+                              </div>
                             )}
                           </div>
-                          <div className="text-[11px] font-mono text-slate-500">
-                            C.I. {p.documentNumber}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
+                        ) : (
+                          <span className="text-[#6B706D]">Particular</span>
+                        )}
+                      </td>
 
-                    <td className="px-4 py-3.5">
-                      {p.modality === 'PLAN_SEGURO' ? (
+                      <td className="px-4 py-3">
+                        <div className="text-[#1C1F1E] font-medium">{p.city}</div>
+                        <div className="text-[11px] text-[#6B706D] truncate max-w-[140px]">
+                          {p.department}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3">
                         <div className="space-y-0.5">
-                          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 text-indigo-900 border border-indigo-200 text-[10px] font-bold max-w-[170px] truncate">
-                            <ShieldCheck className="h-3 w-3 text-indigo-600 shrink-0" />
-                            <span className="truncate">{assignedPlan?.name || 'Plan de Seguro'}</span>
-                          </div>
-                          {p.insuranceMemberNumber && (
-                            <div className="text-[10px] text-slate-500 font-mono">
-                              Nº {p.insuranceMemberNumber}
-                            </div>
-                          )}
+                          <div className="text-[#1C1F1E] tabular-nums text-xs">{p.phone}</div>
+                          <a
+                            href={waUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-[#3F6212] hover:underline"
+                          >
+                            <MessageCircle className="h-3 w-3" />
+                            <span>WhatsApp</span>
+                          </a>
                         </div>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-medium border border-slate-200">
-                          Particular
+                      </td>
+
+                      <td className="px-4 py-3">
+                        {(() => {
+                          const assignedAdvisor = p.assignedAdvisorId
+                            ? employees.find((e: any) => e.id === p.assignedAdvisorId)
+                            : null;
+                          const creatorUser = p.createdByUserId
+                            ? (snapshot.users || []).find((u: any) => u.id === p.createdByUserId)
+                            : null;
+                          const creatorLabel =
+                            p.createdByNameSnapshot ||
+                            (creatorUser ? `${creatorUser.firstName} ${creatorUser.lastName}` : UNKNOWN_CREATOR_LABEL);
+                          return (
+                            <div className="space-y-0.5 text-[11px]">
+                              <div className={`font-medium ${assignedAdvisor ? 'text-[#1C1F1E]' : 'text-[#6B706D]'}`}>
+                                {assignedAdvisor ? `${assignedAdvisor.firstName} ${assignedAdvisor.lastName}` : 'Sin asesor'}
+                              </div>
+                              <div className="text-[10px] text-[#6B706D] truncate max-w-[160px]" title={`Creado por: ${creatorLabel}`}>
+                                Reg: {creatorLabel}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        {hasAlert ? (
+                          <span className="inline-flex items-center gap-1 text-[#991B1B] font-medium max-w-[190px] truncate">
+                            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[#B91C1C]" />
+                            <span className="truncate">{p.allergies}</span>
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-[#6B706D]">Sin alergias</span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <span className="text-xs text-[#525755]">
+                          {primaryBranch?.name.replace('Sucursal ', '')}
                         </span>
-                      )}
-                    </td>
+                      </td>
 
-                    <td className="px-4 py-3.5">
-                      <div className="text-slate-900 font-medium">{p.city}</div>
-                      <div className="text-[11px] text-slate-400 truncate max-w-[140px]">
-                        {p.department}
-                      </div>
-                    </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPatientId(p.id)}
+                            className="px-2.5 py-1.5 rounded-md bg-[#ECF5F5] hover:bg-[#D5EAEA] text-[#0F5C63] border border-[#B9D9DC] text-xs font-medium transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>Ver ficha</span>
+                          </button>
 
-                    <td className="px-4 py-3.5">
-                      <div className="space-y-1">
-                        <div className="text-slate-800 font-mono text-[11px]">{p.phone}</div>
-                        <a
-                          href={waUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
-                        >
-                          <MessageCircle className="h-3 w-3" />
-                          <span>WhatsApp</span>
-                        </a>
-                      </div>
-                    </td>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(p)}
+                            className="p-1.5 rounded-md border border-[#E6E2D9] text-[#525755] hover:bg-[#F2F0EB] transition-colors cursor-pointer"
+                            title="Editar Ficha"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
 
-                    <td className="px-4 py-3.5">
-                      {(() => {
-                        const assignedAdvisor = p.assignedAdvisorId
-                          ? employees.find((e: any) => e.id === p.assignedAdvisorId)
-                          : null;
-                        const creatorUser = p.createdByUserId
-                          ? (snapshot.users || []).find((u: any) => u.id === p.createdByUserId)
-                          : null;
-                        const creatorLabel =
-                          p.createdByNameSnapshot ||
-                          (creatorUser ? `${creatorUser.firstName} ${creatorUser.lastName}` : UNKNOWN_CREATOR_LABEL);
-                        return (
-                          <div className="space-y-0.5 text-[11px]">
-                            <div className={`font-semibold ${assignedAdvisor ? 'text-teal-800' : 'text-slate-400'}`}>
-                              {assignedAdvisor ? `${assignedAdvisor.firstName} ${assignedAdvisor.lastName}` : 'Sin asesor'}
-                            </div>
-                            <div className="text-[10px] text-slate-400 truncate max-w-[160px]" title={`Creado por: ${creatorLabel}`}>
-                              Reg: {creatorLabel}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </td>
-
-                    <td className="px-4 py-3.5">
-                      {hasAlert ? (
-                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-50 text-rose-800 border border-rose-200 text-[10px] font-bold max-w-[190px] truncate">
-                          <AlertTriangle className="h-3 w-3 shrink-0 text-rose-600" />
-                          <span className="truncate">{p.allergies}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(p.id)}
+                            className={`p-1.5 rounded-md border transition-colors cursor-pointer ${
+                              p.status !== 'INACTIVE'
+                                ? 'border-[#E6E2D9] text-[#6B706D] hover:text-[#B91C1C] hover:bg-[#FEF2F2]'
+                                : 'border-[#D7E6B5] text-[#3F6212] hover:bg-[#F4F8EA]'
+                            }`}
+                            title={p.status !== 'INACTIVE' ? 'Desactivar paciente' : 'Activar paciente'}
+                          >
+                            <Power className="h-3.5 w-3.5" />
+                          </button>
                         </div>
-                      ) : (
-                        <span className="text-[11px] text-slate-400">Sin alergias declaradas</span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3.5">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg">
-                        <Building2 className="h-3 w-3 text-slate-400" />
-                        <span>{primaryBranch?.name.replace('Sucursal ', '')}</span>
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPatientId(p.id)}
-                          className="px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-[11px] font-semibold transition-colors flex items-center gap-1"
-                        >
-                          <Eye className="h-3 w-3" />
-                          <span>Ver Ficha</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(p)}
-                          className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 transition-colors"
-                          title="Editar Ficha"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(p.id)}
-                          className={`p-1.5 rounded-lg border transition-colors ${
-                            p.status !== 'INACTIVE'
-                              ? 'border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50'
-                              : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                          }`}
-                          title={p.status !== 'INACTIVE' ? 'Desactivar paciente' : 'Activar paciente'}
-                        >
-                          <Power className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

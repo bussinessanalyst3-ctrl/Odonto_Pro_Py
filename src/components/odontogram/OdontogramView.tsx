@@ -1,21 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Sparkles,
-  History,
   Plus,
   Save,
   Printer,
-  Calendar,
-  User,
-  Shield,
-  Layers,
-  Info,
-  CheckCircle2,
   AlertCircle,
-  FileText,
-  Search,
   Check,
-  ChevronDown
 } from 'lucide-react';
 import { dbStore } from '../../db/inMemoryStore.ts';
 import { ToothSVG, ToothData } from './ToothSVG.tsx';
@@ -300,56 +289,51 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
     : null;
 
   return (
-    <div className="space-y-6">
-      {/* Top Header Card */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-teal-700 uppercase tracking-wider mb-1">
-              <Layers className="h-4 w-4" />
-              <span>Odontograma Digital Interactivo (FDI)</span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900">
-              Odontograma Clínico Unificado
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Representación visual anatómica según la nomenclatura internacional FDI (Federación Dental Internacional).
-            </p>
-          </div>
-
-          {/* Quick Actions & Versioning */}
-          <div className="flex flex-wrap items-center gap-2">
-            {activeOdontogram ? (
-              <button
-                onClick={() => setIsCreatingVersion(true)}
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition-colors"
-              >
-                <Save className="h-4 w-4" />
-                <span>Guardar Nueva Evolución (v{(activeOdontogram.version || 1) + 1})</span>
-              </button>
-            ) : (
-              <button
-                onClick={handleCreateFirstVersion}
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Inicializar Odontograma</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => window.print()}
-              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
-              title="Imprimir Odontograma"
-            >
-              <Printer className="h-4 w-4" />
-              <span className="hidden sm:inline">Imprimir</span>
-            </button>
-          </div>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-semibold text-[#1C1F1E] tracking-tight">
+            Odontograma
+          </h1>
+          <p className="text-xs text-[#6B706D] mt-0.5">
+            Nomenclatura FDI · {dentitionType === 'ADULTO' ? 'Dentición permanente (32 piezas)' : 'Dentición temporal (20 piezas)'}
+          </p>
         </div>
 
-        {/* Filters Bar: Patient Selector, Type and Versions */}
-        <div className="mt-6 pt-5 border-t border-slate-100 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+        <div className="flex flex-wrap items-center gap-2">
+          {activeOdontogram ? (
+            <button
+              onClick={() => setIsCreatingVersion(true)}
+              className="px-4 py-2 bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors min-h-[40px] cursor-pointer"
+            >
+              <Save className="h-4 w-4" />
+              <span>Guardar evolución (v{(activeOdontogram.version || 1) + 1})</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleCreateFirstVersion}
+              className="px-4 py-2 bg-[#0F5C63] hover:bg-[#0B474D] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors min-h-[40px] cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Inicializar odontograma</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => window.print()}
+            className="px-3.5 py-2 bg-white hover:bg-[#F2F0EB] text-[#1C1F1E] border border-[#E6E2D9] rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors min-h-[40px] cursor-pointer"
+            title="Imprimir Odontograma"
+          >
+            <Printer className="h-4 w-4 text-[#525755]" />
+            <span className="hidden sm:inline">Imprimir</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Filters Card: Patient Selector, Type and Versions */}
+      <div className="bg-white rounded-lg p-4 sm:p-5 border border-[#E6E2D9]">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
           {/* Patient Selector */}
           <div className="md:col-span-5">
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
@@ -467,29 +451,28 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
       </div>
 
       {/* Quick Tool Palette Bar */}
-      <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-teal-600" />
-            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Herramienta Rápida de Marcado Dental:
+      <div className="bg-white rounded-lg p-4 border border-[#E6E2D9]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#EFECE5]">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-[#1C1F1E]">
+              Marcado rápido
             </span>
             {quickTool ? (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800">
-                Pincel Activo: {CONDITIONS_CATALOG.find((c) => c.id === quickTool)?.label}
+              <span className="text-xs font-medium px-2 py-0.5 rounded bg-[#ECF5F5] text-[#0F5C63] border border-[#B9D9DC]">
+                Pincel: {CONDITIONS_CATALOG.find((c) => c.id === quickTool)?.label}
               </span>
             ) : (
-              <span className="text-xs text-slate-400">
-                (Seleccione una herramienta para pintar superficies directamente al hacer clic)
+              <span className="text-xs text-[#6B706D]">
+                Selecciona una condición para pintar superficies al hacer clic
               </span>
             )}
           </div>
           {quickTool && (
             <button
               onClick={() => setQuickTool(null)}
-              className="text-xs text-slate-500 hover:text-slate-800 underline font-medium self-start sm:self-auto"
+              className="text-xs text-[#525755] hover:text-[#1C1F1E] underline font-medium self-start sm:self-auto cursor-pointer"
             >
-              Desactivar Pincel (Modo Inspección)
+              Desactivar pincel
             </button>
           )}
         </div>
@@ -502,10 +485,10 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
               <button
                 key={tool.id}
                 onClick={() => setQuickTool(isSelected ? null : tool.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap border ${
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-2 whitespace-nowrap border cursor-pointer ${
                   isSelected
-                    ? `${tool.bg} ring-2 ring-teal-600 ring-offset-1 shadow-xs`
-                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    ? 'bg-[#ECF5F5] text-[#0F5C63] border-[#0F5C63]'
+                    : 'bg-[#FAF9F7] text-[#525755] border-[#E6E2D9] hover:bg-[#F2F0EB]'
                 }`}
               >
                 <span
@@ -513,7 +496,7 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
                   style={{ backgroundColor: tool.color }}
                 />
                 <span>{tool.label}</span>
-                {isSelected && <Check className="h-3.5 w-3.5" />}
+                {isSelected && <Check className="h-3.5 w-3.5 text-[#0F5C63]" />}
               </button>
             );
           })}
@@ -521,20 +504,20 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
       </div>
 
       {/* Main FDI Chart Canvas */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs relative">
+      <div className="bg-white rounded-lg p-5 sm:p-6 border border-[#E6E2D9] relative">
         {/* Orientation Labels */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-1 sm:gap-2 text-[10px] sm:text-xs font-bold text-slate-400 mb-4 px-1 sm:px-2 text-center">
-          <span className="truncate">DERECHA DEL PACIENTE (Cuad. 1 & 4)</span>
-          <span className="text-teal-700 font-extrabold tracking-wider uppercase bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
-            {dentitionType === 'ADULTO' ? 'ARCADA PERMANENTE' : 'ARCADA TEMPORAL'}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-1 sm:gap-2 text-[11px] font-medium text-[#6B706D] mb-4 px-1 text-center">
+          <span className="truncate">Derecha del paciente (Cuad. 1 y 4)</span>
+          <span className="text-[#0F5C63] font-semibold">
+            {dentitionType === 'ADULTO' ? 'Arcada permanente' : 'Arcada temporal'}
           </span>
-          <span className="truncate">IZQUIERDA DEL PACIENTE (Cuad. 2 & 3)</span>
+          <span className="truncate">Izquierda del paciente (Cuad. 2 y 3)</span>
         </div>
 
         {/* UPPER ARCH (Maxilar Superior) */}
-        <div className="p-3 sm:p-4 bg-slate-50/70 rounded-2xl border border-slate-200/60 mb-6 overflow-x-auto">
-          <div className="text-center text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-3">
-            ▲ Arcada Superior (Vestibular Arriba / Palatina Abajo)
+        <div className="p-3 sm:p-4 bg-[#FAF9F7] rounded-lg border border-[#EFECE5] mb-5 overflow-x-auto">
+          <div className="text-center text-[11px] font-medium text-[#6B706D] mb-3">
+            Arcada superior · Vestibular arriba / Palatina abajo
           </div>
 
           <div className="flex items-center justify-start md:justify-center gap-1 sm:gap-2 min-w-max py-2 px-1">
@@ -674,44 +657,46 @@ export const OdontogramView: React.FC<OdontogramViewProps> = ({
         )}
       </div>
 
-      {/* Epidemiological Summary Cards & Index */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="text-[11px] font-bold text-slate-400 uppercase">Caries Activas</div>
-          <div className="text-2xl font-black text-red-600 mt-1">{stats.cariesCount}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Requiere intervención</div>
+      {/* Epidemiological Summary Strip */}
+      <div className="bg-white rounded-lg border border-[#E6E2D9] grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 divide-y sm:divide-y-0 sm:divide-x divide-[#EFECE5]">
+        <div className="p-4">
+          <div className="text-[11px] font-medium text-[#6B706D]">Caries activas</div>
+          <div className={`text-xl font-semibold tabular-nums mt-1 ${stats.cariesCount > 0 ? 'text-[#B91C1C]' : 'text-[#1C1F1E]'}`}>
+            {stats.cariesCount}
+          </div>
+          <div className="text-[11px] text-[#6B706D] mt-0.5">Con intervención</div>
         </div>
 
-        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="text-[11px] font-bold text-slate-400 uppercase">Obturaciones</div>
-          <div className="text-2xl font-black text-blue-600 mt-1">{stats.obturacionesCount}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Restauradas previamente</div>
+        <div className="p-4">
+          <div className="text-[11px] font-medium text-[#6B706D]">Obturaciones</div>
+          <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">{stats.obturacionesCount}</div>
+          <div className="text-[11px] text-[#6B706D] mt-0.5">Restauradas</div>
         </div>
 
-        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="text-[11px] font-bold text-slate-400 uppercase">Ausentes / Exod.</div>
-          <div className="text-2xl font-black text-slate-700 mt-1">{stats.ausentesCount}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Piezas perdidas</div>
+        <div className="p-4">
+          <div className="text-[11px] font-medium text-[#6B706D]">Ausentes / exod.</div>
+          <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">{stats.ausentesCount}</div>
+          <div className="text-[11px] text-[#6B706D] mt-0.5">Piezas perdidas</div>
         </div>
 
-        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="text-[11px] font-bold text-slate-400 uppercase">Endodoncias</div>
-          <div className="text-2xl font-black text-teal-600 mt-1">{stats.endodonciasCount}</div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Conductos obturados</div>
+        <div className="p-4">
+          <div className="text-[11px] font-medium text-[#6B706D]">Endodoncias</div>
+          <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">{stats.endodonciasCount}</div>
+          <div className="text-[11px] text-[#6B706D] mt-0.5">Conductos</div>
         </div>
 
-        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="text-[11px] font-bold text-slate-400 uppercase">Implantes / Coronas</div>
-          <div className="text-2xl font-black text-purple-600 mt-1">
+        <div className="p-4">
+          <div className="text-[11px] font-medium text-[#6B706D]">Implantes / coronas</div>
+          <div className="text-xl font-semibold text-[#1C1F1E] tabular-nums mt-1">
             {stats.implantesCount + stats.coronasCount}
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">Rehabilitación protésica</div>
+          <div className="text-[11px] text-[#6B706D] mt-0.5">Rehabilitación</div>
         </div>
 
-        <div className="p-4 bg-teal-50/80 rounded-2xl border border-teal-200 shadow-xs">
-          <div className="text-[11px] font-bold text-teal-800 uppercase">Índice CPO-D</div>
-          <div className="text-2xl font-black text-teal-900 mt-1">{stats.cpodIndex}</div>
-          <div className="text-[10px] text-teal-700 mt-0.5">Caries + Perdidos + Obt.</div>
+        <div className="p-4 bg-[#FAF9F7]">
+          <div className="text-[11px] font-medium text-[#0F5C63]">Índice CPO-D</div>
+          <div className="text-xl font-semibold text-[#0F5C63] tabular-nums mt-1">{stats.cpodIndex}</div>
+          <div className="text-[11px] text-[#6B706D] mt-0.5">Caries + perd. + obt.</div>
         </div>
       </div>
 
